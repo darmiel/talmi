@@ -1,6 +1,10 @@
 package core
 
-import "time"
+import (
+	"time"
+
+	"github.com/expr-lang/expr/vm"
+)
 
 // Principal represents the authenticated identity of the caller.
 // It is produced by an Issuer after verifying an upstream token.
@@ -49,6 +53,9 @@ type Match struct {
 	// Expr is an optional expression for more complex matching logic.
 	// Leaving this empty means no expression-based restriction.
 	Expr string `yaml:"expr" json:"expr"`
+
+	// CompiledExpr holds the pre-compiled form of Expr for efficient evaluation.
+	CompiledExpr *vm.Program `yaml:"-" json:"-"`
 }
 
 // Rule binds a Match condition to a Grant action.

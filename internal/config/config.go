@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/expr-lang/expr"
 	"github.com/goccy/go-yaml"
 
 	"github.com/darmiel/talmi/internal/core"
@@ -83,6 +84,16 @@ func (c *Config) Validate() error {
 		}
 		if _, ok := validProviders[rule.Grant.Provider]; !ok {
 			return fmt.Errorf("rule '%s' references unknown provider '%s'", rule.Name, rule.Grant.Provider)
+		}
+
+		// validate and compile expr
+		if rule.Match.Expr != "" {
+			out, err := expr.Compile(rule.Match.Expr, expr.AsBool())
+			if err != nil {
+				return fmt.Errorf("compiling expr for rule '%s': %w", rule.Name, err)
+			}
+			rule.Match.CompiledExpr = out
+			c.Rules[idx] = rule
 		}
 	}
 

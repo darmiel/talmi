@@ -33,7 +33,7 @@ var tokenIssueCmd = &cobra.Command{
 		}
 
 		// initialize registries
-		issuerRegistry, err := issuers.BuildRegistry(cfg.Issuers)
+		issuerRegistry, err := issuers.BuildRegistry(cmd.Context(), cfg.Issuers)
 		if err != nil {
 			return err
 		}
@@ -49,6 +49,7 @@ var tokenIssueCmd = &cobra.Command{
 			return fmt.Errorf("issuer '%s' not found in config", tokenIssueReqIssuer)
 		}
 
+		// validate the (OIDC) token and return principal
 		log.Info().Msgf("Verifying token with issuer '%s'...", tokenIssueReqIssuer)
 		principal, err := issuer.Verify(cmd.Context(), tokenIssueReqToken)
 		if err != nil {
@@ -88,7 +89,7 @@ func init() {
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqIssuer, "issuer", "", "Name of the issuer (must match config)")
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqToken, "token", "", "Upstream token string")
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqResourceType, "resource-type", "", "Type of resource requested")
-	tokenIssueCmd.Flags().StringVar(&tokenIssueReqResourceID, "resource-id", "", "ID of resource requested")
+	tokenIssueCmd.Flags().StringVar(&tokenIssueReqResourceID, "resource-id", "*", "ID of resource requested. Default is any")
 
 	_ = tokenIssueCmd.MarkFlagRequired("issuer")
 	_ = tokenIssueCmd.MarkFlagRequired("token")

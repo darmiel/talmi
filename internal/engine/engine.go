@@ -3,6 +3,9 @@ package engine
 import (
 	"fmt"
 
+	"github.com/expr-lang/expr"
+	"github.com/rs/zerolog/log"
+
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -44,8 +47,23 @@ func matches(rule core.Rule, principal *core.Principal, requestedResource core.R
 		return false
 	}
 	// we support wildcards "*" in the rule to match any requested resource ID
-	if rule.Grant.Resource.ID != "*" && rule.Grant.Resource.ID != requestedResource.ID {
+	if requestedResource.ID != "*" && rule.Grant.Resource.ID != requestedResource.ID {
 		return false
+	}
+	if rule.Match.CompiledExpr != nil {
+		ok, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
+			"rule":      rule,
+			"principal": principal,
+			"resource":  requestedResource,
+		})
+		if err != nil {
+			log.Warn().Err(err).Msgf("error evaluating rule expression for rule '%s'", rule.Name)
+			return false
+		}
+		b, bOk := ok.(bool)
+		if !bOk || !b {
+			return false
+		}
 	}
 	return true
 }
