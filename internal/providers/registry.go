@@ -15,6 +15,12 @@ func BuildRegistry(cfgs []config.ProviderConfig) (map[string]core.Provider, erro
 			registry[cfg.Name] = &StubProvider{
 				name: cfg.Name,
 			}
+		case "github_app":
+			prov, err := NewGitHubAppProvider(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("building github_app provider %q: %w", cfg.Name, err)
+			}
+			registry[cfg.Name] = prov
 		default:
 			return nil, fmt.Errorf("unknown provider type %q for provider %q", cfg.Type, cfg.Name)
 		}

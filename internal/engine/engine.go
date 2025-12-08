@@ -23,9 +23,9 @@ func New(rules []core.Rule) *Engine {
 	}
 }
 
-func (e *Engine) Evaluate(principal *core.Principal, requestedResource core.Resource) (*core.Grant, error) {
+func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Grant, error) {
 	for _, rule := range e.rules {
-		if matches(rule, principal, requestedResource) {
+		if matches(rule, principal, requestedProvider) {
 			grant := rule.Grant
 			return &grant, nil
 		}
@@ -33,7 +33,7 @@ func (e *Engine) Evaluate(principal *core.Principal, requestedResource core.Reso
 	return nil, ErrNoRuleMatch
 }
 
-func matches(rule core.Rule, principal *core.Principal, requestedResource core.Resource) bool {
+func matches(rule core.Rule, principal *core.Principal, requestedProvider string) bool {
 	if rule.Match.Issuer != principal.Issuer {
 		return false
 	}
@@ -43,18 +43,14 @@ func matches(rule core.Rule, principal *core.Principal, requestedResource core.R
 			return false
 		}
 	}
-	if rule.Grant.Resource.Type != requestedResource.Type {
+	if rule.Grant.Provider != requestedProvider {
 		return false
 	}
-	// we support wildcards "*" in the rule to match any requested resource ID
-	if requestedResource.ID != "*" && rule.Grant.Resource.ID != requestedResource.ID {
-		return false
-	}
+	// TODO(future): check how we can improve matching different resource types
 	if rule.Match.CompiledExpr != nil {
 		ok, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
 			"rule":      rule,
 			"principal": principal,
-			"resource":  requestedResource,
 		})
 		if err != nil {
 			log.Warn().Err(err).Msgf("error evaluating rule expression for rule '%s'", rule.Name)

@@ -25,13 +25,11 @@ func (s *StubProvider) Mint(ctx context.Context, principal *core.Principal, gran
 	log.Info().
 		Str("provider", s.name).
 		Str("principal_id", principal.ID).
-		Str("resource_type", grant.Resource.Type).
-		Str("resource_id", grant.Resource.ID).
 		Msg("StubProvider Mint called")
 	return &core.TokenArtifact{
-		Value:     fmt.Sprintf("talmi_v1_fake_token_for_%s", grant.Resource.ID),
+		Value:     fmt.Sprintf("talmi_v1_fake_token_for_%s", grant.Provider),
 		ExpiresAt: time.Now().Add(1 * time.Hour),
-		Metadata: map[string]string{
+		Metadata: map[string]any{
 			"env": "stub",
 		},
 	}, nil

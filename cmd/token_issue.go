@@ -8,17 +8,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/config"
-	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/providers"
 )
 
 var (
-	tokenIssueReqIssuer       string
-	tokenIssueReqToken        string
-	tokenIssueReqResourceType string
-	tokenIssueReqResourceID   string
+	tokenIssueReqIssuer   string
+	tokenIssueReqToken    string
+	tokenIssueReqProvider string
 )
 
 // tokenIssueCmd represents the token issue command
@@ -57,11 +55,7 @@ var tokenIssueCmd = &cobra.Command{
 		}
 		log.Info().Msgf("Identity verified. Principals attributes: %v", principal.Attributes)
 
-		reqResource := core.Resource{
-			Type: tokenIssueReqResourceType,
-			ID:   tokenIssueReqResourceID,
-		}
-		grant, err := eng.Evaluate(principal, reqResource)
+		grant, err := eng.Evaluate(principal, tokenIssueReqProvider)
 		if err != nil {
 			return fmt.Errorf("policy denied: %w", err)
 		}
@@ -88,8 +82,7 @@ func init() {
 
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqIssuer, "issuer", "", "Name of the issuer (must match config)")
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqToken, "token", "", "Upstream token string")
-	tokenIssueCmd.Flags().StringVar(&tokenIssueReqResourceType, "resource-type", "", "Type of resource requested")
-	tokenIssueCmd.Flags().StringVar(&tokenIssueReqResourceID, "resource-id", "*", "ID of resource requested. Default is any")
+	tokenIssueCmd.Flags().StringVar(&tokenIssueReqProvider, "provider", "", "Provider requested")
 
 	_ = tokenIssueCmd.MarkFlagRequired("issuer")
 	_ = tokenIssueCmd.MarkFlagRequired("token")

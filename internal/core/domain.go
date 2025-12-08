@@ -17,26 +17,19 @@ type Principal struct {
 	Attributes map[string]string
 }
 
-// Resource represents the downstream target the caller wants to access.
-type Resource struct {
-	// Type identifies the category of resource (e.g., "github_repo").
-	Type string `yaml:"type" json:"type"`
-	// ID uniquely identifies the specific resource (e.g., "my-org/backend-repo").
-	ID string `yaml:"id" json:"id"`
-}
-
 // Grant describes exactly what access is allowed if a rule matches.
 type Grant struct {
 	// Provider is the name of the downstream provider (defined in config)
 	// that will mint the token.
 	Provider string `yaml:"provider" json:"provider"`
 
-	// Resource defines the target scope of the token.
-	Resource Resource `yaml:"resource" json:"resource"`
-
 	// Permissions is a flexible map of permissions to grant.
 	// Interpretation depends on the Provider (e.g. "contents": "read").
 	Permissions map[string]string `yaml:"permissions" json:"permissions"`
+
+	// Config allows arbitrary provider-specific configuration in the rule.
+	// This supports, for example, defining `"repositories": ["a", "b"]` for GitHub.
+	Config map[string]any `yaml:"config" json:"config"`
 }
 
 // Match defines the conditions required for a Rule to apply.
@@ -82,5 +75,5 @@ type TokenArtifact struct {
 	ExpiresAt time.Time `json:"expires_at"`
 
 	// Metadata contains extra information (e.g., "git_user": "x-access-token").
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
