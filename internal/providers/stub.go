@@ -18,11 +18,13 @@ func (s *StubProvider) Name() string {
 	return s.name
 }
 
-func (s *StubProvider) Mint(ctx context.Context, principal *core.Principal, grant core.Grant) (
-	*core.TokenArtifact,
-	error,
-) {
-	log.Info().
+func (s *StubProvider) Mint(
+	ctx context.Context,
+	principal *core.Principal,
+	grant core.Grant,
+) (*core.TokenArtifact, error) {
+	logger := log.Ctx(ctx)
+	logger.Info().
 		Str("provider", s.name).
 		Str("principal_id", principal.ID).
 		Msg("StubProvider Mint called")

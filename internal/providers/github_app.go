@@ -123,13 +123,13 @@ func (g *GitHubAppProvider) Mint(
 	principal *core.Principal,
 	grant core.Grant,
 ) (*core.TokenArtifact, error) {
-	log.Info().Msgf("GitHubAppProvider Mint called for principal ID: %s", principal.ID)
+	logger := log.Ctx(ctx)
+	logger.Debug().Msgf("GitHubAppProvider Mint called for principal ID: %s", principal.ID)
 
 	var grantConf GrantConfig
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,
 		Result:   &grantConf,
-		//WeaklyTypedInput: true, // TODO: check if this is required :)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decoder for github_app grant config: %w", err)
@@ -143,7 +143,6 @@ func (g *GitHubAppProvider) Mint(
 	if err != nil {
 		return nil, fmt.Errorf("creating github app client: %w", err)
 	}
-	log.Debug().Msg("Created GitHub App client")
 
 	// determine installation ID
 	var installationID int64
@@ -164,7 +163,7 @@ func (g *GitHubAppProvider) Mint(
 	} else {
 		return nil, fmt.Errorf("github_app grant config must specify either 'installation_id' or 'owner'")
 	}
-	log.Debug().Msgf("Determined installation ID: %d", installationID)
+	logger.Debug().Msgf("retrieved installation ID: %d", installationID)
 
 	// limit the token to a set of permissions
 	var ghPerms github.InstallationPermissions
@@ -196,19 +195,19 @@ func (g *GitHubAppProvider) Mint(
 		return nil, fmt.Errorf("github_app grant must specify repositories or the provider must allow all repositories")
 	}
 
-	log.Info().
+	logger.Info().
 		Str("provider", g.name).
 		Int64("installation_id", installationID).
 		Int("repos_count", len(opts.Repositories)).
 		Interface("permissions", ghPerms).
-		Msg("Minting GitHub App installation token")
+		Msg("minting GitHub App installation token")
 
 	// mint the token
 	token, _, err := appClient.Apps.CreateInstallationToken(ctx, installationID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("creating installation token for installation ID %d: %w", installationID, err)
 	}
-	log.Debug().Msgf("Minted token expiring at %s", token.GetExpiresAt().Time.String())
+	logger.Debug().Msgf("Minted token expiring at %s", token.GetExpiresAt().Time.String())
 
 	return &core.TokenArtifact{
 		Value:     token.GetToken(),
@@ -238,14 +237,11 @@ func (g *GitHubAppProvider) createAppClient() (*github.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("signing github app jwt: %w", err)
 	}
-	log.Debug().Str("token", signedToken).
-		Msgf("Created signed JWT for GitHub App authentication")
 
 	client := github.NewClient(nil).
 		WithAuthToken(signedToken)
 
 	if g.serverBaseURL != "" || g.serverUploadURL != "" {
-		log.Debug().Msgf("Creating GitHub Enterprise client with BaseURL: %s, UploadURL: %s", g.serverBaseURL, g.serverUploadURL)
 		client, err = client.WithEnterpriseURLs(g.serverBaseURL, g.serverUploadURL)
 		if err != nil {
 			return nil, fmt.Errorf("creating github enterprise client: %w", err)
