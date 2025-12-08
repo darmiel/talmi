@@ -6,10 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/darmiel/talmi/internal/logging"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/darmiel/talmi/internal/logging"
 )
 
 // Version will (should) be overwritten during build
@@ -35,18 +36,16 @@ var rootCmd = &cobra.Command{
 			return configErr
 		}
 		if configPath != "" {
-			log.Info().Msgf("using config file: %s", configPath)
+			log.Debug().Msgf("using config file: %s", configPath)
 		}
 		return nil
-	},
-	Run: func(cmd *cobra.Command, args []string) {
-		log.Info().Msgf("Hello from Talmi! (version: %s)", Version)
 	},
 }
 
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		log.Fatal().Err(err).Msg("command execution failed")
 		os.Exit(1)
 	}
 }
