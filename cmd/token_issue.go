@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/providers"
@@ -41,15 +42,28 @@ var tokenIssueCmd = &cobra.Command{
 		}
 
 		eng := engine.New(cfg.Rules)
+		var iss core.Issuer
 
-		issuer, ok := issuerRegistry[tokenIssueReqIssuer]
-		if !ok {
-			return fmt.Errorf("issuer '%s' not found in config", tokenIssueReqIssuer)
+		// if an issuer was passed, use it
+		if tokenIssueReqIssuer != "" {
+			issuerByName, ok := issuerRegistry.Get(tokenIssueReqIssuer)
+			if !ok {
+				return fmt.Errorf("issuer '%s' not found in config", tokenIssueReqIssuer)
+			}
+			iss = issuerByName
+		} else {
+			// otherwise use the discovery service to find the corresponding issuer
+			issuerByURL, err := issuerRegistry.IdentifyIssuer(tokenIssueReqToken)
+			if err != nil {
+				return fmt.Errorf("cannot determine issue from URL: %w", err)
+			}
+			iss = issuerByURL
 		}
+		log.Debug().Msgf("Using issuer: '%s'", iss.Name())
 
 		// validate the (OIDC) token and return principal
 		log.Info().Msgf("Verifying token with issuer '%s'...", tokenIssueReqIssuer)
-		principal, err := issuer.Verify(cmd.Context(), tokenIssueReqToken)
+		principal, err := iss.Verify(cmd.Context(), tokenIssueReqToken)
 		if err != nil {
 			return fmt.Errorf("verification failed: %w", err)
 		}
@@ -84,8 +98,5 @@ func init() {
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqToken, "token", "", "Upstream token string")
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqProvider, "provider", "", "Provider requested")
 
-	_ = tokenIssueCmd.MarkFlagRequired("issuer")
 	_ = tokenIssueCmd.MarkFlagRequired("token")
-	_ = tokenIssueCmd.MarkFlagRequired("resource-type")
-	_ = tokenIssueCmd.MarkFlagRequired("resource-id")
 }

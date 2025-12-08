@@ -43,7 +43,7 @@ func matches(rule core.Rule, principal *core.Principal, requestedProvider string
 			return false
 		}
 	}
-	if rule.Grant.Provider != requestedProvider {
+	if requestedProvider != "" && rule.Grant.Provider != requestedProvider {
 		return false
 	}
 	// TODO(future): check how we can improve matching different resource types

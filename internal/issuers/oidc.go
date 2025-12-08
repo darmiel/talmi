@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
@@ -82,4 +83,30 @@ func (o *OIDCIssuer) Verify(ctx context.Context, token string) (*core.Principal,
 		Issuer:     o.name,
 		Attributes: attributes,
 	}, nil
+}
+
+// ExtractIssuerURL extracts the 'iss' claim from a JWT token string without verifying it.
+func ExtractIssuerURL(tokenString string) (string, error) {
+	parser := jwt.NewParser()
+	token, _, err := parser.ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return "", fmt.Errorf("parsing token: %w", err)
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid token claims")
+	}
+
+	issRaw, ok := claims["iss"]
+	if !ok {
+		return "", fmt.Errorf("token missing 'iss' claim")
+	}
+
+	iss, ok := issRaw.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid 'iss' claim type")
+	}
+
+	return iss, nil
 }
