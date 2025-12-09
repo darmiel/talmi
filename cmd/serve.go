@@ -14,7 +14,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/api"
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/providers"
@@ -46,10 +48,27 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("building provider registry: %w", err)
 		}
 
+		var auditor core.Auditor
+		if cfg.Audit.Enabled {
+			log.Info().Str("path", cfg.Audit.Path).Msg("Initializing auditor...")
+			auditor, err = audit.NewFileAuditor(cfg.Audit.Path)
+			if err != nil {
+				return fmt.Errorf("initializing auditor: %w", err)
+			}
+			defer func() {
+				if err := auditor.Close(); err != nil {
+					log.Error().Err(err).Msg("closing auditor")
+				}
+			}()
+		} else {
+			log.Warn().Msg("Audit logging is disabled")
+			auditor = audit.NewNoopAuditor()
+		}
+
 		eng := engine.New(cfg.Rules)
 
 		// setup server
-		srv := api.NewServer(eng, issRegistry, provRegistry)
+		srv := api.NewServer(eng, issRegistry, provRegistry, auditor)
 
 		server := &http.Server{
 			Addr:    addr,
@@ -64,7 +83,7 @@ var serveCmd = &cobra.Command{
 		}()
 
 		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINFO, syscall.SIGTERM)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		<-quit
 		log.Info().Msg("Shutting down server...")
 

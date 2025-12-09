@@ -11,9 +11,10 @@ import (
 )
 
 type Config struct {
-	Issuers   []IssuerConfig
-	Providers []ProviderConfig
-	Rules     []core.Rule
+	Issuers   []IssuerConfig   `yaml:"issuers"`
+	Providers []ProviderConfig `yaml:"providers"`
+	Rules     []core.Rule      `yaml:"rules"`
+	Audit     AuditConfig      `yaml:"audit"`
 }
 
 // IssuerConfig holds configuration for an Identity Provider.
@@ -28,6 +29,12 @@ type ProviderConfig struct {
 	Name   string         `yaml:"name"`
 	Type   string         `yaml:"type"`    // e.g., "github_app", "stub"
 	Config map[string]any `yaml:",inline"` // Capture remaining fields
+}
+
+// AuditConfig holds configuration for auditing.
+type AuditConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Path    string `yaml:"path"`
 }
 
 // Load reads and parses the configuration file at the given path.

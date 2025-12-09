@@ -23,14 +23,14 @@ func New(rules []core.Rule) *Engine {
 	}
 }
 
-func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Grant, error) {
+func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Rule, *core.Grant, error) {
 	for _, rule := range e.rules {
 		if matches(rule, principal, requestedProvider) {
 			grant := rule.Grant
-			return &grant, nil
+			return &rule, &grant, nil
 		}
 	}
-	return nil, ErrNoRuleMatch
+	return nil, nil, ErrNoRuleMatch
 }
 
 func matches(rule core.Rule, principal *core.Principal, requestedProvider string) bool {

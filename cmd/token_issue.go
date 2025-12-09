@@ -69,11 +69,11 @@ var tokenIssueCmd = &cobra.Command{
 		}
 		log.Info().Msgf("Identity verified. Principals attributes: %v", principal.Attributes)
 
-		grant, err := eng.Evaluate(principal, tokenIssueReqProvider)
+		rule, grant, err := eng.Evaluate(principal, tokenIssueReqProvider)
 		if err != nil {
 			return fmt.Errorf("policy denied: %w", err)
 		}
-		log.Info().Msgf("Policy matched! Granting access via provider '%s'...", grant.Provider)
+		log.Info().Msgf("Policy matched in rule '%s'! Minting '%s'...", rule.Name, grant.Provider)
 
 		provider, ok := providerRegistry[grant.Provider]
 		if !ok {
