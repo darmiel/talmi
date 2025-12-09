@@ -32,5 +32,6 @@ type AuditEntry struct {
 
 type Auditor interface {
 	Log(entry AuditEntry) error
+	GetRecent(limit int) ([]AuditEntry, error)
 	Close() error
 }

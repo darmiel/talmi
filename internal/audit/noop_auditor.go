@@ -10,11 +10,13 @@ func NewNoopAuditor() *NoopAuditor {
 }
 
 func (n *NoopAuditor) Log(entry core.AuditEntry) error {
-	// noop
 	return nil
 }
 
+func (n *NoopAuditor) GetRecent(limit int) ([]core.AuditEntry, error) {
+	return []core.AuditEntry{}, nil
+}
+
 func (n *NoopAuditor) Close() error {
-	// nothing to close
 	return nil
 }

@@ -37,6 +37,50 @@ func (f *FileAuditor) Log(entry core.AuditEntry) error {
 	return nil
 }
 
+func (f *FileAuditor) GetRecent(limit int) ([]core.AuditEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// on high throughput, reopening the file is probably not a good idea,
+	// but when you use it in production, you probably* have a proper audit backend.
+	// *probably = "hopefully"
+	file, err := os.Open(f.file.Name())
+	if err != nil {
+		return nil, fmt.Errorf("opening audit log file for reading: %w", err)
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	var entries []core.AuditEntry
+	decoder := json.NewDecoder(file)
+	for decoder.More() {
+		var entry core.AuditEntry
+		if err := decoder.Decode(&entry); err != nil {
+			return nil, fmt.Errorf("decoding audit log entry: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+
+	// now we read it all, now reverse and limit
+	count := len(entries)
+	if count == 0 {
+		return entries, nil // well nothing to do
+	}
+
+	start := count - limit
+	if start < 0 {
+		start = 0
+	}
+
+	recent := make([]core.AuditEntry, 0, limit)
+	for i := count - 1; i >= start; i-- {
+		recent = append(recent, entries[i])
+	}
+
+	return recent, nil
+}
+
 func (f *FileAuditor) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

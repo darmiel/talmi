@@ -16,7 +16,11 @@ import (
 // Version will (should) be overwritten during build
 var Version = "dirty"
 
-var cfgFile string
+// global flags
+var (
+	cfgFile    string
+	remoteAddr string
+)
 
 const (
 	LogLevelKey   = "log.level"
@@ -62,6 +66,9 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool("no-color", false, "disable color output")
 	_ = viper.BindPFlag(LogNoColorKey, rootCmd.PersistentFlags().Lookup("no-color"))
+
+	rootCmd.PersistentFlags().String("talmi-addr", "", "address of remote talmi server")
+	_ = viper.BindPFlag("talmi.addr", rootCmd.PersistentFlags().Lookup("talmi-addr"))
 
 	viper.SetEnvPrefix("TALMI")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(

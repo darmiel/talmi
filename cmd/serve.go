@@ -20,6 +20,7 @@ import (
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/providers"
+	"github.com/darmiel/talmi/internal/store"
 )
 
 // serveCmd represents the serve command
@@ -65,10 +66,14 @@ var serveCmd = &cobra.Command{
 			auditor = audit.NewNoopAuditor()
 		}
 
+		var tokenStore core.TokenStore
+		// TODO: initialize token store based on config
+		tokenStore = store.NewInMemoryTokenStore()
+
 		eng := engine.New(cfg.Rules)
 
 		// setup server
-		srv := api.NewServer(eng, issRegistry, provRegistry, auditor)
+		srv := api.NewServer(eng, issRegistry, provRegistry, auditor, tokenStore)
 
 		server := &http.Server{
 			Addr:    addr,

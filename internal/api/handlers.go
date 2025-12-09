@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -128,6 +129,18 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	meta := core.TokenMetadata{
+		CorrelationID: reqID,
+		PrincipalID:   principal.ID,
+		Provider:      provider.Name(),
+		ExpiresAt:     artifact.ExpiresAt,
+		IssuedAt:      time.Now(),
+		Metadata:      artifact.Metadata,
+	}
+	if err := s.tokenStore.Save(ctx, meta); err != nil {
+		logger.Error().Err(err).Msg("failed to store token metadata")
+	}
+
 	logger.Info().
 		Str("provider", provider.Name()).
 		Msg("token issued successfully")
@@ -136,4 +149,45 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	auditEntry.Metadata = artifact.Metadata
 
 	presenter.JSON(w, r, artifact, http.StatusCreated)
+}
+
+func (s *Server) handleAdminAudit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := log.Ctx(ctx)
+
+	// TODO: authentication & authorization
+	limitStr := r.URL.Query().Get("limit")
+	limit := 50
+	if limitStr != "" {
+		if v, err := strconv.Atoi(limitStr); err != nil {
+			logger.Warn().Err(err).Str("limit", limitStr).Msg("invalid limit parameter")
+			presenter.Error(w, r, "invalid limit parameter", http.StatusBadRequest)
+			return
+		} else {
+			limit = v
+		}
+	}
+
+	entries, err := s.auditor.GetRecent(limit)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve audit logs")
+		presenter.Error(w, r, "failed to retrieve audit logs", http.StatusInternalServerError)
+		return
+	}
+
+	presenter.JSON(w, r, entries, http.StatusOK)
+}
+
+func (s *Server) handleAdminTokens(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := log.Ctx(ctx)
+
+	tokens, err := s.tokenStore.ListActive(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve active tokens")
+		presenter.Error(w, r, "failed to retrieve active tokens", http.StatusInternalServerError)
+		return
+	}
+
+	presenter.JSON(w, r, tokens, http.StatusOK)
 }
