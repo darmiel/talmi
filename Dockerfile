@@ -7,6 +7,7 @@ RUN go mod download
 
 COPY main.go ./
 COPY internal internal/
+COPY pkg pkg/
 COPY cmd cmd/
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o talmi .

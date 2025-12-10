@@ -12,6 +12,9 @@ import (
 
 const adminRole = "admin"
 
+// AdminAuth is a middleware that checks for admin privileges in the JWT token.
+// TODO(future): this is currently a simple middleware for admin role checking, used for a PoC.
+// TODO(future): This should be replaced with a more flexible RBAC system in the future.
 func AdminAuth(signingKey []byte) func(handler http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

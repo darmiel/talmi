@@ -58,16 +58,27 @@ var serveCmd = &cobra.Command{
 
 		var auditor core.Auditor
 		if cfg.Audit.Enabled {
-			log.Info().Str("path", cfg.Audit.Path).Msg("Initializing auditor...")
-			auditor, err = audit.NewFileAuditor(cfg.Audit.Path)
-			if err != nil {
-				return fmt.Errorf("initializing auditor: %w", err)
-			}
-			defer func() {
-				if err := auditor.Close(); err != nil {
-					log.Error().Err(err).Msg("closing auditor")
+			switch cfg.Audit.Type {
+			case "jsonl":
+				log.Info().Str("path", cfg.Audit.Path).Msg("Initializing auditor...")
+				auditor, err = audit.NewFileAuditor(cfg.Audit.Path)
+				if err != nil {
+					return fmt.Errorf("initializing auditor: %w", err)
 				}
-			}()
+				defer func() {
+					if err := auditor.Close(); err != nil {
+						log.Error().Err(err).Msg("closing auditor")
+					}
+				}()
+
+			case "memory":
+				log.Info().Msg("Using in-memory audit log")
+				auditor = audit.NewInMemoryAuditor()
+
+			default:
+				return fmt.Errorf("unknown audit type: %s", cfg.Audit.Type)
+			}
+
 		} else {
 			log.Warn().Msg("Audit logging is disabled")
 			auditor = audit.NewNoopAuditor()

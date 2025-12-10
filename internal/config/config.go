@@ -35,6 +35,7 @@ type ProviderConfig struct {
 type AuditConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Path    string `yaml:"path"`
+	Type    string `yaml:"type"` // e.g., "file", "memory"
 }
 
 // Load reads and parses the configuration file at the given path.

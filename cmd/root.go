@@ -70,7 +70,7 @@ func init() {
 	_ = viper.BindPFlag(LogNoColorKey, rootCmd.PersistentFlags().Lookup("no-color"))
 
 	rootCmd.PersistentFlags().String("server", "", "address of remote talmi server")
-	_ = viper.BindPFlag(TalmiAddrKey, rootCmd.PersistentFlags().Lookup("talmi-addr"))
+	_ = viper.BindPFlag(TalmiAddrKey, rootCmd.PersistentFlags().Lookup("server"))
 	// ENV: TALMI_ADDR
 
 	viper.SetEnvPrefix("TALMI")
