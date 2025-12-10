@@ -5,6 +5,7 @@ talmi.yaml
 
 # temp
 *.yaml
+!talmi-example.yaml
 charts/
 
 # If you prefer the allow list template instead of the deny list, see community template:

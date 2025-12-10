@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/http"
@@ -37,6 +38,12 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("loading config: %w", err)
 		}
 
+		log.Info().Msg("Generating signing key for Talmi JWTs...")
+		signingKey := make([]byte, 32)
+		if _, err := rand.Read(signingKey); err != nil {
+			return fmt.Errorf("generating signing key: %w", err)
+		}
+
 		log.Info().Msg("Initializing issuers...")
 		issRegistry, err := issuers.BuildRegistry(cmd.Context(), cfg.Issuers)
 		if err != nil {
@@ -44,7 +51,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		log.Info().Msg("Initializing providers...")
-		provRegistry, err := providers.BuildRegistry(cfg.Providers)
+		provRegistry, err := providers.BuildRegistry(cfg.Providers, signingKey)
 		if err != nil {
 			return fmt.Errorf("building provider registry: %w", err)
 		}
@@ -77,7 +84,7 @@ var serveCmd = &cobra.Command{
 
 		server := &http.Server{
 			Addr:    addr,
-			Handler: srv.Routes(),
+			Handler: srv.Routes(signingKey),
 		}
 
 		go func() {

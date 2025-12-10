@@ -8,8 +8,6 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-
-	"github.com/darmiel/talmi/internal/core"
 )
 
 // auditTokensCmd represents the audit command
@@ -18,18 +16,16 @@ var auditTokensCmd = &cobra.Command{
 	Short: "Retrieve and display active tokens",
 	Long:  "", // TODO
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cli, err := getClient()
+		if err != nil {
+			return err
+		}
+
 		log.Info().Msg("Fetching active tokens...")
 
-		// TODO: request from server
-		var tokens = []core.TokenMetadata{
-			{
-				CorrelationID: "test123",
-				PrincipalID:   "abc",
-				Provider:      "github",
-				ExpiresAt:     time.Now().Add(4 * time.Hour),
-				IssuedAt:      time.Now(),
-				Metadata:      nil,
-			},
+		tokens, err := cli.ListActiveTokens(cmd.Context())
+		if err != nil {
+			return err
 		}
 
 		log.Info().Msgf("Retrieved %d active tokens", len(tokens))

@@ -87,6 +87,32 @@ func (u *urlBuilder) addQueryParam(key string, value any) *urlBuilder {
 	return u
 }
 
+func (u *urlBuilder) addQueryParamNotEmpty(key string, value any) *urlBuilder {
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: value})
+		}
+	case *string:
+		if v != nil && *v != "" {
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: *value.(*string)})
+		}
+	case int:
+		if v != 0 {
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: value})
+		}
+	case *int:
+		if v != nil && *v != 0 {
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: *value.(*int)})
+		}
+	default:
+		if value != nil {
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: value})
+		}
+	}
+	return u
+}
+
 func (u *urlBuilder) build() string {
 	var bob strings.Builder
 	bob.WriteString(u.baseURL)

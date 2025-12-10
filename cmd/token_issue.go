@@ -12,6 +12,7 @@ import (
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/providers"
+	"github.com/darmiel/talmi/pkg/client"
 )
 
 var (
@@ -23,7 +24,24 @@ var (
 )
 
 func issueTokenRemote(cmd *cobra.Command, _ []string) error {
-	return fmt.Errorf("issuing from remote host is not implemented yet.")
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+
+	log.Info().Msgf("Requesting to mint artifact...")
+	artifact, err := cli.IssueToken(cmd.Context(), tokenIssueReqToken, client.IssueTokenOptions{
+		RequestedProvider: tokenIssueReqProvider,
+		RequestedIssuer:   tokenIssueReqIssuer,
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info().Msgf("Successfully retrieved artifact:")
+	enc := json.NewEncoder(log.Logger)
+	enc.SetIndent("", "  ")
+	return enc.Encode(artifact)
 }
 
 func issueTokenLocally(cmd *cobra.Command, _ []string) error {
@@ -37,7 +55,7 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	providerRegistry, err := providers.BuildRegistry(cfg.Providers)
+	providerRegistry, err := providers.BuildRegistry(cfg.Providers, nil)
 	if err != nil {
 		return err
 	}
@@ -112,7 +130,7 @@ func init() {
 	tokenIssueCmd.Flags().StringVarP(&tokenIssueTargetFile, "target", "f", "", "The Talmi config file to use")
 
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqIssuer, "issuer", "", "Name of the issuer (must match config)")
-	tokenIssueCmd.Flags().StringVar(&tokenIssueReqToken, "token", "", "Upstream token string")
+	tokenIssueCmd.Flags().StringVarP(&tokenIssueReqToken, "token", "t", "", "Upstream token string")
 	tokenIssueCmd.Flags().StringVar(&tokenIssueReqProvider, "provider", "", "Provider requested")
 
 	_ = tokenIssueCmd.MarkFlagRequired("token")

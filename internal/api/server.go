@@ -28,6 +28,7 @@ func NewServer(
 	if auditor == nil {
 		auditor = audit.NewNoopAuditor()
 	}
+
 	return &Server{
 		engine:     engine,
 		issuers:    issRegistry,
@@ -37,7 +38,7 @@ func NewServer(
 	}
 }
 
-func (s *Server) Routes() http.Handler {
+func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 	mux := http.NewServeMux()
 
 	// public routes
@@ -47,8 +48,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)
 
 	// admin routes
-	mux.HandleFunc("GET "+ListAuditsRoute, s.handleAdminAudit)
-	mux.HandleFunc("GET "+ListActiveTokensRoute, s.handleAdminTokens)
+	adminMux := http.NewServeMux()
+	adminMux.HandleFunc("GET "+ListAuditsRoute, s.handleAdminAudit)
+	adminMux.HandleFunc("GET "+ListActiveTokensRoute, s.handleAdminTokens)
+	mux.Handle("/v1/admin/", middleware.AdminAuth(talmiSigningKey)(adminMux))
 
 	return middleware.RecoverMiddleware(
 		middleware.CorrelationIDMiddleware(

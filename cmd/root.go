@@ -26,6 +26,8 @@ const (
 	LogLevelKey   = "log.level"
 	LogFormatKey  = "log.format"
 	LogNoColorKey = "log.no_color"
+
+	TalmiAddrKey = "talmi.addr"
 )
 
 var rootCmd = &cobra.Command{
@@ -56,7 +58,7 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		"config file (default is $HOME/.talmi.yaml)")
+		"config file (default is $HOME/.talmi-example.yaml)")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "log level: debug, info, warn, error")
 	_ = viper.BindPFlag(LogLevelKey, rootCmd.PersistentFlags().Lookup("log-level"))
@@ -67,8 +69,9 @@ func init() {
 	rootCmd.PersistentFlags().Bool("no-color", false, "disable color output")
 	_ = viper.BindPFlag(LogNoColorKey, rootCmd.PersistentFlags().Lookup("no-color"))
 
-	rootCmd.PersistentFlags().String("talmi-addr", "", "address of remote talmi server")
-	_ = viper.BindPFlag("talmi.addr", rootCmd.PersistentFlags().Lookup("talmi-addr"))
+	rootCmd.PersistentFlags().String("server", "", "address of remote talmi server")
+	_ = viper.BindPFlag(TalmiAddrKey, rootCmd.PersistentFlags().Lookup("talmi-addr"))
+	// ENV: TALMI_ADDR
 
 	viper.SetEnvPrefix("TALMI")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(

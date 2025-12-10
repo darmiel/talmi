@@ -16,20 +16,13 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-const (
-	defaultServerBaseURL = "https://api.github.com"
-)
-
 type GitHubAppProviderConfig struct {
 	AppID          int64  `mapstructure:"app_id"`
 	PrivateKey     string `mapstructure:"private_key"`
 	PrivateKeyFile string `mapstructure:"private_key_path"`
 
 	// Optional: GitHub Enterprise server URL. Defaults to https://api.github.com
-	ServerBaseURL string `mapstructure:"server_base_url"`
-
-	// Optional: GitHub Enterprise upload URL. Defaults to https://uploads.github.com
-	ServerUploadURL string `mapstructure:"server_upload_url"`
+	ServerBaseURL string `mapstructure:"server"`
 
 	// AllowAllRepositories has to be set to true in order to allow empty repositories list in grants.
 	// This is just a safety mechanism to avoid unintentional wide access.
@@ -66,8 +59,7 @@ type GitHubAppProvider struct {
 	appID      int64
 	privateKey []byte
 
-	serverBaseURL   string
-	serverUploadURL string // TODO: required?
+	serverBaseURL string
 
 	allowAllRepositories bool
 	allowAllPermissions  bool
@@ -108,7 +100,6 @@ func NewGitHubAppProvider(cfg config.ProviderConfig) (*GitHubAppProvider, error)
 		appID:                conf.AppID,
 		privateKey:           keyBytes,
 		serverBaseURL:        conf.ServerBaseURL,
-		serverUploadURL:      conf.ServerUploadURL,
 		allowAllRepositories: conf.AllowAllRepositories,
 		allowAllPermissions:  conf.AllowAllPermissions,
 	}, nil
@@ -241,8 +232,9 @@ func (g *GitHubAppProvider) createAppClient() (*github.Client, error) {
 	client := github.NewClient(nil).
 		WithAuthToken(signedToken)
 
-	if g.serverBaseURL != "" || g.serverUploadURL != "" {
-		client, err = client.WithEnterpriseURLs(g.serverBaseURL, g.serverUploadURL)
+	if g.serverBaseURL != "" {
+		// we don't interact with uploads, so just use a dummy URL here.
+		client, err = client.WithEnterpriseURLs(g.serverBaseURL, "https://github.com/api/uploads")
 		if err != nil {
 			return nil, fmt.Errorf("creating github enterprise client: %w", err)
 		}

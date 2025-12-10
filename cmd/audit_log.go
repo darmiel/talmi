@@ -7,8 +7,6 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-
-	"github.com/darmiel/talmi/internal/core"
 )
 
 // auditLogCmd represents the audit command
@@ -22,17 +20,15 @@ var auditLogCmd = &cobra.Command{
 			return err
 		}
 
-		log.Info().Msg("Fetching audit log...")
+		cli, err := getClient()
+		if err != nil {
+			return err
+		}
 
-		// TODO: request from server
-		_ = limit
-		var audits = []core.AuditEntry{
-			{
-				ID:      "test",
-				Time:    time.Now(),
-				Action:  "issue_token",
-				Granted: true,
-			},
+		log.Info().Msg("Fetching audit log...")
+		audits, err := cli.ListAudits(cmd.Context(), uint(limit))
+		if err != nil {
+			return err
 		}
 
 		log.Info().Msgf("Retrieved %d audit entries", len(audits))
@@ -51,10 +47,7 @@ var auditLogCmd = &cobra.Command{
 
 			sub := "(unknown)"
 			if e.Principal != nil {
-				sub := e.Principal.ID
-				if len(sub) > 20 {
-					sub = sub[:17] + "..."
-				}
+				sub = truncate(e.Principal.ID, 35)
 			}
 
 			t.AppendRow(table.Row{

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/darmiel/talmi/internal/api"
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -27,7 +28,11 @@ type IssueTokenOptions struct {
 func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOptions) (*core.TokenArtifact, error) {
 	// we do this request manually, because we need to overwrite the authorization header which is used
 	// for policy matching. our helper methods cannot do that currently.
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/issue", nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", c.url().
+		setPath(api.IssueTokenRoute).
+		addQueryParamNotEmpty("issuer", opts.RequestedIssuer).
+		addQueryParamNotEmpty("provider", opts.RequestedProvider).
+		build(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
