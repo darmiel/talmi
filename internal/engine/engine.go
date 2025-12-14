@@ -3,9 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"github.com/expr-lang/expr"
-	"github.com/rs/zerolog/log"
-
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -23,43 +20,33 @@ func New(rules []core.Rule) *Engine {
 	}
 }
 
-func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Rule, *core.Grant, error) {
-	for _, rule := range e.rules {
-		if matches(rule, principal, requestedProvider) {
-			grant := rule.Grant
-			return &rule, &grant, nil
-		}
+// Trace evaluates the principal against all rules and returns a detailed trace of the evaluation.
+func (e *Engine) Trace(principal *core.Principal, requestedProvider string) core.EvaluationTrace {
+	trace := core.EvaluationTrace{
+		Principal:     principal,
+		RuleResults:   make([]core.RuleResult, 0, len(e.rules)),
+		FinalDecision: false,
 	}
-	return nil, nil, ErrNoRuleMatch
-}
 
-func matches(rule core.Rule, principal *core.Principal, requestedProvider string) bool {
-	if rule.Match.Issuer != principal.Issuer {
-		return false
-	}
-	for key, requiredValue := range rule.Match.Attributes {
-		actualValue, ok := principal.Attributes[key]
-		if !ok || actualValue != requiredValue {
-			return false
+	for _, rule := range e.rules {
+		result := checkRule(rule, principal, requestedProvider)
+
+		apiResult := core.RuleResult{
+			RuleName:         rule.Name,
+			Description:      rule.Description,
+			Matched:          result.Matched,
+			ConditionResults: result.Conditions,
+		}
+		trace.RuleResults = append(trace.RuleResults, apiResult)
+
+		if result.Matched {
+			if !trace.FinalDecision {
+				trace.FinalDecision = true
+				trace.GrantedRule = rule.Name
+				// keep going to show other rules in the trace, but mark it as "winner"
+			}
 		}
 	}
-	if requestedProvider != "" && rule.Grant.Provider != requestedProvider {
-		return false
-	}
-	// TODO(future): check how we can improve matching different resource types
-	if rule.Match.CompiledExpr != nil {
-		ok, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
-			"rule":      rule,
-			"principal": principal,
-		})
-		if err != nil {
-			log.Warn().Err(err).Msgf("error evaluating rule expression for rule '%s'", rule.Name)
-			return false
-		}
-		b, bOk := ok.(bool)
-		if !bOk || !b {
-			return false
-		}
-	}
-	return true
+
+	return trace
 }

@@ -42,7 +42,7 @@ func parseErrorResponse(resp *http.Response) error {
 		return fmt.Errorf("request failed with status %d and unreadable body: %w", resp.StatusCode, err)
 	}
 	if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
-		return fmt.Errorf("api error: '%s' (status %d)", errResp.Error, resp.StatusCode)
+		return fmt.Errorf("api error: '%s' (correlation: %s)", errResp.Error, errResp.CorrelationID)
 	}
 	return fmt.Errorf("api error: *unparsed '%s' (status %d)", string(body), resp.StatusCode)
 }

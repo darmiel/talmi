@@ -14,7 +14,7 @@ type Principal struct {
 	// Issuer is the name of the trusted issuer that verified this principal.
 	Issuer string
 	// Attributes are the claims extracted from the upstream token.
-	Attributes map[string]string
+	Attributes map[string]any
 }
 
 // Grant describes exactly what access is allowed if a rule matches.
@@ -35,13 +35,11 @@ type Grant struct {
 // Match defines the conditions required for a Rule to apply.
 type Match struct {
 	// Issuer is the name of the issuer that must have produced the Principal.
-	// TODO(future): Leaving this empty means no restriction on the issuer.
 	Issuer string `yaml:"issuer" json:"issuer"`
 
-	// Attributes is a map of key-value pairs that must be present
-	// and exactly match the Principal's attributes.
-	// Leaving this empty means no restriction on attributes.
-	Attributes map[string]string `yaml:"attributes" json:"attributes"`
+	// Conditions is a list of additional conditions that must all be satisfied.
+	// Leaving this empty means no condition-based restriction.
+	Conditions []Condition `yaml:"conditions" json:"conditions"`
 
 	// Expr is an optional expression for more complex matching logic.
 	// Leaving this empty means no expression-based restriction.

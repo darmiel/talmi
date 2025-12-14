@@ -44,6 +44,11 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		ww := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(ww, r.WithContext(ctx))
 
+		// skip logging healthy / ready checks
+		if r.URL.Path == "/healthz" && ww.statusCode < 400 {
+			return
+		}
+
 		l.Info().
 			Int("status", ww.statusCode).
 			Dur("duration", time.Since(start)).

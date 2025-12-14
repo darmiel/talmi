@@ -51,6 +51,7 @@ func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 	adminMux := http.NewServeMux()
 	adminMux.HandleFunc("GET "+ListAuditsRoute, s.handleAdminAudit)
 	adminMux.HandleFunc("GET "+ListActiveTokensRoute, s.handleAdminTokens)
+	adminMux.HandleFunc("POST "+ExplainRoute, s.handleExplain)
 	mux.Handle("/v1/admin/", middleware.AdminAuth(talmiSigningKey)(adminMux))
 
 	return middleware.RecoverMiddleware(

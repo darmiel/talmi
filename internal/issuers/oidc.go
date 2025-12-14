@@ -60,28 +60,19 @@ func (o *OIDCIssuer) Verify(ctx context.Context, token string) (*core.Principal,
 		return nil, fmt.Errorf("extracting oidc claims: %w", err)
 	}
 
-	// flatten the claims to string attributes
-	attributes := make(map[string]string)
-	for k, v := range claims {
-		switch val := v.(type) {
-		case string:
-			attributes[k] = val
-		case fmt.Stringer:
-			attributes[k] = val.String()
-		default:
-			attributes[k] = fmt.Sprint(val)
-		}
-	}
-
 	id := ""
-	if sub, ok := attributes["sub"]; ok {
-		id = sub
+	if sub, ok := claims["sub"]; ok {
+		subStr, ok := sub.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid 'sub' claim type")
+		}
+		id = subStr
 	}
 
 	return &core.Principal{
 		ID:         id,
 		Issuer:     o.name,
-		Attributes: attributes,
+		Attributes: claims,
 	}, nil
 }
 

@@ -18,8 +18,7 @@ var Version = "dirty"
 
 // global flags
 var (
-	cfgFile    string
-	remoteAddr string
+	cfgFile string
 )
 
 const (

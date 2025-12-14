@@ -125,7 +125,7 @@ var tokenIssueCmd = &cobra.Command{
 }
 
 func init() {
-	tokenCmd.AddCommand(tokenIssueCmd)
+	rootCmd.AddCommand(tokenIssueCmd)
 
 	tokenIssueCmd.Flags().StringVarP(&tokenIssueTargetFile, "target", "f", "", "The Talmi config file to use")
 

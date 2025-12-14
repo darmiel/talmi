@@ -10,7 +10,7 @@ import (
 
 type StaticIssuer struct {
 	name     string
-	tokenMap map[string]map[string]string // token -> attributes
+	tokenMap map[string]map[string]any // token -> attributes
 }
 
 func NewStatic(cfg config.IssuerConfig) (*StaticIssuer, error) {
@@ -20,17 +20,13 @@ func NewStatic(cfg config.IssuerConfig) (*StaticIssuer, error) {
 		return &StaticIssuer{}, nil
 	}
 
-	tokenMap := make(map[string]map[string]string)
+	tokenMap := make(map[string]map[string]any)
 	for token, attrsRaw := range rawMap {
 		attrsInterfaceMap, ok := attrsRaw.(map[string]any)
 		if !ok {
 			continue
 		}
-		attrsStrMap := make(map[string]string)
-		for k, v := range attrsInterfaceMap {
-			attrsStrMap[k] = fmt.Sprint(v)
-		}
-		tokenMap[token] = attrsStrMap
+		tokenMap[token] = attrsInterfaceMap
 	}
 
 	return &StaticIssuer{

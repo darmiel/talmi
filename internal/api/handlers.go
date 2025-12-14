@@ -191,3 +191,55 @@ func (s *Server) handleAdminTokens(w http.ResponseWriter, r *http.Request) {
 
 	presenter.JSON(w, r, tokens, http.StatusOK)
 }
+
+func (s *Server) handleExplain(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := log.Ctx(ctx)
+	reqID, _ := ctx.Value("correlation_id").(string)
+
+	// read token from body
+	token := r.FormValue("token")
+
+	// optional requested issuer / provider
+	q := r.URL.Query()
+	requestedIssuer := q.Get("issuer")
+	requestedProvider := q.Get("provider")
+
+	var issuer core.Issuer
+	if requestedIssuer != "" {
+		// the user specified a specific issuer
+		iss, ok := s.issuers.Get(requestedIssuer)
+		if !ok {
+			logger.Warn().Str("requested_issuer", requestedIssuer).Msgf("requested issuer not found")
+			presenter.Error(w, r, "requested issuer not found", http.StatusBadRequest)
+			return
+		}
+		issuer = iss
+		logger.Debug().Str("issuer", issuer.Name()).Msg("using explicit issuer")
+	} else {
+		iss, err := s.issuers.IdentifyIssuer(token)
+		if err != nil {
+			logger.Warn().Err(err).Msgf("issuer auto-discovery failed")
+			presenter.Error(w, r, "could not identify issuer from token", http.StatusBadRequest)
+			return
+		}
+		issuer = iss
+		logger.Debug().Str("issuer", issuer.Name()).Msg("using discovered issuer")
+	}
+
+	principal, err := issuer.Verify(ctx, token)
+	if err != nil {
+		logger.Warn().Err(err).Str("issuer", issuer.Name()).Msgf("upstream token verification failed")
+		presenter.Error(w, r, "token verification failed", http.StatusUnauthorized)
+		return
+	}
+
+	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Str("sub", principal.ID)
+	})
+
+	trace := s.engine.Trace(principal, requestedProvider)
+	trace.CorrelationID = reqID
+
+	presenter.JSON(w, r, trace, http.StatusOK)
+}
