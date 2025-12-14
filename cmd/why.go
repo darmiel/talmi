@@ -5,9 +5,13 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/engine"
+	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/pkg/client"
 )
 
@@ -16,6 +20,7 @@ var (
 	whyProvider   string
 	whyIssuer     string
 	whyRuleFilter string
+	whyTargetFile string
 )
 
 var whyCmd = &cobra.Command{
@@ -32,22 +37,90 @@ Also note that you need to be authenticated as admin to use this command.`,
   # Why is it not matching the 'admin' rule?
   talmi why --token <token> --rule admin`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cli, err := getClient()
-		if err != nil {
-			return err
+		if whyTargetFile != "" {
+			// if -f is passed, handle it locally
+			log.Debug().Msg("Running 'why' command in local mode")
+			return whyTokenLocally(cmd, args)
 		}
-
-		trace, err := cli.ExplainTrace(cmd.Context(), whyToken, client.ExplainTraceOptions{
-			RequestedIssuer:   whyIssuer,
-			RequestedProvider: whyProvider,
-		})
-		if err != nil {
-			return err
-		}
-
-		printTrace(trace)
-		return nil
+		// otherwise, expect to issue from remote server
+		log.Debug().Msg("Running 'why' command in remote mode")
+		return whyTokenRemote(cmd, args)
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(whyCmd)
+
+	whyCmd.Flags().StringVarP(&whyTargetFile, "config", "f", "", "Run locally using this config file")
+	whyCmd.Flags().StringVarP(&whyToken, "token", "t", "", "Token to explain")
+	whyCmd.Flags().StringVarP(&whyRuleFilter, "rule", "r", "", "Filter output to specific rule name (optional)")
+	whyCmd.Flags().StringVar(&whyProvider, "provider", "", "Simulate requesting this provider (optional)")
+	whyCmd.Flags().StringVar(&whyIssuer, "issuer", "", "Simulate coming from this issuer (optional)")
+
+	_ = whyCmd.MarkFlagRequired("token")
+}
+
+func whyTokenRemote(cmd *cobra.Command, _ []string) error {
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+
+	trace, err := cli.ExplainTrace(cmd.Context(), whyToken, client.ExplainTraceOptions{
+		RequestedIssuer:   whyIssuer,
+		RequestedProvider: whyProvider,
+	})
+	if err != nil {
+		return err
+	}
+
+	printTrace(trace)
+	return nil
+}
+
+func whyTokenLocally(cmd *cobra.Command, _ []string) error {
+	cfg, err := config.Load(whyTargetFile)
+	if err != nil {
+		return err
+	}
+
+	// initialize registries
+	issuerRegistry, err := issuers.BuildRegistry(cmd.Context(), cfg.Issuers)
+	if err != nil {
+		return err
+	}
+
+	eng := engine.New(cfg.Rules)
+	var iss core.Issuer
+
+	// if an issuer was passed, use it
+	if whyIssuer != "" {
+		issuerByName, ok := issuerRegistry.Get(whyIssuer)
+		if !ok {
+			return fmt.Errorf("issuer '%s' not found in config", whyIssuer)
+		}
+		iss = issuerByName
+	} else {
+		// otherwise use the discovery service to find the corresponding issuer
+		issuerByURL, err := issuerRegistry.IdentifyIssuer(whyToken)
+		if err != nil {
+			return fmt.Errorf("cannot determine issue from URL: %w", err)
+		}
+		iss = issuerByURL
+	}
+	log.Debug().Msgf("Using issuer: '%s'", iss.Name())
+
+	// validate the (OIDC) token and return principal
+	log.Info().Msgf("Verifying token with issuer '%s'...", whyIssuer)
+	principal, err := iss.Verify(cmd.Context(), whyToken)
+	if err != nil {
+		return fmt.Errorf("verification failed: %w", err)
+	}
+	log.Info().Msgf("Identity verified. Principals attributes: %v", principal.Attributes)
+
+	trace := eng.Trace(principal, whyProvider)
+	printTrace(&trace)
+	return nil
 }
 
 func printTrace(trace *core.EvaluationTrace) {
@@ -123,15 +196,4 @@ func printTrace(trace *core.EvaluationTrace) {
 		fmt.Printf("Decision: %s\n", bold(red("denied")))
 	}
 	fmt.Println()
-}
-
-func init() {
-	rootCmd.AddCommand(whyCmd)
-
-	whyCmd.Flags().StringVarP(&whyToken, "token", "t", "", "Token to explain")
-	whyCmd.Flags().StringVarP(&whyRuleFilter, "rule", "r", "", "Filter output to specific rule name (optional)")
-	whyCmd.Flags().StringVar(&whyProvider, "provider", "", "Simulate requesting this provider (optional)")
-	whyCmd.Flags().StringVar(&whyIssuer, "issuer", "", "Simulate coming from this issuer (optional)")
-
-	_ = whyCmd.MarkFlagRequired("token")
 }

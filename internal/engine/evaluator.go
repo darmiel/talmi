@@ -56,13 +56,13 @@ func checkRule(rule core.Rule, principal *core.Principal, requestedProvider stri
 		addResult(issuerExpr, true, "")
 	}
 
-	cr := evaluateCondition(rule.Match.Condition, principal.Attributes)
-	if !cr.Matched {
-		result.Matched = false
-	}
-	flattenConditionResult(&result.Conditions, cr, 0)
-
-	if rule.Match.CompiledExpr != nil {
+	if rule.Match.Condition != nil {
+		cr := evaluateCondition(*rule.Match.Condition, principal.Attributes)
+		if !cr.Matched {
+			result.Matched = false
+		}
+		flattenConditionResult(&result.Conditions, cr, 0)
+	} else if rule.Match.CompiledExpr != nil {
 		ok, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
 			"rule":      rule,
 			"principal": principal,
@@ -77,6 +77,10 @@ func checkRule(rule core.Rule, principal *core.Principal, requestedProvider stri
 				addResult(rule.Match.Expr, true, "")
 			}
 		}
+	} else if !rule.Match.AllowEmptyCondition {
+		// no condition or expr means no match unless AllowEmptyCondition is true
+		// this is kinda duplicate logic of config validation, but just to make sure
+		addResult("(no condition)", false, "no condition or expression defined in rule")
 	}
 
 	if requestedProvider != "" {

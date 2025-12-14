@@ -38,9 +38,11 @@ Modes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if issueTargetFile != "" {
 			// if -f is passed, handle it locally
+			log.Debug().Msg("Running 'issue' command in local mode")
 			return issueTokenLocally(cmd, args)
 		}
 		// otherwise, expect to issue from remote server
+		log.Debug().Msg("Running 'issue' command in remote mode")
 		return issueTokenRemote(cmd, args)
 	},
 }

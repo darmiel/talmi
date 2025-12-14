@@ -4,6 +4,7 @@ go 1.25.4
 
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/expr-lang/expr v1.17.6
 	github.com/fatih/color v1.18.0
 	github.com/goccy/go-yaml v1.19.0

@@ -1,5 +1,7 @@
 package core
 
+import "fmt"
+
 type ConditionResult struct {
 	Matched bool
 
@@ -133,34 +135,61 @@ func (c *Condition) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-//func (c *Condition) UnmarshalYAML(unmarshal func(any) error) error {
-//	type rawCondition struct {
-//		All      []Condition `yaml:"$all,omitempty"`
-//		Any      []Condition `yaml:"$any,omitempty"`
-//		Not      *Condition  `yaml:"$not,omitempty"`
-//		Key      string      `yaml:"key,omitempty"`
-//		Operator Operator    `yaml:"operator,omitempty"`
-//		Value    any         `yaml:"value,omitempty"`
-//	}
-//
-//	var rc rawCondition
-//	if err := value.Decode(&rc); err == nil {
-//		if len(rc.Any) > 0 || len(rc.All) > 0 || rc.Not != nil || rc.Key != "" {
-//			c.All = rc.All
-//			c.Any = rc.Any
-//			c.Not = rc.Not
-//			c.Key = rc.Key
-//			c.Operator = rc.Operator
-//			c.Value = rc.Value
-//
-//			// implicit EQ operator if operator missing
-//			if c.Key != "" && c.Operator == "" {
-//				c.Operator = OpEqual
-//			}
-//
-//			return nil
-//		}
-//	}
-//
-//	return fmt.Errorf("invalid condition format")
-//}
+func (c *Condition) Validate() error {
+	if c == nil {
+		return nil
+	}
+
+	// validate logic nodes
+	hasAll := len(c.All) > 0
+	hasAny := len(c.Any) > 0
+	hasNot := c.Not != nil
+	hasLeaf := c.Key != ""
+
+	if hasAll {
+		for _, sub := range c.All {
+			if err := sub.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+	if hasAny {
+		for _, sub := range c.Any {
+			if err := sub.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+	if hasNot {
+		if err := c.Not.Validate(); err != nil {
+			return err
+		}
+	}
+	if hasLeaf {
+		if !c.Operator.IsValid() {
+			return fmt.Errorf("invalid operator '%s' for key '%s'", c.Operator, c.Key)
+		}
+	}
+
+	// make sure only one of the types is used
+	count := 0
+	if hasAll {
+		count++
+	}
+	if hasAny {
+		count++
+	}
+	if hasNot {
+		count++
+	}
+	if hasLeaf {
+		count++
+	}
+	if count > 1 {
+		return fmt.Errorf("condition for key '%s' has multiple types set (all, any, not, leaf); only one is allowed", c.Key)
+	} else if count == 0 {
+		return fmt.Errorf("condition is missing required fields; must be one of (all, any, not, leaf)")
+	} else {
+		return nil
+	}
+}

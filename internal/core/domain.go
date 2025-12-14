@@ -39,7 +39,12 @@ type Match struct {
 
 	// Condition is a condition (which can contain multiple sub-conditions) that must be satisfied.
 	// Leaving this empty means no condition-based restriction.
-	Condition Condition `yaml:"condition" json:"condition"`
+	// Either provide Condition OR Expr, not both.
+	Condition *Condition `yaml:"condition" json:"condition"`
+
+	// AllowEmptyCondition indicates whether an empty Condition should match all Principals.
+	// This is a security measure to prevent unintentional unrestricted access.
+	AllowEmptyCondition bool `yaml:"allow_empty" json:"allow_empty"`
 
 	// Expr is an optional expression for more complex matching logic.
 	// Leaving this empty means no expression-based restriction.
