@@ -16,12 +16,45 @@ import (
 )
 
 var (
-	tokenIssueReqIssuer   string
-	tokenIssueReqToken    string
-	tokenIssueReqProvider string
-
-	tokenIssueTargetFile string
+	issueReqToken    string
+	issueReqIssuer   string
+	issueReqProvider string
+	issueTargetFile  string
 )
+
+var issueCmd = &cobra.Command{
+	Use:   "issue",
+	Short: "Request an artifact (i.e. token) from Talmi",
+	Long: `Exchanges an upstream identity token for a downstream resource token.
+
+Modes:
+  1. Remote (Default): Contacts the configured Talmi server.
+  2. Standalone (--config): Loads a local config file and processes the request locally.`,
+	Example: `  # Remote Issue (uses TALMI_ADDR)
+  talmi issue --token $JWT
+  
+  # Issue locally
+  talmi issue -f talmi.yaml --token $JWT`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if issueTargetFile != "" {
+			// if -f is passed, handle it locally
+			return issueTokenLocally(cmd, args)
+		}
+		// otherwise, expect to issue from remote server
+		return issueTokenRemote(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(issueCmd)
+
+	issueCmd.Flags().StringVarP(&issueTargetFile, "config", "f", "", "Run locally using this config file")
+	issueCmd.Flags().StringVarP(&issueReqToken, "token", "t", "", "Upstream OIDC token")
+	issueCmd.Flags().StringVar(&issueReqIssuer, "issuer", "", "Explicit issuer name (optional)")
+	issueCmd.Flags().StringVar(&issueReqProvider, "provider", "", "Requested provider name (optional)")
+
+	_ = issueCmd.MarkFlagRequired("token")
+}
 
 func issueTokenRemote(cmd *cobra.Command, _ []string) error {
 	cli, err := getClient()
@@ -30,9 +63,9 @@ func issueTokenRemote(cmd *cobra.Command, _ []string) error {
 	}
 
 	log.Info().Msgf("Requesting to mint artifact...")
-	artifact, err := cli.IssueToken(cmd.Context(), tokenIssueReqToken, client.IssueTokenOptions{
-		RequestedProvider: tokenIssueReqProvider,
-		RequestedIssuer:   tokenIssueReqIssuer,
+	artifact, err := cli.IssueToken(cmd.Context(), issueReqToken, client.IssueTokenOptions{
+		RequestedProvider: issueReqProvider,
+		RequestedIssuer:   issueReqIssuer,
 	})
 	if err != nil {
 		return err
@@ -45,7 +78,7 @@ func issueTokenRemote(cmd *cobra.Command, _ []string) error {
 }
 
 func issueTokenLocally(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.Load(tokenIssueTargetFile)
+	cfg, err := config.Load(issueTargetFile)
 	if err != nil {
 		return err
 	}
@@ -64,15 +97,15 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 	var iss core.Issuer
 
 	// if an issuer was passed, use it
-	if tokenIssueReqIssuer != "" {
-		issuerByName, ok := issuerRegistry.Get(tokenIssueReqIssuer)
+	if issueReqIssuer != "" {
+		issuerByName, ok := issuerRegistry.Get(issueReqIssuer)
 		if !ok {
-			return fmt.Errorf("issuer '%s' not found in config", tokenIssueReqIssuer)
+			return fmt.Errorf("issuer '%s' not found in config", issueReqIssuer)
 		}
 		iss = issuerByName
 	} else {
 		// otherwise use the discovery service to find the corresponding issuer
-		issuerByURL, err := issuerRegistry.IdentifyIssuer(tokenIssueReqToken)
+		issuerByURL, err := issuerRegistry.IdentifyIssuer(issueReqToken)
 		if err != nil {
 			return fmt.Errorf("cannot determine issue from URL: %w", err)
 		}
@@ -81,14 +114,14 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 	log.Debug().Msgf("Using issuer: '%s'", iss.Name())
 
 	// validate the (OIDC) token and return principal
-	log.Info().Msgf("Verifying token with issuer '%s'...", tokenIssueReqIssuer)
-	principal, err := iss.Verify(cmd.Context(), tokenIssueReqToken)
+	log.Info().Msgf("Verifying token with issuer '%s'...", issueReqIssuer)
+	principal, err := iss.Verify(cmd.Context(), issueReqToken)
 	if err != nil {
 		return fmt.Errorf("verification failed: %w", err)
 	}
 	log.Info().Msgf("Identity verified. Principals attributes: %v", principal.Attributes)
 
-	rule, err := eng.Evaluate(principal, tokenIssueReqProvider)
+	rule, err := eng.Evaluate(principal, issueReqProvider)
 	if err != nil {
 		return fmt.Errorf("policy denied: %w", err)
 	}
@@ -108,31 +141,4 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 	enc := json.NewEncoder(log.Logger)
 	enc.SetIndent("", "  ")
 	return enc.Encode(artifact)
-}
-
-// tokenIssueCmd represents the token issue command
-var tokenIssueCmd = &cobra.Command{
-	Use:   "issue",
-	Short: "Issue a token based on an upstream identity",
-	Long:  "", // TODO
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if tokenIssueTargetFile != "" {
-			// if -f is passed, handle it locally
-			return issueTokenLocally(cmd, args)
-		}
-		// otherwise, expect to issue from remote server
-		return issueTokenRemote(cmd, args)
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(tokenIssueCmd)
-
-	tokenIssueCmd.Flags().StringVarP(&tokenIssueTargetFile, "target", "f", "", "The Talmi config file to use")
-
-	tokenIssueCmd.Flags().StringVar(&tokenIssueReqIssuer, "issuer", "", "Name of the issuer (must match config)")
-	tokenIssueCmd.Flags().StringVarP(&tokenIssueReqToken, "token", "t", "", "Upstream token string")
-	tokenIssueCmd.Flags().StringVar(&tokenIssueReqProvider, "provider", "", "Provider requested")
-
-	_ = tokenIssueCmd.MarkFlagRequired("token")
 }

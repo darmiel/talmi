@@ -10,11 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// auditTokensCmd represents the audit command
 var auditTokensCmd = &cobra.Command{
 	Use:   "tokens",
-	Short: "Retrieve and display active tokens",
-	Long:  "", // TODO
+	Short: "List currently active tokens",
+	Long: `Retrieves a list of all currently active (non-expired) tokens issued by the server.
+This includes details such as the principal who requested it, the provider used, and expiration time.
+
+This command requires an authenticated session (via 'talmi login') with admin privileges.`,
+	Example: `  talmi audit tokens`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cli, err := getClient()
 		if err != nil {

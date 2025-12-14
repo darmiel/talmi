@@ -18,7 +18,8 @@ var Version = "dirty"
 
 // global flags
 var (
-	cfgFile string
+	userConfig string
+	talmiAddr  string
 )
 
 const (
@@ -30,9 +31,11 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "talmi",
-	Short:   fmt.Sprintf("Talmi STS (version: %s)", Version),
-	Long:    "Minimal STS that grants access to downstream resources based on identities from trusted upstream IdPs.",
+	Use:   "talmi",
+	Short: fmt.Sprintf("Talmi STS (version: %s)", Version),
+	Long: `Talmi is a minimal, extensible Security Token Service (STS).
+	It grants access to downstream resources (like GitHub Apps, Cloud Providers)
+	based on verified identities from upstream IdPs (like OIDC).`,
 	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		configPath, configErr := initConfig()
@@ -50,27 +53,26 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		log.Fatal().Err(err).Msg("command execution failed")
+		log.Fatal().Err(err).Msg("execution failed")
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		"config file (default is $HOME/.talmi-example.yaml)")
+	rootCmd.PersistentFlags().StringVar(&userConfig, "user-config", "",
+		"User configuration file for default values (default is $HOME/.talmi.yaml)")
 
-	rootCmd.PersistentFlags().String("log-level", "info", "log level: debug, info, warn, error")
+	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	_ = viper.BindPFlag(LogLevelKey, rootCmd.PersistentFlags().Lookup("log-level"))
 
-	rootCmd.PersistentFlags().String("log-format", "console", "log format: console, json")
+	rootCmd.PersistentFlags().String("log-format", "console", "Log format (console, json)")
 	_ = viper.BindPFlag(LogFormatKey, rootCmd.PersistentFlags().Lookup("log-format"))
 
-	rootCmd.PersistentFlags().Bool("no-color", false, "disable color output")
+	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 	_ = viper.BindPFlag(LogNoColorKey, rootCmd.PersistentFlags().Lookup("no-color"))
 
-	rootCmd.PersistentFlags().String("server", "", "address of remote talmi server")
+	rootCmd.PersistentFlags().StringVar(&talmiAddr, "server", "", "Address of the remote Talmi server")
 	_ = viper.BindPFlag(TalmiAddrKey, rootCmd.PersistentFlags().Lookup("server"))
-	// ENV: TALMI_ADDR
 
 	viper.SetEnvPrefix("TALMI")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(
@@ -85,8 +87,8 @@ func init() {
 
 func initConfig() (string, error) {
 	// reads in config file and ENV variables if set.
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
+	if userConfig != "" {
+		viper.SetConfigFile(userConfig)
 	} else {
 		// search order: current dir, $HOME, XDG config
 		viper.AddConfigPath(".")

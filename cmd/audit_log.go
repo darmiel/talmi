@@ -9,24 +9,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// auditLogCmd represents the audit command
-var auditLogCmd = &cobra.Command{
-	Use:   "log",
-	Short: "Retrieve and display audit log entries",
-	Long:  "", // TODO
-	RunE: func(cmd *cobra.Command, args []string) error {
-		limit, err := cmd.Flags().GetInt("limit")
-		if err != nil {
-			return err
-		}
+var (
+	auditLogLimit uint
+)
 
+var auditLogCmd = &cobra.Command{
+	Use:     "log",
+	Short:   "Retrieve and display audit log entries",
+	Long:    `Fetches the most recent decision logs from the server, including allowed and denied requests`,
+	Example: `  talmi audit log --limit 50`,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cli, err := getClient()
 		if err != nil {
 			return err
 		}
 
 		log.Info().Msg("Fetching audit log...")
-		audits, err := cli.ListAudits(cmd.Context(), uint(limit))
+		audits, err := cli.ListAudits(cmd.Context(), auditLogLimit)
 		if err != nil {
 			return err
 		}
@@ -69,5 +68,5 @@ var auditLogCmd = &cobra.Command{
 func init() {
 	auditCmd.AddCommand(auditLogCmd)
 
-	auditLogCmd.Flags().IntP("limit", "n", 25, "Number of audit entries to retrieve")
+	auditLogCmd.Flags().UintVarP(&auditLogLimit, "limit", "n", 25, "Number of entries")
 }

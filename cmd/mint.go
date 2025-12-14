@@ -17,11 +17,12 @@ var (
 	mintRuleName   string
 )
 
-// mintCmd represents the mint command
 var mintCmd = &cobra.Command{
 	Use:   "mint",
-	Short: "Mint a token from an upstream identity token",
-	Long:  "", // TODO
+	Short: "Force-mint a token locally for testing",
+	Long: `Test command that bypasses OIDC verification to test a Provider configuration.
+It uses a dummy principal and forces the execution of a specific rule's grant`,
+	Example: `  talmi mint -f talmi.yaml -r my-github-actions-rule`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(mintTargetFile)
 		if err != nil {
@@ -70,7 +71,7 @@ var mintCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(mintCmd)
 
-	mintCmd.Flags().StringVarP(&mintTargetFile, "target", "f", "", "The Talmi config file to use")
+	mintCmd.Flags().StringVarP(&mintTargetFile, "config", "f", "", "The Talmi config file to use")
 	mintCmd.Flags().StringVarP(&mintRuleName, "rule", "r", "", "The specific rule to use for minting")
 
 	_ = mintCmd.MarkFlagRequired("target")

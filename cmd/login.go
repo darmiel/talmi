@@ -14,43 +14,24 @@ import (
 )
 
 var (
-	loginToken     string
-	loginServerURL string
-	loginIssuer    string
+	loginToken  string
+	loginIssuer string
 )
 
-const (
-	tokenEnvVar     = "TALMI_TOKEN"
-	serverURLEnvVar = "TALMI_ADDR"
-)
-
-// loginCmd represents the logincommand
 var loginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Authenticate with Talmi and save credentials",
-	// Long: "", // TODO
+	Short: "Authenticate with a Talmi server",
+	Long: `Exchanges an upstream OIDC token (e.g., from GitHub Actions) for a Talmi Session Token.
+The session token is saved locally to allow future authenticated requests (like audit logs).`,
+	Example: `  talmi login --server https://talmi.example.com --token <upstream-oidc-token>`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if loginToken == "" {
-			loginToken = os.Getenv(tokenEnvVar)
-		}
-		if loginToken == "" {
-			return fmt.Errorf("upstream token provided, (via --token or %s)", tokenEnvVar)
-		}
-
-		if loginServerURL == "" {
-			loginServerURL = os.Getenv(serverURLEnvVar)
-		}
-		if loginServerURL == "" {
-			return fmt.Errorf("server address must be provided (via --addr or %s)", serverURLEnvVar)
-		}
-
-		u, err := url.Parse(loginServerURL)
+		u, err := url.Parse(talmiAddr)
 		if err != nil {
 			return fmt.Errorf("parsing server URL: %w", err)
 		}
 
 		// perform exchange via client
-		cli := client.New(loginServerURL)
+		cli := client.New(talmiAddr)
 
 		log.Info().Msgf("Issuing token from server %q...", u.Host)
 
@@ -87,7 +68,8 @@ var loginCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(loginCmd)
 
-	loginCmd.Flags().StringVar(&loginServerURL, "server", "", "Talmi Server URL")
-	loginCmd.Flags().StringVar(&loginIssuer, "issuer", "", "Upstream Issuer Name")
-	loginCmd.Flags().StringVar(&loginToken, "token", "", "Upstream Token")
+	loginCmd.Flags().StringVarP(&loginToken, "token", "t", "", "Upstream Token")
+	loginCmd.Flags().StringVar(&loginIssuer, "issuer", "", "Upstream Issuer Name (optional)")
+
+	_ = loginCmd.MarkFlagRequired("token")
 }

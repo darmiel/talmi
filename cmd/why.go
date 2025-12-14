@@ -17,11 +17,19 @@ var (
 	whyRuleFilter string
 )
 
-// whyCmd represents the why command
 var whyCmd = &cobra.Command{
 	Use:   "why",
 	Short: "Explain why a token matches (or does not match) policies",
-	Long:  "", // TODO
+	Long: `Simulates a request against the server and returns a detailed trace of the policy evaluation.
+	Useful for debugging why a specific token is being denied or matching the wrong rule.
+
+Note: This command requires a Talmi server to be running and reachable.
+Also note that you need to be authenticated as admin to use this command.`,
+	Example: `  # Why is my token denied? Which rules is it matching?
+  talmi why --token <token>
+  
+  # Why is it not matching the 'admin' rule?
+  talmi why --token <token> --rule admin`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cli, err := getClient()
 		if err != nil {
@@ -97,10 +105,10 @@ func printTrace(trace *core.EvaluationTrace) {
 func init() {
 	rootCmd.AddCommand(whyCmd)
 
-	whyCmd.Flags().StringVar(&whyToken, "token", "", "Token to explain")
-	whyCmd.Flags().StringVar(&whyProvider, "provider", "", "Requested provider")
-	whyCmd.Flags().StringVar(&whyIssuer, "issuer", "", "Requested issuer")
-	whyCmd.Flags().StringVar(&whyRuleFilter, "rule", "", "Focus on a specific rule")
+	whyCmd.Flags().StringVarP(&whyToken, "token", "t", "", "Token to explain")
+	whyCmd.Flags().StringVarP(&whyRuleFilter, "rule", "r", "", "Filter output to specific rule name (optional)")
+	whyCmd.Flags().StringVar(&whyProvider, "provider", "", "Simulate requesting this provider (optional)")
+	whyCmd.Flags().StringVar(&whyIssuer, "issuer", "", "Simulate coming from this issuer (optional)")
 
 	_ = whyCmd.MarkFlagRequired("token")
 }

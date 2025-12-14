@@ -24,16 +24,21 @@ import (
 	"github.com/darmiel/talmi/internal/store"
 )
 
+var (
+	serveAddr   string
+	serveConfig string
+)
+
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Run the Talmi server",
-	// Long: "", // TODO
+	Short: "Start the Talmi server",
+	Long: `Starts a HTTP server that processes OIDC tokens and issues downstream credentials.
+This command requires a valid configuration file defining issuers, providers, and rules.`,
+	Example: `  talmi serve --config /etc/talmi/config.yaml --addr :9090`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		addr, _ := cmd.Flags().GetString("addr")
-
 		// initialize: load issuers, providers, rules engine
-		cfg, err := config.Load(cfgFile)
+		cfg, err := config.Load(serveConfig)
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
@@ -94,12 +99,12 @@ var serveCmd = &cobra.Command{
 		srv := api.NewServer(eng, issRegistry, provRegistry, auditor, tokenStore)
 
 		server := &http.Server{
-			Addr:    addr,
+			Addr:    serveAddr,
 			Handler: srv.Routes(signingKey),
 		}
 
 		go func() {
-			log.Info().Msgf("Starting server on %s...", addr)
+			log.Info().Msgf("Starting server on %s...", serveAddr)
 			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Fatal().Err(err).Msg("Server crashed")
 			}
@@ -125,5 +130,8 @@ var serveCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().String("addr", ":8080", "address to listen on")
+	serveCmd.Flags().StringVar(&serveConfig, "config", "", "Path to configuration file")
+	serveCmd.Flags().StringVar(&serveAddr, "addr", ":8080", "Address to listen on")
+
+	_ = serveCmd.MarkFlagRequired("config")
 }

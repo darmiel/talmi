@@ -7,13 +7,14 @@ import (
 	"github.com/darmiel/talmi/internal/config"
 )
 
-// configValidateCmd represents the config validate command
+var configValidateConfig string
+
 var configValidateCmd = &cobra.Command{
-	Use:   "validate",
-	Short: "Validate the configuration file",
-	Long:  "", // TODO
+	Use:     "validate",
+	Short:   "Validate syntax of a Talmi configuration file",
+	Example: `  talmi config validate -f talmi.yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := config.Load(cfgFile)
+		_, err := config.Load(configValidateConfig)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Configuration is invalid.")
 			return err
@@ -25,4 +26,7 @@ var configValidateCmd = &cobra.Command{
 
 func init() {
 	configCmd.AddCommand(configValidateCmd)
+
+	configValidateCmd.Flags().StringVarP(&configValidateConfig, "config", "f", "", "Path to Talmi configuration file")
+	_ = configValidateCmd.MarkFlagRequired("config")
 }
