@@ -15,15 +15,14 @@ type ruleResult struct {
 }
 
 // Evaluate evaluates the principal against the rules and returns the first matching rule and its grant.
-func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Rule, *core.Grant, error) {
+func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Rule, error) {
 	for _, rule := range e.rules {
 		result := checkRule(rule, principal, requestedProvider)
 		if result.Matched {
-			grant := rule.Grant
-			return &rule, &grant, nil
+			return &rule, nil
 		}
 	}
-	return nil, nil, ErrNoRuleMatch
+	return nil, ErrNoRuleMatch
 }
 
 // checkRule evaluates a single rule against the principal and requested provider.

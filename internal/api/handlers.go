@@ -93,7 +93,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// evaluate policies
-	rule, grant, err := s.engine.Evaluate(principal, requestedProvider)
+	rule, err := s.engine.Evaluate(principal, requestedProvider)
 	if err != nil {
 		auditEntry.Granted = false
 
@@ -111,6 +111,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	auditEntry.PolicyName = rule.Name
 
 	// find provider
+	grant := rule.Grant
 	provider, ok := s.providers[grant.Provider]
 	if !ok {
 		logger.Error().Str("grant_provider", grant.Provider).Msg("grant references unknown provider")
@@ -121,7 +122,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	auditEntry.Provider = provider.Name()
 
 	// mint token
-	artifact, err := provider.Mint(ctx, principal, *grant)
+	artifact, err := provider.Mint(ctx, principal, grant)
 	if err != nil {
 		logger.Error().Err(err).Str("provider", provider.Name()).Msg("minting failed")
 		presenter.Error(w, r, "token minting failed", http.StatusInternalServerError)

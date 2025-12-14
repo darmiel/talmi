@@ -88,17 +88,18 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 	}
 	log.Info().Msgf("Identity verified. Principals attributes: %v", principal.Attributes)
 
-	rule, grant, err := eng.Evaluate(principal, tokenIssueReqProvider)
+	rule, err := eng.Evaluate(principal, tokenIssueReqProvider)
 	if err != nil {
 		return fmt.Errorf("policy denied: %w", err)
 	}
+	grant := rule.Grant
 	log.Info().Msgf("Policy matched in rule '%s'! Minting '%s'...", rule.Name, grant.Provider)
 
 	provider, ok := providerRegistry[grant.Provider]
 	if !ok {
 		return fmt.Errorf("provider '%s' configured in rule but not found in registry", grant.Provider)
 	}
-	artifact, err := provider.Mint(cmd.Context(), principal, *grant)
+	artifact, err := provider.Mint(cmd.Context(), principal, grant)
 	if err != nil {
 		return fmt.Errorf("minting failed: %w", err)
 	}
