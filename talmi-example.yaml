@@ -1,5 +1,6 @@
 audit:
   enabled: true
+  type: jsonl
   path: talmi-audit.jsonl
 
 issuers:
@@ -32,8 +33,10 @@ rules:
     description: "Allow Concourse CI to access GitHub repo"
     match:
       issuer: landscape-poc-concourse
-      attributes:
-        sub: "my-team/my-pipeline//my-job"
+      conditions:
+        - key: sub
+          operator: equals
+          value: "my-team/my-pipeline//my-job"
     grant:
       provider: daniel-org
       permissions:
@@ -56,8 +59,8 @@ rules:
     description: "Allow source repo CI to access target repo"
     match:
       issuer: github-actions
-      attributes:
-        repository: my-org/my-repo
+      expr: >-
+        principal.Attributes["repository"] == "my-org/my-repo"
     grant:
       provider: github
       resource:
