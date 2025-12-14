@@ -37,9 +37,9 @@ type Match struct {
 	// Issuer is the name of the issuer that must have produced the Principal.
 	Issuer string `yaml:"issuer" json:"issuer"`
 
-	// Conditions is a list of additional conditions that must all be satisfied.
+	// Condition is a condition (which can contain multiple sub-conditions) that must be satisfied.
 	// Leaving this empty means no condition-based restriction.
-	Conditions []Condition `yaml:"conditions" json:"conditions"`
+	Condition Condition `yaml:"condition" json:"condition"`
 
 	// Expr is an optional expression for more complex matching logic.
 	// Leaving this empty means no expression-based restriction.

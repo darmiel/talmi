@@ -7,6 +7,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -41,7 +42,7 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 		})
 
 		bold := color.New(color.Bold).SprintFunc()
-		italic := color.New(color.Italic)
+		faint := color.New(color.Faint).SprintfFunc()
 
 		for _, tok := range tokens {
 			timeLeft := time.Until(tok.ExpiresAt).Round(time.Minute)
@@ -53,14 +54,16 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			sub := truncate(tok.PrincipalID, 64)
 			t.AppendRow(table.Row{
 				tok.IssuedAt.Format(time.RFC3339),
-				fmt.Sprintf("%s (%s)", tok.ExpiresAt.Format("15:04"), italic.Sprintf("%s left", timeLeft)),
+				fmt.Sprintf("%s (%s)", tok.ExpiresAt.Format("15:04"), faint("%s left", timeLeft)),
 				bold(sub),
 				tok.Provider,
-				italic.Sprint(metaStr),
+				faint(metaStr),
 			})
 		}
 
-		t.SetStyle(table.StyleLight)
+		s := table.StyleRounded
+		s.Format.Header = text.FormatDefault
+		t.SetStyle(s)
 		t.Render()
 		return nil
 	},

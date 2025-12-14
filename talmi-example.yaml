@@ -1,70 +1,72 @@
 audit:
   enabled: true
-  type: jsonl
   path: talmi-audit.jsonl
+  type: jsonl
 
 issuers:
-  - name: github-actions
+  # use static issuer for testing
+  - name: test-static-issuer
     type: static
     token_map:
-      "this-is-a-super-secret-token":
+      "this-is-a-super-secret-token": # when this token is presented, return a principal with the following claims:
         repository: my-org/my-repo
 
-  - name: landscape-poc-concourse
+  - name: cam-oidc-dev-staging
     type: oidc
-    issuer_url: "https://k8s-concourse.poc.landscape.acme.com"
-    client_id: "talmi-example-audience" # audience
+    issuer_url: "https://idp.acme.come"
+    client_id: "talmi-sts"
 
 providers:
   - name: talmi
-    type: talmi-jwt
+    type: talmi-jwt # issue Talmi JWTs for CLI usage
 
-  - name: github
-    type: stub # log & return dummy token
+  - name: stub
+    type: stub # grant `stub` token to log and return dummy token
 
-  - name: daniel-org
+  - name: my-github-org
     type: github-app
     app_id: 1126
-    private_key_path: "./talmi-dev-token-adapter.2025-12-08.private-key.pem"
-    server: "https://github.acme.com/api/v3/"
+    private_key_path: "./talmi-dev-token-adapter.pem"
+    server: "https://github.acme.com/api/v3/" # for enterprise server
 
 rules:
-  - name: allow-concourse-to-access-github
-    description: "Allow Concourse CI to access GitHub repo"
+  - name: allow-specific-to-create-talmi-jwt
+    description: Allow specific people to get an admin Talmi JWT
     match:
-      issuer: landscape-poc-concourse
-      conditions:
-        - key: sub
-          operator: equals
-          value: "my-team/my-pipeline//my-job"
-    grant:
-      provider: daniel-org
-      permissions:
-        contents: "write"
-      config:
-        owner: SAPlings
-        repositories:
-          - ASR
-
-  - name: allow-concourse-to-create-talmi-jwt # ONLY FOR DEBUGGING, DON'T DO THIS!
-    description: Allow any Concourse OIDC token to get a Talmi JWT
-    match:
-      issuer: landscape-poc-concourse
+      issuer: cam-oidc-dev-staging
+      condition:
+        sub:
+          in:
+            - "admin-1@acme.com"
+            - "admin-2@acme.com"
     grant:
       provider: talmi
       config:
-        roles: [ "admin" ]
+        roles: [ "audit", "admin" ]
 
-  - name: allow-github-actions
-    description: "Allow source repo CI to access target repo"
+  - name: allow-@acme-to-create-talmi-jwt
+    description: Allow @acme.com to get a read-only Talmi JWT
     match:
-      issuer: github-actions
-      expr: >-
-        principal.Attributes["repository"] == "my-org/my-repo"
+      issuer: cam-oidc-dev-staging
+      condition:
+        sub: { contains: "@acme.com" }
     grant:
-      provider: github
-      resource:
-        type: "github_repo"
-        id: "my-org/target-repo"
+      provider: talmi
+      config:
+        roles: [ "audit" ]
+
+  - name: allow-static-to-access-github
+    description: "Allow test static issuer access GitHub repo"
+    match:
+      issuer: test-static-issuer
+      condition:
+        repository: "my-org/my-repo"
+    grant:
+      provider: my-github-org
       permissions:
         contents: "write"
+      config:
+        owner: my-github-org-name
+        repositories:
+          - super-secret-repository
+

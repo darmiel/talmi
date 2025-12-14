@@ -6,6 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -42,30 +43,35 @@ var auditLogCmd = &cobra.Command{
 		bold := color.New(color.Bold).SprintFunc()
 		green := color.New(color.FgGreen).SprintFunc()
 		red := color.New(color.FgRed).SprintFunc()
+		faint := color.New(color.Faint).SprintFunc()
 
 		for _, e := range audits {
-			sub := "(unknown)"
+			subRaw := "(unknown)"
+			sub := faint(subRaw)
 			if e.Principal != nil {
-				sub = truncate(e.Principal.ID, 64)
+				subRaw = truncate(e.Principal.ID, 64)
+				sub = bold(subRaw)
 			}
 
 			granted := green("✔")
 			if !e.Granted {
 				granted = red("✖")
-				sub = red(sub) // make it red!
+				sub = red(subRaw) // make it red!
 			}
 
 			t.AppendRow(table.Row{
 				e.Time.Format(time.RFC3339),
 				e.Action,
-				bold(sub),
+				sub,
 				granted,
 				e.Provider,
 				red(e.Error),
 			})
 		}
 
-		t.SetStyle(table.StyleLight)
+		s := table.StyleRounded
+		s.Format.Header = text.FormatDefault
+		t.SetStyle(s)
 		t.Render()
 		return nil
 	},

@@ -25,29 +25,3 @@ type RuleResult struct {
 	Matched          bool              `yaml:"matched" json:"matched"`
 	ConditionResults []ConditionResult `json:"condition_results,omitempty"`
 }
-
-type ConditionResult struct {
-	Expression string `json:"expression"` // e.g. "groups contains admin"
-	Passed     bool   `json:"passed"`
-	Reason     string `json:"reason,omitempty"`
-}
-
-// Operator defines how to compare values.
-type Operator string
-
-const (
-	OpEqual     Operator = "equals"
-	OpNotEqual  Operator = "notequals"
-	OpIn        Operator = "in"
-	OpNotIn     Operator = "notin"
-	OpExists    Operator = "exists"
-	OpNotExists Operator = "notexists"
-)
-
-// Condition represents a single check against a Principal's attribute.
-type Condition struct {
-	Key      string   `yaml:"key" json:"key"`
-	Operator Operator `yaml:"operator" json:"op"`
-	// Value is the target
-	Value any `yaml:"value,omitempty" json:"value,omitempty"`
-}

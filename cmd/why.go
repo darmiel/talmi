@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -51,17 +52,19 @@ Also note that you need to be authenticated as admin to use this command.`,
 
 func printTrace(trace *core.EvaluationTrace) {
 	bold := color.New(color.Bold).SprintFunc()
+	faint := color.New(color.Faint).SprintFunc()
+
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
-	italic := color.New(color.Italic).SprintFunc()
+	cyan := color.New(color.FgCyan).SprintFunc()
 
 	fmt.Printf("\n%s for Principal: %s (Issuer: %s)\n",
 		bold("Evaluation Trace"),
 		bold(trace.Principal.ID),
 		trace.Principal.Issuer)
 
-	fmt.Println("---------------------------------------------------")
+	fmt.Println(faint("---------------------------------------------------"))
 
 	for _, res := range trace.RuleResults {
 		if whyRuleFilter != "" && res.RuleName != whyRuleFilter {
@@ -75,18 +78,38 @@ func printTrace(trace *core.EvaluationTrace) {
 
 		fmt.Printf("%s Rule: %s\n", icon, bold(res.RuleName))
 		if res.Description != "" {
-			fmt.Printf("  %s\n", italic(res.Description))
+			fmt.Printf("  %s\n", faint(res.Description))
 		}
 
 		for _, cond := range res.ConditionResults {
+			// calculate depth based on leading spaces
+			trimmed := strings.TrimLeft(cond.Expression, " ")
+			indentLen := len(cond.Expression) - len(trimmed)
+			indent := strings.Repeat(" ", indentLen)
+
+			// detect if this is a label
+			isLogicGate := strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]")
+
 			condIcon := red("✖")
-			if cond.Passed {
+			if cond.Matched {
 				condIcon = green("✔")
 			}
 
-			fmt.Printf("    %s %s\n", condIcon, cond.Expression)
-			if !cond.Passed {
-				fmt.Printf("        Reason: %s\n", yellow(cond.Reason))
+			if isLogicGate {
+				fmt.Printf("    %s%s %s\n", indent, condIcon, cyan(trimmed))
+			} else {
+				fmt.Printf("    %s%s %s\n", indent, condIcon, trimmed)
+			}
+
+			if cond.Reason != "" {
+				reasonIndent := indent + "      "
+				reason := cond.Reason
+				if cond.Matched {
+					reason = faint(reason)
+				} else {
+					reason = yellow(reason)
+				}
+				fmt.Printf("%s↳ %s\n", reasonIndent, reason)
 			}
 		}
 
@@ -95,9 +118,9 @@ func printTrace(trace *core.EvaluationTrace) {
 
 	fmt.Println("---------------------------------------------------")
 	if trace.FinalDecision {
-		fmt.Printf("Final Decision: %s via rule '%s'\n", green("allowed"), trace.GrantedRule)
+		fmt.Printf("Decision: %s via rule '%s'\n", bold(green("allowed")), bold(trace.GrantedRule))
 	} else {
-		fmt.Printf("Final Decision: %s\n", red("denied"))
+		fmt.Printf("Decision: %s\n", bold(red("denied")))
 	}
 	fmt.Println()
 }
