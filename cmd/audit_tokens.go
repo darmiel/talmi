@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -39,6 +40,9 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			"Issued", "Expires", "Principal", "Provider", "Meta",
 		})
 
+		bold := color.New(color.Bold).SprintFunc()
+		italic := color.New(color.Italic)
+
 		for _, tok := range tokens {
 			timeLeft := time.Until(tok.ExpiresAt).Round(time.Minute)
 
@@ -46,13 +50,13 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			if tok.Metadata != nil {
 				metaStr = fmt.Sprintf("(%d entries)", len(tok.Metadata))
 			}
-
+			sub := truncate(tok.PrincipalID, 64)
 			t.AppendRow(table.Row{
-				tok.IssuedAt.Format("15:04:05"),
-				fmt.Sprintf("%s (%s left)", tok.ExpiresAt.Format("15:04"), timeLeft),
-				tok.PrincipalID,
+				tok.IssuedAt.Format(time.RFC3339),
+				fmt.Sprintf("%s (%s)", tok.ExpiresAt.Format("15:04"), italic.Sprintf("%s left", timeLeft)),
+				bold(sub),
 				tok.Provider,
-				metaStr,
+				italic.Sprint(metaStr),
 			})
 		}
 

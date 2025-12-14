@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -38,24 +39,29 @@ var auditLogCmd = &cobra.Command{
 			"Time", "Action", "Principal", "Granted", "Provider", "Error",
 		})
 
-		for _, e := range audits {
-			status := "YES"
-			if !e.Granted {
-				status = "NO"
-			}
+		bold := color.New(color.Bold).SprintFunc()
+		green := color.New(color.FgGreen).SprintFunc()
+		red := color.New(color.FgRed).SprintFunc()
 
+		for _, e := range audits {
 			sub := "(unknown)"
 			if e.Principal != nil {
-				sub = truncate(e.Principal.ID, 35)
+				sub = truncate(e.Principal.ID, 64)
+			}
+
+			granted := green("✔")
+			if !e.Granted {
+				granted = red("✖")
+				sub = red(sub) // make it red!
 			}
 
 			t.AppendRow(table.Row{
 				e.Time.Format(time.RFC3339),
 				e.Action,
-				sub,
-				status,
+				bold(sub),
+				granted,
 				e.Provider,
-				e.Error,
+				red(e.Error),
 			})
 		}
 
