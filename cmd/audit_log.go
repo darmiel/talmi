@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -12,7 +13,8 @@ import (
 )
 
 var (
-	auditLogLimit uint
+	auditLogLimit   uint
+	auditLogDisplay string // either table or text
 )
 
 var auditLogCmd = &cobra.Command{
@@ -26,12 +28,21 @@ var auditLogCmd = &cobra.Command{
 			return err
 		}
 
+		var isTable bool
+		switch auditLogDisplay {
+		case "table":
+			isTable = true
+		case "text":
+			isTable = false
+		default:
+			return fmt.Errorf("invalid output format: %s", auditLogDisplay)
+		}
+
 		log.Info().Msg("Fetching audit log...")
 		audits, err := cli.ListAudits(cmd.Context(), auditLogLimit)
 		if err != nil {
 			return err
 		}
-
 		log.Info().Msgf("Retrieved %d audit entries", len(audits))
 
 		t := table.NewWriter()
@@ -53,10 +64,29 @@ var auditLogCmd = &cobra.Command{
 				sub = bold(subRaw)
 			}
 
-			granted := green("✔")
-			if !e.Granted {
+			var granted string
+			if e.Granted {
+				granted = green("✔") + " " + e.PolicyName
+
+				if !isTable {
+					fmt.Printf("%s: %s %s %s via '%s'\n",
+						faint(e.Time.Format(time.RFC3339)),
+						bold(subRaw),
+						green("✔ "+e.Action),
+						faint(e.Provider),
+						bold(e.PolicyName))
+				}
+			} else {
 				granted = red("✖")
 				sub = red(subRaw) // make it red!
+
+				if !isTable {
+					fmt.Printf("%s: %s %s: %s\n",
+						faint(e.Time.Format(time.RFC3339)),
+						bold(subRaw),
+						red("✖ "+e.Action),
+						e.Error)
+				}
 			}
 
 			t.AppendRow(table.Row{
@@ -69,10 +99,12 @@ var auditLogCmd = &cobra.Command{
 			})
 		}
 
-		s := table.StyleRounded
-		s.Format.Header = text.FormatDefault
-		t.SetStyle(s)
-		t.Render()
+		if isTable {
+			s := table.StyleRounded
+			s.Format.Header = text.FormatDefault
+			t.SetStyle(s)
+			t.Render()
+		}
 		return nil
 	},
 }
@@ -81,4 +113,5 @@ func init() {
 	auditCmd.AddCommand(auditLogCmd)
 
 	auditLogCmd.Flags().UintVarP(&auditLogLimit, "limit", "n", 25, "Number of entries")
+	auditLogCmd.Flags().StringVarP(&auditLogDisplay, "output", "o", "table", "Output format: table or text")
 }

@@ -38,7 +38,7 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 		t := table.NewWriter()
 		t.SetOutputMirror(os.Stdout)
 		t.AppendHeader(table.Row{
-			"Issued", "Expires", "Principal", "Provider", "Meta",
+			"Issued", "Expires", "Principal", "Provider", "Policy", "Meta",
 		})
 
 		bold := color.New(color.Bold).SprintFunc()
@@ -54,9 +54,10 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			sub := truncate(tok.PrincipalID, 64)
 			t.AppendRow(table.Row{
 				tok.IssuedAt.Format(time.RFC3339),
-				fmt.Sprintf("%s (%s)", tok.ExpiresAt.Format("15:04"), faint("%s left", timeLeft)),
+				fmt.Sprintf("%s (%s)", tok.ExpiresAt.Format("15:04"), faint(timeLeft.String())),
 				bold(sub),
 				tok.Provider,
+				bold(tok.PolicyName),
 				faint(metaStr),
 			})
 		}

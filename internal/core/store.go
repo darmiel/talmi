@@ -16,6 +16,9 @@ type TokenMetadata struct {
 	// Provider is the name of the downstream provider for which this token was issued.
 	Provider string
 
+	// PolicyName is the name of the policy (i.e. rule) that authorized this token issuance.
+	PolicyName string
+
 	// ExpiresAt is the expiration time of the issued token.
 	// It is used to check if the token is "active".
 	ExpiresAt time.Time

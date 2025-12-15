@@ -134,6 +134,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		CorrelationID: reqID,
 		PrincipalID:   principal.ID,
 		Provider:      provider.Name(),
+		PolicyName:    rule.Name,
 		ExpiresAt:     artifact.ExpiresAt,
 		IssuedAt:      time.Now(),
 		Metadata:      artifact.Metadata,

@@ -204,10 +204,9 @@ func (g *GitHubAppProvider) Mint(
 		Value:     token.GetToken(),
 		ExpiresAt: token.GetExpiresAt().Time,
 		Metadata: map[string]any{
-			"scm":             "github",
-			"installation_id": installationID,
-			"repos_count":     len(opts.Repositories),
-			"permissions":     token.GetPermissions(),
+			"installation": installationID,
+			"repositories": opts.Repositories,
+			"permissions":  token.GetPermissions(),
 		},
 	}, nil
 }

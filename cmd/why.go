@@ -175,7 +175,7 @@ func printTrace(trace *core.EvaluationTrace) {
 			}
 
 			if cond.Reason != "" {
-				reasonIndent := indent + "      "
+				reasonIndent := indent + "       "
 				reason := cond.Reason
 				if cond.Matched {
 					reason = faint(reason)
