@@ -1,0 +1,75 @@
+audit:
+  enabled: true
+  type: memory
+
+issuers:
+  # you can get an example OIDC token from https://flower.d2a.io/oidc/ using:
+  # curl -X POST https://flower.d2a.io/oidc/mint -d '{"sub": "daniel@company.com", "aud": "tlami-dev"}'
+  - name: flower-oidc
+    type: oidc
+    issuer_url: https://flower.d2a.io/oidc
+    client_id: talmi-dev
+
+providers:
+  - name: talmi
+    type: talmi-jwt
+
+  - name: github
+    type: github-app
+    app_id: 1126
+    private_key_path: "./talmi-dev-token-adapter.2025-12-08.private-key.pem"
+    server: "https://github.wdf.sap.corp/api/v3/"
+
+rules:
+  - name: allow-specific-people-admin-talmi-role
+    description: Allow some specific people to get an admin Talmi JWT
+    match:
+      issuer: flower-oidc
+      condition:
+        sub: { in: [ daniel@company.com, ralf@company.com ] }
+    grant:
+      provider: talmi
+      config:
+        roles: [ "audit", "admin" ]
+
+  - name: allow-@company-audit-talmi-role
+    description: Allow @company.com to get a read-only Talmi JWT
+    match:
+      issuer: flower-oidc
+      condition:
+        all:
+          - sub: { contains: "@company.com" }
+          - not: { sub: "daniel@company.com" }
+
+    grant:
+      provider: talmi
+      config:
+        roles: [ "audit" ]
+
+  - name: allow-specific-cicd-job-to-write-private-repo
+    description: Allow the CI/CD system to read repositories in github
+    match:
+      issuer: flower-oidc
+      condition:
+        role: "cicd"
+        job: "write-private-repo"
+    grant:
+      provider: github
+      permissions:
+        content: "write"
+      config:
+        owner: "my-org"
+        repositories: [ private-repo ]
+
+  - name: allow-cicd-to-read-repositories
+    description: Allow the CI/CD system to read repositories in github
+    match:
+      issuer: flower-oidc
+      condition:
+        role: "cicd"
+    grant:
+      provider: github
+      permissions:
+        content: "read"
+      config:
+        owner: "my-org"
