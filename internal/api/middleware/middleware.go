@@ -1,30 +1,12 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"runtime/debug"
 	"time"
 
-	"github.com/rs/xid"
 	"github.com/rs/zerolog/log"
 )
-
-const CorrelationIDHeader = "X-Correlation-ID"
-const correlationIDKey = "correlation_id"
-
-func CorrelationIDMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.Header.Get(CorrelationIDHeader)
-		if id == "" {
-			id = xid.New().String()
-		}
-		w.Header().Set(CorrelationIDHeader, id)
-
-		ctx := context.WithValue(r.Context(), correlationIDKey, id)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
 
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

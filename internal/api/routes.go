@@ -2,6 +2,7 @@ package api
 
 const (
 	HealthCheckRoute = "/healthz"
+	AboutRoute       = "/icanhaztalmi"
 
 	IssueTokenRoute = "/v1/token/issue"
 

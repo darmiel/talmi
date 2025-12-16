@@ -5,6 +5,7 @@ talmi.yaml
 
 # temp
 *.yaml
+*.jsonl
 !talmi-example.yaml
 !examples/*.yaml
 charts/

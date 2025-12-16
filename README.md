@@ -97,7 +97,7 @@ A more complex example:
     match:
       issuer: flower-oidc
       conditions:
-        all:
+        all: # allow access to all company users except Bob
           - user: { contains: "@company.com" }
           - not: { user: "bob@company.com" } # what did you do, Bob?
     grant:

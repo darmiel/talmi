@@ -43,6 +43,7 @@ func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 
 	// public routes
 	mux.HandleFunc("GET "+HealthCheckRoute, s.handleHealth)
+	mux.HandleFunc("GET "+AboutRoute, s.handleAbout)
 
 	// token issuer route
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)

@@ -12,6 +12,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 
+	"github.com/darmiel/talmi/internal/api/middleware"
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 )
@@ -130,10 +132,11 @@ func (g *GitHubAppProvider) Mint(
 	}
 
 	// authenticate as the app
-	appClient, err := g.createAppClient()
+	appClient, err := g.createAppClient(ctx, principal.ID, grant.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("creating github app client: %w", err)
 	}
+	log.Debug().Msgf("Using User-Agent: %s", appClient.UserAgent)
 
 	// determine installation ID
 	var installationID int64
@@ -211,7 +214,9 @@ func (g *GitHubAppProvider) Mint(
 	}, nil
 }
 
-func (g *GitHubAppProvider) createAppClient() (*github.Client, error) {
+func (g *GitHubAppProvider) createAppClient(ctx context.Context, principalID, provider string) (*github.Client, error) {
+	correlationID := middleware.CorrelationCtx(ctx)
+
 	key, err := jwt.ParseRSAPrivateKeyFromPEM(g.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("parsing github app private key: %w", err)
@@ -238,6 +243,9 @@ func (g *GitHubAppProvider) createAppClient() (*github.Client, error) {
 			return nil, fmt.Errorf("creating github enterprise client: %w", err)
 		}
 	}
+
+	// set user agent for auditing
+	client.UserAgent = audit.CreateUserAgent(correlationID, principalID, provider)
 
 	return client, nil
 }
