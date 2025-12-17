@@ -17,8 +17,8 @@ providers:
   - name: github
     type: github-app
     app_id: 1126
-    private_key_path: "./talmi-dev-token-adapter.2025-12-08.private-key.pem"
-    server: "https://github.wdf.sap.corp/api/v3/"
+    private_key_path: "./talmi-dev-token-adapter.pem"
+    server: "https://github.company.com/api/v3/"
 
 rules:
   - name: allow-specific-people-admin-talmi-role

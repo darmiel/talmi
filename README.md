@@ -110,9 +110,10 @@ The following conditions are supported:
 
 * **Logic:** `all` (AND), `any` (OR), `not`.
 * **Operators:** `equals`, `contains`, `in`, `exists`.
-* **Expressions:** Use `expr` syntax for complex logic (e.g., arithmetic or string manipulation).
+* **Expressions:** Use [`expr`](https://github.com/expr-lang/expr) syntax for complex logic. 
+  You can access `principal` (which contains attributes like `sub`, ...) and `rule`
 
-A more complex example:
+A more complex example, which allows access for all company users except a specific user (Bob):
 
 ```yaml
   - name: ...
@@ -120,7 +121,7 @@ A more complex example:
     match:
       issuer: flower-oidc
       conditions:
-        all: # allow access to all company users except Bob
+        all: # all following conditions must match
           - user: { contains: "@company.com" }
           - not: { user: "bob@company.com" } # what did you do, Bob?
     grant:
