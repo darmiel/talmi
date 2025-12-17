@@ -160,7 +160,7 @@ Supported operators (from the existing README/code intent):
 
 ### Combine conditions
 
-Use all (AND), any (OR), and not:
+Use `all` (AND), `any` (OR), and `not`:
 
 ```yaml
 match:
@@ -171,19 +171,20 @@ match:
       - not: { user: "bob@company.com" } # what did you do, Bob?
 ```
 
-If you cannot use the short syntax, for example when your attribute name collides with `all`, `any`, or `not`, you can
-use the long syntax:
+> [!TIP]
+> If you cannot use the short syntax, for example when your attribute name collides with one of the operators, you can use
+> the long syntax:
+>
+> ```yaml
+> condition:
+>   key: all
+>   operator: equals
+>   value: some-value
+> ```
 
-```yaml
-condition:
-  key: all
-  operator: equals
-  value: some-value
-```
+**Keep rules ordered from most specific to most general.**
 
-Important: Keep rules ordered from most specific to most general.
-
-## Debugging policies effectively
+## Debugging Policies
 
 Before writing rules, confirm what claims your upstream tokens actually contain. Talmi
 includes a helper (`talmi attributes`) that decodes JWT claims without validating them.
@@ -199,13 +200,14 @@ Use it to learn the available attribute names and values, then write match condi
 
 `why` can run either:
 
-* locally against a config file (useful while editing policies) by providing `-f talmi.yaml`
-* remotely against a server where you are authenticated as `admin` (note that this does not produce an audit log entry)
+* **locally** against a config file (useful while editing policies) by providing `-f talmi.yaml`
+* **remotely** against a server where you are authenticated as `admin` (note that this does not produce an audit log
+  entry)
 
 > [!TIP]
 > You view the evaluation trace for a previous request by providing the correlation ID you can find in the audit log:
 > ```bash
-> talmi --server https://talmi.company.com why --replay-id <correlation-id>
+> talmi why --replay-id <correlation-id>
 > ```
 > Note that this applies the _current_ policy configuration, not the one that was active at the time of the request.
 
@@ -213,7 +215,7 @@ Use it to learn the available attribute names and values, then write match condi
 
 ---
 
-## Auditing and Observability
+## Auditing
 
 Talmi provides built-in tools to track access and security events.
 

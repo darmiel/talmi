@@ -138,10 +138,10 @@ func printTrace(trace *core.EvaluationTrace) {
 	yellow := color.New(color.FgYellow).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
 
-	fmt.Printf("\n%s for Principal: %s (Issuer: %s)\n",
+	fmt.Printf("\n%s for principal %s and issuer: %s\n",
 		bold("Evaluation Trace"),
 		bold(trace.Principal.ID),
-		trace.Principal.Issuer)
+		bold(trace.Principal.Issuer))
 
 	fmt.Println(faint("---------------------------------------------------"))
 

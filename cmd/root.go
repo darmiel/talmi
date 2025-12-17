@@ -25,7 +25,7 @@ const (
 	LogFormatKey  = "log.format"
 	LogNoColorKey = "log.no_color"
 
-	TalmiAddrKey = "talmi.addr"
+	TalmiAddrKey = "addr"
 )
 
 var rootCmd = &cobra.Command{
@@ -80,6 +80,8 @@ func init() {
 		".", "_",
 		"-", "_",
 	))
+
+	viper.AutomaticEnv()
 
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
