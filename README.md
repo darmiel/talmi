@@ -15,7 +15,7 @@ check it against defined policies, and mint short-lived, scoped credentials for 
 
 This allows you, to for example, let your CI pipelines access only specific repositories during a deployment job,
 without ever needing to store long-lived secrets in your CI environment. If some specific pipeline needs leveraged
-access, you can simple define a new rule matching that pipeline's identity and return a new artifact (i.e. token)
+access, you can easily define a new rule matching that pipeline's identity and return a new artifact (i.e. token)
 with the required permissions.
 
 One of the big advantages (besides security) is auditability. Since all tokens are short-lived and minted on-demand,
@@ -50,6 +50,29 @@ sequenceDiagram
 
     Talmi-->>Client: Return Access Token
 ```
+
+---
+
+### Quick Start
+
+You can install the Talmi CLI and server using `go install`:
+
+```bash
+go install github.com/darmiel/talmi@latest
+```
+
+Create a configuration file `talmi.yaml` - you can find an example in the
+[`examples/`](examples/) directory.
+
+Then start the Talmi server:
+
+```bash
+talmi serve --config talmi.yaml --addr :8080
+```
+
+To perform administrative tasks, you must first authenticate with Talmi using a token that matches a rule granting
+access to the `talmi` provider. You can find an example how to do so in
+[`examples/talmi-testing.yaml`](examples/talmi-testing.yaml) (see `talmi-jwt` provider).
 
 ---
 
@@ -113,6 +136,13 @@ detailed execution trace, showing exactly which conditions passed or failed for 
 talmi why -f examples/talmi-testing.yaml --token $JWT
 ```
 
+> [!TIP]
+> You view the evaluation trace for a previous request by providing the correlation ID you can find in the audit log:
+> ```bash
+> talmi --server https://talmi.company.com why --replay-id <correlation-id>
+> ```
+> Note that this applies the _current_ policy configuration, not the one that was active at the time of the request.
+
 <img width="955" height="455" alt="Policy Trace Output" src="https://github.com/user-attachments/assets/4929292a-a4d0-487a-a449-233dbbebe7b8" />
 
 > [!NOTE]
@@ -125,8 +155,7 @@ Talmi provides built-in tools to track access and security events.
 
 **Active Tokens**
 
-The token registry tracks all currently valid tokens issued by the system. This provides real-time visibility into who
-has access to your infrastructure right now.
+The token registry tracks all currently valid tokens issued by the system. You can list them using:
 
 ```bash
 talmi audit tokens
@@ -142,7 +171,28 @@ The audit log records every access request, including denied requests:
 talmi audit log --limit 50
 ```
 
+To view full details of a specific audit entry (=> request), including metadata and errors, use:
+
+```bash
+talmi --server https://talmi.company.com audit inspect <audit-id>
+```
+
 <img width="1612" height="274" alt="Active Tokens Table" src="https://github.com/user-attachments/assets/b0a2816d-a543-49c7-a94b-5aa2c35555fe" />
+
+**Fingerprinting**
+
+Minting requests normally contain the correlation ID by passing it as the `User-Agent` for requests in the following
+format:
+
+```
+Talmi/v1.0.0 (correlation_id=%s; principal=%s; provider=%s)
+```
+
+Additionally, Talmi may compute a _fingerprint_ for each minted token (depending on the provider).
+This allows you to track token usage in audit logs of downstream services (e.g., GitHub).
+
+You can find more information about identifying audit log events in
+GitHub [here](https://docs.github.com/en/enterprise-cloud@latest/admin/monitoring-activity-in-your-enterprise/reviewing-audit-logs-for-your-enterprise/identifying-audit-log-events-performed-by-an-access-token)
 
 #### Flexible Providers
 
@@ -182,27 +232,3 @@ To configure an OIDC issuer, provide the `issuer_url` and the expected `client_i
   talmi attributes --token $JWT
   ```
 * **Environment Variables:** Some CLI flags (like `--server` or `--log-level`) can be set via environment variables
-
----
-
-## Quick Start
-
-### Installation
-
-```bash
-go install github.com/darmiel/talmi@latest
-```
-
-## Running the Server
-
-Start the Talmi server using the `serve` command.
-
-```bash
-talmi serve --config talmi.yaml --addr :8080
-```
-
-### Administration
-
-To perform administrative tasks, you must first authenticate with Talmi using a token that matches a rule granting
-access to the `talmi` provider. You can find an example how to do so in
-[`examples/talmi-testing.yaml`](examples/talmi-testing.yaml).
