@@ -10,19 +10,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	attributesToken string
-)
-
 var attributesCmd = &cobra.Command{
 	Use:   "attributes",
 	Short: "Prints the attributes (claims) of a JWT token",
 	Long: `The attributes command extracts and displays the claims from a provided JWT token.
 It does not perform any validation, it simply decodes the token and shows its contents.`,
-	Example: `  talmi attributes --token <JWT token>`,
+	Example: `  talmi attributes <JWT token>`,
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		tokenInput := args[0]
+		if tokenInput == "" {
+			return fmt.Errorf("token cannot be empty")
+		}
+
 		parser := jwt.NewParser()
-		token, _, err := parser.ParseUnverified(attributesToken, jwt.MapClaims{})
+		token, _, err := parser.ParseUnverified(tokenInput, jwt.MapClaims{})
 		if err != nil {
 			return fmt.Errorf("parsing token: %w", err)
 		}
@@ -60,8 +62,4 @@ It does not perform any validation, it simply decodes the token and shows its co
 
 func init() {
 	rootCmd.AddCommand(attributesCmd)
-
-	attributesCmd.Flags().StringVarP(&attributesToken, "token", "t", "", "The token to validate and extract attributes from")
-
-	_ = attributesCmd.MarkFlagRequired("token")
 }

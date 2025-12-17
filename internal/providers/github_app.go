@@ -37,7 +37,7 @@ type GitHubAppProviderConfig struct {
 	AllowAllPermissions bool `mapstructure:"allow_all_permissions"`
 }
 
-type GrantConfig struct {
+type GitHubAppGrantConfig struct {
 	// Optional: explicitly define which installation to use. Bypasses owner lookup.
 	// You have to specify ONE OF InstallationID OR Owner.
 	InstallationID *int64 `mapstructure:"installation_id"`
@@ -119,7 +119,7 @@ func (g *GitHubAppProvider) Mint(
 	logger := log.Ctx(ctx)
 	logger.Debug().Msgf("GitHubAppProvider Mint called for principal ID: %s", principal.ID)
 
-	var grantConf GrantConfig
+	var grantConf GitHubAppGrantConfig
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,
 		Result:   &grantConf,
