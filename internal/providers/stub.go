@@ -28,9 +28,13 @@ func (s *StubProvider) Mint(
 		Str("provider", s.name).
 		Str("principal_id", principal.ID).
 		Msg("StubProvider Mint called")
+
+	tok := fmt.Sprintf("talmi_v1_fake_token_for_%s", grant.Provider)
+
 	return &core.TokenArtifact{
-		Value:     fmt.Sprintf("talmi_v1_fake_token_for_%s", grant.Provider),
-		ExpiresAt: time.Now().Add(1 * time.Hour),
+		Value:       tok,
+		Fingerprint: CalculateFingerprinter(StubFingerprintType, tok),
+		ExpiresAt:   time.Now().Add(1 * time.Hour),
 		Metadata: map[string]any{
 			"env": "stub",
 		},

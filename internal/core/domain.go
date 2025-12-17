@@ -74,9 +74,14 @@ type TokenArtifact struct {
 	// Value is the actual secret/token string (e.g., the GitHub Installation Token).
 	Value string `json:"value"`
 
+	// Fingerprint is the provider-specific identifier for tracability.
+	Fingerprint string `json:"fingerprint"`
+
 	// ExpiresAt indicates when this token becomes invalid.
 	ExpiresAt time.Time `json:"expires_at"`
 
 	// Metadata contains extra information (e.g., "git_user": "x-access-token").
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
+
+type Fingerprinter func(token string) string

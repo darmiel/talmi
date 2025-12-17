@@ -84,8 +84,9 @@ func (p *TalmiJWTProvider) Mint(
 	}
 
 	return &core.TokenArtifact{
-		Value:     signedToken,
-		ExpiresAt: exp,
+		Value:       signedToken,
+		Fingerprint: CalculateFingerprinter(TalmiFingerprintType, signedToken),
+		ExpiresAt:   exp,
 		Metadata: map[string]any{
 			"type": "talmi_session",
 		},

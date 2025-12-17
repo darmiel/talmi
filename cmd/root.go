@@ -10,11 +10,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/logging"
 )
-
-// Version will (should) be overwritten during build
-var Version = "dirty"
 
 // global flags
 var (
@@ -30,21 +28,18 @@ const (
 	TalmiAddrKey = "talmi.addr"
 )
 
+var configErr error
+
 var rootCmd = &cobra.Command{
 	Use:   "talmi",
-	Short: fmt.Sprintf("Talmi STS (version: %s)", Version),
+	Short: fmt.Sprintf("Talmi STS (version: %s, commit: %s)", buildinfo.Version, buildinfo.CommitHash),
 	Long: `Talmi is a minimal, extensible Security Token Service (STS).
 	It grants access to downstream resources (like GitHub Apps, Cloud Providers)
 	based on verified identities from upstream IdPs (like OIDC).`,
-	Version: Version,
+	Version: buildinfo.Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		configPath, configErr := initConfig()
-		logging.Init(nil)
-		if configErr != nil { // handle error after logging is initialized
+		if configErr != nil {
 			return configErr
-		}
-		if configPath != "" {
-			log.Debug().Msgf("using config file: %s", configPath)
 		}
 		return nil
 	},
@@ -83,6 +78,13 @@ func init() {
 
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
+
+	var configPath string
+	configPath, configErr = initConfig()
+	logging.Init(nil)
+	if configPath != "" {
+		log.Debug().Msgf("using config file: %s", configPath)
+	}
 }
 
 func initConfig() (string, error) {

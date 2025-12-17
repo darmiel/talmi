@@ -21,10 +21,11 @@ type AuditEntry struct {
 	RequestedIssuer string `json:"issuer,omitempty"`
 
 	// Decision details
-	PolicyName string `json:"policy_name,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Granted    bool   `json:"granted"`
-	Error      string `json:"error,omitempty"`
+	PolicyName       string `json:"policy_name,omitempty"`
+	Provider         string `json:"provider,omitempty"`
+	Granted          bool   `json:"granted"`
+	TokenFingerprint string `json:"token_fingerprint,omitempty"`
+	Error            string `json:"error,omitempty"`
 
 	// Metadata contains artifact details
 	Metadata map[string]any `json:"metadata,omitempty"`

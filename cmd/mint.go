@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -60,11 +61,17 @@ It uses a dummy principal and forces the execution of a specific rule's grant`,
 		if err != nil {
 			return fmt.Errorf("minting failed: %w", err)
 		}
-		log.Info().Msgf("Minted token!")
+		log.Debug().Msg("Token minted successfully")
 
-		enc := json.NewEncoder(log.Logger)
+		var buffer bytes.Buffer
+		enc := json.NewEncoder(&buffer)
 		enc.SetIndent("", "  ")
-		return enc.Encode(artifact)
+		if err := enc.Encode(artifact); err != nil {
+			return fmt.Errorf("failed to encode minted token artifact to JSON: %w", err)
+		}
+
+		log.Info().Msgf("Minted Token Artifact JSON:\n%s", buffer.String())
+		return nil
 	},
 }
 

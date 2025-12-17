@@ -203,9 +203,12 @@ func (g *GitHubAppProvider) Mint(
 	}
 	logger.Debug().Msgf("Minted token expiring at %s", token.GetExpiresAt().Time.String())
 
+	tok := token.GetToken()
+
 	return &core.TokenArtifact{
-		Value:     token.GetToken(),
-		ExpiresAt: token.GetExpiresAt().Time,
+		Value:       tok,
+		ExpiresAt:   token.GetExpiresAt().Time,
+		Fingerprint: CalculateFingerprinter(GitHubFingerprintType, tok),
 		Metadata: map[string]any{
 			"installation": installationID,
 			"repositories": opts.Repositories,

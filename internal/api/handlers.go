@@ -27,7 +27,7 @@ func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	info := map[string]string{
 		"service": "Talmi",
 		"about":   "https://github.com/darmiel/talmi",
-		"version": buildinfo.TalmiVersion,
+		"version": buildinfo.Version,
 		"commit":  buildinfo.CommitHash,
 	}
 	presenter.JSON(w, r, info, http.StatusOK)
@@ -141,6 +141,9 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		auditEntry.Error = "token minting failed"
 		return
 	}
+	auditEntry.Granted = true
+	auditEntry.Metadata = artifact.Metadata
+	auditEntry.TokenFingerprint = artifact.Fingerprint
 
 	meta := core.TokenMetadata{
 		CorrelationID: reqID,
@@ -158,9 +161,6 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	logger.Info().
 		Str("provider", provider.Name()).
 		Msg("token issued successfully")
-
-	auditEntry.Granted = true
-	auditEntry.Metadata = artifact.Metadata
 
 	presenter.JSON(w, r, artifact, http.StatusCreated)
 }

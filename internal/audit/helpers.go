@@ -8,5 +8,5 @@ import (
 
 func CreateUserAgent(correlationID, principalID, provider string) string {
 	return fmt.Sprintf("Talmi/%s (correlation_id=%s; principal=%s; provider=%s)",
-		buildinfo.TalmiVersion, correlationID, principalID, provider)
+		buildinfo.Version, correlationID, principalID, provider)
 }
