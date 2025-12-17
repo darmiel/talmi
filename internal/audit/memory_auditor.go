@@ -6,6 +6,8 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
+var _ core.Auditor = (*InMemoryAuditor)(nil)
+
 // InMemoryAuditor is an auditor that stores audit logs in memory.
 type InMemoryAuditor struct {
 	mu      sync.Mutex
@@ -38,6 +40,24 @@ func (i *InMemoryAuditor) GetRecent(limit int) ([]core.AuditEntry, error) {
 	copy(entries, i.entries[start:])
 
 	return entries, nil
+}
+
+func (i *InMemoryAuditor) Find(filter func(entry core.AuditEntry) bool, limit int) ([]core.AuditEntry, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	var matches []core.AuditEntry
+	for _, entry := range i.entries {
+		if filter(entry) {
+			matches = append(matches, entry)
+		}
+	}
+
+	if len(matches) > limit {
+		matches = matches[len(matches)-limit:]
+	}
+
+	return matches, nil
 }
 
 func (i *InMemoryAuditor) Close() error {

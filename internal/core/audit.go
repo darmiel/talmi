@@ -34,5 +34,6 @@ type AuditEntry struct {
 type Auditor interface {
 	Log(entry AuditEntry) error
 	GetRecent(limit int) ([]AuditEntry, error)
+	Find(filter func(entry AuditEntry) bool, limit int) ([]AuditEntry, error)
 	Close() error
 }

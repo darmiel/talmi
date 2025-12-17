@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -10,45 +9,51 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+
+	"github.com/darmiel/talmi/pkg/client"
 )
 
 var (
-	auditLogLimit   uint
-	auditLogDisplay string // either table or text
+	auditLogLimit       uint
+	auditLogPrincipal   string
+	auditLogFingerprint string
 )
 
 var auditLogCmd = &cobra.Command{
-	Use:     "log",
-	Short:   "Retrieve and display audit log entries",
-	Long:    `Fetches the most recent decision logs from the server, including allowed and denied requests`,
-	Example: `  talmi audit log --limit 50`,
+	Use:   "log",
+	Short: "Retrieve and display audit log entries",
+	Long:  `Fetches the most recent decision logs from the server, including allowed and denied requests`,
+	Example: `  # Retrieve 50 most recent audit log entries
+  talmi audit log --limit 50
+  
+  # Retrieve audit log entries for a specific fingerprint
+  talmi audit log --fingerprint xA+LGEy4r8==`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cli, err := getClient()
 		if err != nil {
 			return err
 		}
 
-		var isTable bool
-		switch auditLogDisplay {
-		case "table":
-			isTable = true
-		case "text":
-			isTable = false
-		default:
-			return fmt.Errorf("invalid output format: %s", auditLogDisplay)
-		}
-
-		log.Info().Msg("Fetching audit log...")
-		audits, err := cli.ListAudits(cmd.Context(), auditLogLimit)
+		log.Debug().Msg("Fetching audit log...")
+		audits, err := cli.ListAudits(cmd.Context(), client.ListAuditsOpts{
+			Limit:       auditLogLimit,
+			PrincipalID: auditLogPrincipal,
+			Fingerprint: auditLogFingerprint,
+		})
 		if err != nil {
 			return err
 		}
-		log.Info().Msgf("Retrieved %d audit entries", len(audits))
+
+		if len(audits) == 0 {
+			log.Info().Msg("No audit log entries found")
+			return nil
+		}
+		log.Debug().Msgf("Retrieved %d audit entries", len(audits))
 
 		t := table.NewWriter()
 		t.SetOutputMirror(os.Stdout)
 		t.AppendHeader(table.Row{
-			"Time", "Action", "Principal", "Granted", "Provider", "Error",
+			"Time", "Correlation ID", "Principal", "Action",
 		})
 
 		bold := color.New(color.Bold).SprintFunc()
@@ -66,45 +71,24 @@ var auditLogCmd = &cobra.Command{
 
 			var granted string
 			if e.Granted {
-				granted = green("✔") + " " + e.PolicyName
-
-				if !isTable {
-					fmt.Printf("%s: %s %s %s via '%s'\n",
-						faint(e.Time.Format(time.RFC3339)),
-						bold(subRaw),
-						green("✔ "+e.Action),
-						faint(e.Provider),
-						bold(e.PolicyName))
-				}
+				granted = green("✔")
 			} else {
 				granted = red("✖")
 				sub = red(subRaw) // make it red!
-
-				if !isTable {
-					fmt.Printf("%s: %s %s: %s\n",
-						faint(e.Time.Format(time.RFC3339)),
-						bold(subRaw),
-						red("✖ "+e.Action),
-						e.Error)
-				}
 			}
 
 			t.AppendRow(table.Row{
 				e.Time.Format(time.RFC3339),
-				e.Action,
+				e.ID,
 				sub,
-				granted,
-				e.Provider,
-				red(e.Error),
+				granted + " " + e.Action,
 			})
 		}
 
-		if isTable {
-			s := table.StyleRounded
-			s.Format.Header = text.FormatDefault
-			t.SetStyle(s)
-			t.Render()
-		}
+		s := table.StyleRounded
+		s.Format.Header = text.FormatDefault
+		t.SetStyle(s)
+		t.Render()
 		return nil
 	},
 }
@@ -113,5 +97,6 @@ func init() {
 	auditCmd.AddCommand(auditLogCmd)
 
 	auditLogCmd.Flags().UintVarP(&auditLogLimit, "limit", "n", 25, "Number of entries")
-	auditLogCmd.Flags().StringVarP(&auditLogDisplay, "output", "o", "table", "Output format: table or text")
+	auditLogCmd.Flags().StringVarP(&auditLogPrincipal, "principal", "p", "", "Filter by principal ID")
+	auditLogCmd.Flags().StringVarP(&auditLogFingerprint, "fingerprint", "f", "", "Filter by token fingerprint")
 }

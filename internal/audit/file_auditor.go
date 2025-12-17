@@ -9,6 +9,8 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
+var _ core.Auditor = (*FileAuditor)(nil)
+
 // FileAuditor is an auditor that writes audit logs to a file in JSON format.
 type FileAuditor struct {
 	mu      sync.Mutex
@@ -74,11 +76,45 @@ func (f *FileAuditor) GetRecent(limit int) ([]core.AuditEntry, error) {
 	}
 
 	recent := make([]core.AuditEntry, 0, limit)
-	for i := count - 1; i >= start; i-- {
+	//for i := count - 1; i >= start; i-- {
+	for i := start; i < count; i++ {
 		recent = append(recent, entries[i])
 	}
 
 	return recent, nil
+}
+
+func (f *FileAuditor) Find(filter func(entry core.AuditEntry) bool, limit int) ([]core.AuditEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// see above
+	file, err := os.Open(f.file.Name())
+	if err != nil {
+		return nil, fmt.Errorf("opening audit log file for reading: %w", err)
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	var matches []core.AuditEntry
+
+	decoder := json.NewDecoder(file)
+	for decoder.More() {
+		var entry core.AuditEntry
+		if err := decoder.Decode(&entry); err != nil {
+			return nil, fmt.Errorf("decoding audit log entry: %w", err)
+		}
+		if filter(entry) {
+			matches = append(matches, entry)
+		}
+	}
+
+	if len(matches) > limit {
+		matches = matches[len(matches)-limit:]
+	}
+
+	return matches, nil
 }
 
 func (f *FileAuditor) Close() error {

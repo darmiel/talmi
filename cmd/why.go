@@ -16,11 +16,13 @@ import (
 )
 
 var (
-	whyToken      string
-	whyProvider   string
-	whyIssuer     string
-	whyRuleFilter string
-	whyTargetFile string
+	whyToken        string
+	whyProvider     string
+	whyIssuer       string
+	whyFilterIssuer bool
+	whyRuleFilter   string
+	whyTargetFile   string
+	whyReplayID     string
 )
 
 var whyCmd = &cobra.Command{
@@ -56,8 +58,11 @@ func init() {
 	whyCmd.Flags().StringVarP(&whyRuleFilter, "rule", "r", "", "Filter output to specific rule name (optional)")
 	whyCmd.Flags().StringVar(&whyProvider, "provider", "", "Simulate requesting this provider (optional)")
 	whyCmd.Flags().StringVar(&whyIssuer, "issuer", "", "Simulate coming from this issuer (optional)")
+	whyCmd.Flags().StringVar(&whyReplayID, "replay-id", "", "Replay a specific audit log entry by its ID (optional)")
+	whyCmd.Flags().BoolVar(&whyFilterIssuer, "filter-issuer", false, "Only show entries where the issuer matched (optional)")
 
-	_ = whyCmd.MarkFlagRequired("token")
+	whyCmd.MarkFlagsOneRequired("token", "replay-id")        // either token or replay-id is required
+	whyCmd.MarkFlagsMutuallyExclusive("config", "replay-id") // cannot use replay-id in local mode
 }
 
 func whyTokenRemote(cmd *cobra.Command, _ []string) error {
@@ -69,6 +74,7 @@ func whyTokenRemote(cmd *cobra.Command, _ []string) error {
 	trace, err := cli.ExplainTrace(cmd.Context(), whyToken, client.ExplainTraceOptions{
 		RequestedIssuer:   whyIssuer,
 		RequestedProvider: whyProvider,
+		ReplayID:          whyReplayID,
 	})
 	if err != nil {
 		return err
@@ -142,6 +148,20 @@ func printTrace(trace *core.EvaluationTrace) {
 	for _, res := range trace.RuleResults {
 		if whyRuleFilter != "" && res.RuleName != whyRuleFilter {
 			continue
+		}
+
+		// this is a hacky way to check if the issuer matched. we can fix this later :)
+		if whyFilterIssuer {
+			issuerMatched := false
+			for _, cond := range res.ConditionResults {
+				if strings.HasPrefix(cond.Expression, "issuer equals '") && cond.Matched {
+					issuerMatched = true
+					break
+				}
+			}
+			if !issuerMatched {
+				continue
+			}
 		}
 
 		icon := red("✖")

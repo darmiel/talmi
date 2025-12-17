@@ -28,8 +28,6 @@ const (
 	TalmiAddrKey = "talmi.addr"
 )
 
-var configErr error
-
 var rootCmd = &cobra.Command{
 	Use:   "talmi",
 	Short: fmt.Sprintf("Talmi STS (version: %s, commit: %s)", buildinfo.Version, buildinfo.CommitHash),
@@ -38,8 +36,13 @@ var rootCmd = &cobra.Command{
 	based on verified identities from upstream IdPs (like OIDC).`,
 	Version: buildinfo.Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if configErr != nil {
+		configPath, configErr := initConfig()
+		logging.Init(nil)
+		if configErr != nil { // handle error after logging is initialized
 			return configErr
+		}
+		if configPath != "" {
+			log.Debug().Msgf("using config file: %s", configPath)
 		}
 		return nil
 	},
@@ -54,6 +57,9 @@ func Execute() {
 }
 
 func init() {
+	// setup pre-flag logger
+	logging.InitDefault()
+
 	rootCmd.PersistentFlags().StringVar(&userConfig, "user-config", "",
 		"User configuration file for default values (default is $HOME/.talmi.yaml)")
 
@@ -74,17 +80,9 @@ func init() {
 		".", "_",
 		"-", "_",
 	))
-	viper.AutomaticEnv()
 
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
-
-	var configPath string
-	configPath, configErr = initConfig()
-	logging.Init(nil)
-	if configPath != "" {
-		log.Debug().Msgf("using config file: %s", configPath)
-	}
 }
 
 func initConfig() (string, error) {

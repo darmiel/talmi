@@ -26,14 +26,17 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			return err
 		}
 
-		log.Info().Msg("Fetching active tokens...")
-
+		log.Debug().Msg("Fetching active tokens...")
 		tokens, err := cli.ListActiveTokens(cmd.Context())
 		if err != nil {
 			return err
 		}
 
-		log.Info().Msgf("Retrieved %d active tokens", len(tokens))
+		if len(tokens) == 0 {
+			log.Info().Msg("No active tokens found")
+			return nil
+		}
+		log.Debug().Msgf("Retrieved %d active token(s)", len(tokens))
 
 		t := table.NewWriter()
 		t.SetOutputMirror(os.Stdout)

@@ -18,6 +18,16 @@ const (
 	LogNoColorKey = "log.no_color"
 )
 
+func InitDefault() {
+	log.Logger = zerolog.New(zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
+		w.Out = os.Stderr
+		w.NoColor = viper.GetBool(LogNoColorKey)
+		w.TimeFormat = "15:04:05.000"
+	})).With().
+		Timestamp().
+		Logger()
+}
+
 // Init sets up the global logger. If sensitive values are provided,
 // it wraps the standard output with a redacting writer to mask those values in logs.
 func Init(sensitiveValues []string) {

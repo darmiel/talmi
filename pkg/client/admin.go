@@ -10,13 +10,31 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
+type ListAuditsOpts struct {
+	Limit uint
+
+	CorrelationID string
+	PrincipalID   string
+	Fingerprint   string
+}
+
 // ListAudits retrieves the latest audit entries from the server, limited to the specified number.
-func (c *Client) ListAudits(ctx context.Context, limit uint) ([]core.AuditEntry, error) {
+func (c *Client) ListAudits(ctx context.Context, opts ListAuditsOpts) ([]core.AuditEntry, error) {
+	ub := c.url().setPath(api.ListAuditsRoute)
+	if opts.Limit > 0 {
+		ub = ub.addQueryParam("limit", opts.Limit)
+	}
+	if opts.CorrelationID != "" {
+		ub = ub.addQueryParam("correlation_id", opts.CorrelationID)
+	}
+	if opts.PrincipalID != "" {
+		ub = ub.addQueryParam("principal_id", opts.PrincipalID)
+	}
+	if opts.Fingerprint != "" {
+		ub = ub.addQueryParam("fingerprint", opts.Fingerprint)
+	}
 	var resp []core.AuditEntry
-	err := c.get(ctx, c.url().
-		setPath(api.ListAuditsRoute).
-		addQueryParam("limit", limit).
-		build(), &resp)
+	err := c.get(ctx, ub.build(), &resp)
 	return resp, err
 }
 
@@ -32,6 +50,7 @@ func (c *Client) ListActiveTokens(ctx context.Context) ([]core.TokenMetadata, er
 type ExplainTraceOptions struct {
 	RequestedIssuer   string
 	RequestedProvider string
+	ReplayID          string
 }
 
 func (c *Client) ExplainTrace(
@@ -46,8 +65,9 @@ func (c *Client) ExplainTrace(
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.url().
 		setPath(api.ExplainRoute).
-		addQueryParam("issuer", opts.RequestedIssuer).
-		addQueryParam("provider", opts.RequestedProvider).
+		addQueryParamNotEmpty("issuer", opts.RequestedIssuer).
+		addQueryParamNotEmpty("provider", opts.RequestedProvider).
+		addQueryParamNotEmpty("replay_id", opts.ReplayID).
 		build(), body)
 	if err != nil {
 		return nil, err
