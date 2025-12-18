@@ -32,9 +32,9 @@ var rootCmd = &cobra.Command{
 	Use:   "talmi",
 	Short: fmt.Sprintf("Talmi STS (version: %s, commit: %s)", buildinfo.Version, buildinfo.CommitHash),
 	Long: `Talmi is a minimal, extensible Security Token Service (STS).
-	It grants access to downstream resources (like GitHub Apps, Cloud Providers)
-	based on verified identities from upstream IdPs (like OIDC).`,
-	Version: buildinfo.Version,
+It grants access to downstream resources (like GitHub Apps, Cloud Providers)
+based on verified identities from upstream IdPs (like OIDC).`,
+	Version: fmt.Sprintf("%s (commit: %s)", buildinfo.Version, buildinfo.CommitHash),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		configPath, configErr := initConfig()
 		logging.Init(nil)

@@ -24,13 +24,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // handleAbout responds with service information including version and commit hash.
 func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
-	info := map[string]string{
-		"service": "Talmi",
-		"about":   "https://github.com/darmiel/talmi",
-		"version": buildinfo.Version,
-		"commit":  buildinfo.CommitHash,
-	}
-	presenter.JSON(w, r, info, http.StatusOK)
+	presenter.JSON(w, r, buildinfo.GetBuildInfo(), http.StatusOK)
 }
 
 func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {

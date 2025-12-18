@@ -1,5 +1,8 @@
 FROM golang:1.25.4-alpine AS builder
 
+ARG VERSION=unknown
+ARG COMMIT_HASH=unknown
+
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -10,7 +13,12 @@ COPY internal internal/
 COPY pkg pkg/
 COPY cmd cmd/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o talmi .
+RUN CGO_ENABLED=0 GOOS=linux \
+    go build \
+    -ldflags="-w -s \
+      -X github.com/darmiel/talmi/internal/buildinfo.Version=${VERSION} \
+      -X github.com/darmiel/talmi/internal/buildinfo.CommitHash=${COMMIT_HASH}" \
+    -o talmi .
 
 FROM gcr.io/distroless/static:nonroot
 
