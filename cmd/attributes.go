@@ -1,10 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -34,7 +35,11 @@ It does not perform any validation, it simply decodes the token and shows its co
 		}
 
 		log.Info().Msg("Token Claims:")
-		log.Info().Msg(spew.Sdump(claims))
+		enc := json.NewEncoder(os.Stderr)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(claims); err != nil {
+			log.Warn().Err(err).Msg("failed to pretty-print claims")
+		}
 
 		if issRaw, ok := claims["iss"]; ok {
 			log.Info().Msgf("Issuer (iss): %v", issRaw)

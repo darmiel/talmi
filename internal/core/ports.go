@@ -20,4 +20,9 @@ type Provider interface {
 
 	// Mint creates a new access token based on the Principal and the Grant.
 	Mint(ctx context.Context, principal *Principal, grant Grant) (*TokenArtifact, error)
+
+	// Downscope calculates the effective permissions.
+	// It compares the 'requested' permissions against the 'allowed' (granted) permissions.
+	// Implementation is entirely provider-specific.
+	Downscope(allowed, requested map[string]string) (map[string]string, error)
 }

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,7 +19,7 @@ import (
 )
 
 // handleHealth responds with a simple OK status to indicate the server is healthy.
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
 }
@@ -27,6 +29,40 @@ func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	presenter.JSON(w, r, buildinfo.GetBuildInfo(), http.StatusOK)
 }
 
+type IssuePayload struct {
+	// Permissions specifies requested permissions for the issued token.
+	Permissions map[string]string `json:"permissions"`
+
+	// Issuer specifies the desired issuer to verify the token against.
+	// It skips issuer auto-discovery.
+	Issuer string
+
+	// Provider specifies the desired provider to issue the token from.
+	Provider string
+}
+
+func DecodePayload(r *http.Request, dest any, allowEmpty bool) error {
+	switch r.Header.Get("Content-Type") {
+	case "application/json", "":
+		// strict encoding for JSON
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(dest); err != nil {
+			if !errors.Is(err, io.EOF) || !allowEmpty {
+				return err
+			}
+		}
+		// ensure there's no extra data
+		if dec.More() {
+			return errors.New("extra data in request body")
+		}
+		return nil
+	default:
+		return errors.New("unsupported content type")
+	}
+}
+
+// handleIssue processes token issuance requests.
 func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := log.Ctx(ctx)
@@ -43,6 +79,15 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// parse request payload
+	var payload IssuePayload
+	if err := DecodePayload(r, &payload, true /* allow empty */); err != nil {
+		logger.Warn().Err(err).Msg("failed to decode issue request payload")
+		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
+		auditEntry.Error = "invalid request payload"
+		return
+	}
+
 	// read token from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer"))
@@ -53,20 +98,15 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// optional requested issuer / provider
-	q := r.URL.Query()
-	requestedIssuer := q.Get("issuer")
-	requestedProvider := q.Get("provider")
-
-	auditEntry.RequestedIssuer = requestedIssuer
-	auditEntry.RequestedProvider = requestedProvider
+	auditEntry.RequestedIssuer = payload.Issuer
+	auditEntry.RequestedProvider = payload.Provider
 
 	var issuer core.Issuer
-	if requestedIssuer != "" {
+	if payload.Issuer != "" { // TODO(future): check if we should allow this in the future, if there's an issuer that accepts too many token types a user might be able to abuse that
 		// the user specified a specific issuer
-		iss, ok := s.issuers.Get(requestedIssuer)
+		iss, ok := s.issuers.Get(payload.Issuer)
 		if !ok {
-			logger.Warn().Str("requested_issuer", requestedIssuer).Msgf("requested issuer not found")
+			logger.Warn().Str("requested_issuer", payload.Issuer).Msgf("requested issuer not found")
 			presenter.Error(w, r, "requested issuer not found", http.StatusBadRequest)
 			auditEntry.Error = "requested issuer not found"
 			return
@@ -99,7 +139,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// evaluate policies
-	rule, err := s.engine.Evaluate(principal, requestedProvider)
+	rule, err := s.engine.Evaluate(principal, payload.Provider) // TODO(future): here as well, check if we should allow filtering by provider
 	if err != nil {
 		auditEntry.Granted = false
 
@@ -127,8 +167,20 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	auditEntry.Provider = provider.Name()
 
+	// downscope permissions
+	effectivePermissions, err := provider.Downscope(grant.Permissions, payload.Permissions)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to downscope permissions")
+		presenter.Error(w, r, "failed to downscope permissions: "+err.Error(), http.StatusInternalServerError)
+		auditEntry.Error = "failed to downscope permissions"
+		return
+	}
+
+	effectiveGrant := grant
+	effectiveGrant.Permissions = effectivePermissions
+
 	// mint token
-	artifact, err := provider.Mint(ctx, principal, grant)
+	artifact, err := provider.Mint(ctx, principal, effectiveGrant)
 	if err != nil {
 		logger.Error().Err(err).Str("provider", provider.Name()).Msg("minting failed")
 		presenter.Error(w, r, "token minting failed", http.StatusInternalServerError)
@@ -159,6 +211,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	presenter.JSON(w, r, artifact, http.StatusCreated)
 }
 
+// handleAdminAudit processes requests to retrieve audit log entries.
 func (s *Server) handleAdminAudit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := log.Ctx(ctx)
@@ -213,6 +266,7 @@ func (s *Server) handleAdminAudit(w http.ResponseWriter, r *http.Request) {
 	presenter.JSON(w, r, entries, http.StatusOK)
 }
 
+// handleAdminTokens processes requests to retrieve active issued tokens.
 func (s *Server) handleAdminTokens(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := log.Ctx(ctx)
@@ -227,6 +281,7 @@ func (s *Server) handleAdminTokens(w http.ResponseWriter, r *http.Request) {
 	presenter.JSON(w, r, tokens, http.StatusOK)
 }
 
+// handleExplain processes token explanation requests.
 func (s *Server) handleExplain(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := log.Ctx(ctx)

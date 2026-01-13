@@ -1,4 +1,4 @@
-package providers
+package talmi
 
 import (
 	"context"
@@ -8,25 +8,42 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 )
 
-type TalmiJWTProviderConfig struct {
+const Type = "talmi-jwt"
+
+var info = core.ProviderInfo{
+	Type:    Type,
+	Version: "v1",
 }
 
-type TalmiJWTGrantConfig struct {
-	// Roles to include in the minted JWT
-	Roles []string `mapstructure:"roles"`
-}
+var _ core.Provider = (*Provider)(nil)
 
-type TalmiJWTProvider struct {
+type Provider struct {
 	name       string
 	signingKey []byte
 }
 
-func NewTalmiJWTProvider(cfg config.ProviderConfig, signingKey []byte) (*TalmiJWTProvider, error) {
-	var conf TalmiJWTProviderConfig
+type ProviderConfig struct {
+}
+
+type GrantConfig struct {
+	// Roles to include in the minted JWT
+	Roles []string `mapstructure:"roles"`
+}
+
+func New(name string, _ ProviderConfig, signingKey []byte) (*Provider, error) {
+	return &Provider{
+		name:       name,
+		signingKey: signingKey,
+	}, nil
+}
+
+func NewFromConfig(cfg config.ProviderConfig, signingKey []byte) (*Provider, error) {
+	var conf ProviderConfig
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,
 		Result:   &conf,
@@ -37,23 +54,23 @@ func NewTalmiJWTProvider(cfg config.ProviderConfig, signingKey []byte) (*TalmiJW
 	if err := decoder.Decode(cfg.Config); err != nil {
 		return nil, fmt.Errorf("failed to decode config for github_app provider '%s': %w", cfg.Name, err)
 	}
-
-	return &TalmiJWTProvider{
-		name:       cfg.Name,
-		signingKey: signingKey,
-	}, nil
+	return New(cfg.Name, conf, signingKey)
 }
 
-func (p *TalmiJWTProvider) Name() string {
+func (p *Provider) Name() string {
 	return p.name
 }
 
-func (p *TalmiJWTProvider) Mint(
+func (p *Provider) Downscope(allowed, _ map[string]string) (map[string]string, error) {
+	return allowed, nil // No downscoping for talmi_jwt
+}
+
+func (p *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
 	grant core.Grant,
 ) (*core.TokenArtifact, error) {
-	var grantConf TalmiJWTGrantConfig
+	var grantConf GrantConfig
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,
 		Result:   &grantConf,
@@ -85,8 +102,9 @@ func (p *TalmiJWTProvider) Mint(
 
 	return &core.TokenArtifact{
 		Value:       signedToken,
-		Fingerprint: CalculateFingerprinter(TalmiFingerprintType, signedToken),
+		Fingerprint: audit.CalculateFingerprint(audit.TalmiFingerprintType, signedToken),
 		ExpiresAt:   exp,
+		Provider:    info,
 		Metadata: map[string]any{
 			"type": "talmi_session",
 		},

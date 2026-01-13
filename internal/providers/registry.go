@@ -5,31 +5,32 @@ import (
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
+	githubprovider "github.com/darmiel/talmi/internal/providers/github"
+	stubprovider "github.com/darmiel/talmi/internal/providers/stub"
+	talmiprovider "github.com/darmiel/talmi/internal/providers/talmi"
 )
 
 func BuildRegistry(cfgs []config.ProviderConfig, signingKey []byte) (map[string]core.Provider, error) {
 	registry := make(map[string]core.Provider)
 	for _, cfg := range cfgs {
+		var p core.Provider
+		var err error
+
 		switch cfg.Type {
-		case "stub":
-			registry[cfg.Name] = &StubProvider{
-				name: cfg.Name,
-			}
-		case "github-app":
-			prov, err := NewGitHubAppProvider(cfg)
-			if err != nil {
-				return nil, fmt.Errorf("building github_app provider %q: %w", cfg.Name, err)
-			}
-			registry[cfg.Name] = prov
-		case "talmi-jwt":
-			prov, err := NewTalmiJWTProvider(cfg, signingKey)
-			if err != nil {
-				return nil, fmt.Errorf("building talmi_jwt provider %q: %w", cfg.Name, err)
-			}
-			registry[cfg.Name] = prov
+		case stubprovider.Type:
+			p, err = stubprovider.New(cfg.Name)
+		case githubprovider.Type:
+			p, err = githubprovider.NewFromConfig(cfg)
+		case talmiprovider.Type:
+			p, err = talmiprovider.NewFromConfig(cfg, signingKey)
 		default:
 			return nil, fmt.Errorf("unknown provider type %q for provider %q", cfg.Type, cfg.Name)
 		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create provider %q of type %q: %w", cfg.Name, cfg.Type, err)
+		}
+		registry[cfg.Name] = p
 	}
 	return registry, nil
 }

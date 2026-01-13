@@ -69,6 +69,15 @@ type Rule struct {
 	Grant Grant `yaml:"grant" json:"grant"`
 }
 
+// ProviderInfo is some additional information shown when minting a token
+type ProviderInfo struct {
+	// Type is the provider type (e.g., "github-app", "talmi").
+	Type string `json:"type"`
+
+	// Version is the provider version (e.g., "v1").
+	Version string `json:"version"`
+}
+
 // TokenArtifact is the result of a successful Mint operation.
 type TokenArtifact struct {
 	// Value is the actual secret/token string (e.g., the GitHub Installation Token).
@@ -79,6 +88,9 @@ type TokenArtifact struct {
 
 	// ExpiresAt indicates when this token becomes invalid.
 	ExpiresAt time.Time `json:"expires_at"`
+
+	// Provider contains information about the issuing provider.
+	Provider ProviderInfo `json:"provider"`
 
 	// Metadata contains extra information (e.g., "git_user": "x-access-token").
 	Metadata map[string]any `json:"metadata,omitempty"`

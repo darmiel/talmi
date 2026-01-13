@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -20,6 +22,7 @@ var (
 	issueReqIssuer   string
 	issueReqProvider string
 	issueTargetFile  string
+	issuePermissions []string
 )
 
 var issueCmd = &cobra.Command{
@@ -54,8 +57,24 @@ func init() {
 	issueCmd.Flags().StringVarP(&issueReqToken, "token", "t", "", "Upstream OIDC token")
 	issueCmd.Flags().StringVar(&issueReqIssuer, "issuer", "", "Explicit issuer name (optional)")
 	issueCmd.Flags().StringVar(&issueReqProvider, "provider", "", "Requested provider name (optional)")
+	issueCmd.Flags().StringArrayVar(&issuePermissions, "permission", []string{}, "Requested permission in key=value format (can be specified multiple times)")
 
 	_ = issueCmd.MarkFlagRequired("token")
+}
+
+func getPermissionsMap() (map[string]string, error) {
+	var permissions map[string]string
+	if len(issuePermissions) > 0 {
+		permissions = make(map[string]string)
+		for _, perm := range issuePermissions {
+			s := strings.SplitN(perm, "=", 2)
+			if len(s) != 2 {
+				return nil, fmt.Errorf("invalid permission format: %s, expected key=value", perm)
+			}
+			permissions[s[0]] = s[1]
+		}
+	}
+	return permissions, nil
 }
 
 func issueTokenRemote(cmd *cobra.Command, _ []string) error {
@@ -64,17 +83,23 @@ func issueTokenRemote(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	permissions, err := getPermissionsMap()
+	if err != nil {
+		return err
+	}
+
 	log.Info().Msgf("Requesting to mint artifact...")
 	artifact, err := cli.IssueToken(cmd.Context(), issueReqToken, client.IssueTokenOptions{
 		RequestedProvider: issueReqProvider,
 		RequestedIssuer:   issueReqIssuer,
+		Permissions:       permissions,
 	})
 	if err != nil {
 		return err
 	}
 
 	log.Info().Msgf("Successfully retrieved artifact:")
-	enc := json.NewEncoder(log.Logger)
+	enc := json.NewEncoder(os.Stderr)
 	enc.SetIndent("", "  ")
 	return enc.Encode(artifact)
 }
@@ -91,6 +116,11 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	providerRegistry, err := providers.BuildRegistry(cfg.Providers, nil)
+	if err != nil {
+		return err
+	}
+
+	permissions, err := getPermissionsMap()
 	if err != nil {
 		return err
 	}
@@ -128,13 +158,23 @@ func issueTokenLocally(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("policy denied: %w", err)
 	}
 	grant := rule.Grant
+
 	log.Info().Msgf("Policy matched in rule '%s'! Minting '%s'...", rule.Name, grant.Provider)
 
 	provider, ok := providerRegistry[grant.Provider]
 	if !ok {
 		return fmt.Errorf("provider '%s' configured in rule but not found in registry", grant.Provider)
 	}
-	artifact, err := provider.Mint(cmd.Context(), principal, grant)
+
+	effectivePermissions, err := provider.Downscope(grant.Permissions, permissions)
+	if err != nil {
+		return fmt.Errorf("downscoping permissions failed: %w", err)
+	}
+
+	effectiveGrant := grant
+	effectiveGrant.Permissions = effectivePermissions
+
+	artifact, err := provider.Mint(cmd.Context(), principal, effectiveGrant)
 	if err != nil {
 		return fmt.Errorf("minting failed: %w", err)
 	}

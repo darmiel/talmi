@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/darmiel/talmi/internal/providers"
+	"github.com/darmiel/talmi/internal/audit"
 )
 
 var (
@@ -53,7 +53,7 @@ Different providers use different algorithms:
 			return fmt.Errorf("token cannot be empty")
 		}
 
-		fp := providers.CalculateFingerprinter(fingerprintProviderType, token)
+		fp := audit.CalculateFingerprint(fingerprintProviderType, token)
 
 		if fingerprintRaw {
 			fmt.Println(fp)
@@ -68,8 +68,8 @@ Different providers use different algorithms:
 func init() {
 	rootCmd.AddCommand(fingerprintCmd)
 
-	fingerprintCmd.Flags().StringVar(&fingerprintProviderType, "type", providers.DefaultFingerprintType,
-		fmt.Sprintf("Provider type (one of: %s)", strings.Join(providers.RegisteredFingerprinterTypes(), ", ")))
+	fingerprintCmd.Flags().StringVar(&fingerprintProviderType, "type", audit.DefaultFingerprintType,
+		fmt.Sprintf("Provider type (one of: %s)", strings.Join(audit.RegisteredFingerprinterTypes(), ", ")))
 	fingerprintCmd.Flags().BoolVarP(&fingerprintRaw, "raw", "r", false,
 		"Output only the fingerprint value without additional text")
 }

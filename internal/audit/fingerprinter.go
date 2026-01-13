@@ -1,4 +1,4 @@
-package providers
+package audit
 
 import (
 	"crypto/sha256"
@@ -24,7 +24,7 @@ func RegisterFingerprinter(providerType string, fn core.Fingerprinter) {
 	fingerprintRegistry[providerType] = fn
 }
 
-func CalculateFingerprinter(providerType, token string) string {
+func CalculateFingerprint(providerType, token string) string {
 	fn, ok := fingerprintRegistry[providerType]
 	if !ok {
 		fn = fingerprintRegistry["default"]

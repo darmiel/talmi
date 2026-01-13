@@ -1,4 +1,4 @@
-package providers
+package github
 
 import (
 	"context"
@@ -18,7 +18,32 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-type GitHubAppProviderConfig struct {
+const Type = "github-app"
+
+var info = core.ProviderInfo{
+	Type:    Type,
+	Version: "v1",
+}
+
+var _ core.Provider = (*Provider)(nil)
+
+// Provider implements core.Provider by minting GitHub App installation tokens.
+// It supports GitHub Cloud and GitHub Enterprise.
+// The provider requires configuration of the App ID and the private key.
+// Grants must specify either the installation ID or the owner (user/org) where the app is installed.
+// Additionally, grants can limit the token to specific repositories and permissions.
+type Provider struct {
+	name       string
+	appID      int64
+	privateKey []byte
+
+	serverBaseURL string
+
+	allowAllRepositories bool
+	allowAllPermissions  bool
+}
+
+type ProviderConfig struct {
 	AppID          int64  `mapstructure:"app_id"`
 	PrivateKey     string `mapstructure:"private_key"`
 	PrivateKeyFile string `mapstructure:"private_key_path"`
@@ -37,7 +62,7 @@ type GitHubAppProviderConfig struct {
 	AllowAllPermissions bool `mapstructure:"allow_all_permissions"`
 }
 
-type GitHubAppGrantConfig struct {
+type GrantConfig struct {
 	// Optional: explicitly define which installation to use. Bypasses owner lookup.
 	// You have to specify ONE OF InstallationID OR Owner.
 	InstallationID *int64 `mapstructure:"installation_id"`
@@ -51,30 +76,37 @@ type GitHubAppGrantConfig struct {
 	Repositories []string `mapstructure:"repositories"`
 }
 
-// GitHubAppProvider implements core.Provider by minting GitHub App installation tokens.
-// It supports GitHub Cloud and GitHub Enterprise.
-// The provider requires configuration of the App ID and the private key.
-// Grants must specify either the installation ID or the owner (user/org) where the app is installed.
-// Additionally, grants can limit the token to specific repositories and permissions.
-type GitHubAppProvider struct {
-	name       string
-	appID      int64
-	privateKey []byte
-
-	serverBaseURL string
-
-	allowAllRepositories bool
-	allowAllPermissions  bool
+// New creates a new Provider from the given config.
+// It maps a ProviderConfig to ProviderConfig struct,
+func New(name string, cfg ProviderConfig) (*Provider, error) {
+	var keyBytes []byte
+	if cfg.PrivateKey != "" {
+		keyBytes = []byte(cfg.PrivateKey)
+	} else if cfg.PrivateKeyFile != "" {
+		contents, err := os.ReadFile(cfg.PrivateKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read private key file for github_app provider '%s': %w", name, err)
+		}
+		keyBytes = contents
+	} else {
+		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", name)
+	}
+	return &Provider{
+		name:                 name,
+		appID:                cfg.AppID,
+		privateKey:           keyBytes,
+		serverBaseURL:        cfg.ServerBaseURL,
+		allowAllRepositories: cfg.AllowAllRepositories,
+		allowAllPermissions:  cfg.AllowAllPermissions,
+	}, nil
 }
 
-// NewGitHubAppProvider creates a new GitHubAppProvider from the given config.
-func NewGitHubAppProvider(cfg config.ProviderConfig) (*GitHubAppProvider, error) {
-	var conf GitHubAppProviderConfig
+func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
+	var conf ProviderConfig
 
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,
 		Result:   &conf,
-		//WeaklyTypedInput: true, // TODO: check if this is required :)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decoder for github_app provider '%s': %w", cfg.Name, err)
@@ -83,35 +115,18 @@ func NewGitHubAppProvider(cfg config.ProviderConfig) (*GitHubAppProvider, error)
 		return nil, fmt.Errorf("failed to decode config for github_app provider '%s': %w", cfg.Name, err)
 	}
 
-	// load the key bytes
-	var keyBytes []byte
-	if conf.PrivateKey != "" {
-		keyBytes = []byte(conf.PrivateKey)
-	} else if conf.PrivateKeyFile != "" {
-		contents, err := os.ReadFile(conf.PrivateKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read private key file for github_app provider '%s': %w", cfg.Name, err)
-		}
-		keyBytes = contents
-	} else {
-		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", cfg.Name)
-	}
-
-	return &GitHubAppProvider{
-		name:                 cfg.Name,
-		appID:                conf.AppID,
-		privateKey:           keyBytes,
-		serverBaseURL:        conf.ServerBaseURL,
-		allowAllRepositories: conf.AllowAllRepositories,
-		allowAllPermissions:  conf.AllowAllPermissions,
-	}, nil
+	return New(cfg.Name, conf)
 }
 
-func (g *GitHubAppProvider) Name() string {
+func (g *Provider) Name() string {
 	return g.name
 }
 
-func (g *GitHubAppProvider) Mint(
+func (g *Provider) Downscope(allowed, requested map[string]string) (map[string]string, error) {
+	return Downscope(allowed, requested)
+}
+
+func (g *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
 	grant core.Grant,
@@ -119,7 +134,7 @@ func (g *GitHubAppProvider) Mint(
 	logger := log.Ctx(ctx)
 	logger.Debug().Msgf("GitHubAppProvider Mint called for principal ID: %s", principal.ID)
 
-	var grantConf GitHubAppGrantConfig
+	var grantConf GrantConfig
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,
 		Result:   &grantConf,
@@ -163,7 +178,7 @@ func (g *GitHubAppProvider) Mint(
 	var ghPerms github.InstallationPermissions
 	if len(grant.Permissions) > 0 {
 		// use JSON to unmarshal the permissions to InstallationPermissions.
-		// this is a bit scuffed, but works for now :)
+		// this is a bit hacky, but works for now :)
 		jsonBytes, err := json.Marshal(grant.Permissions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal permissions: %w", err)
@@ -208,7 +223,8 @@ func (g *GitHubAppProvider) Mint(
 	return &core.TokenArtifact{
 		Value:       tok,
 		ExpiresAt:   token.GetExpiresAt().Time,
-		Fingerprint: CalculateFingerprinter(GitHubFingerprintType, tok),
+		Fingerprint: audit.CalculateFingerprint(audit.GitHubFingerprintType, tok),
+		Provider:    info,
 		Metadata: map[string]any{
 			"installation": installationID,
 			"repositories": opts.Repositories,
@@ -217,7 +233,7 @@ func (g *GitHubAppProvider) Mint(
 	}, nil
 }
 
-func (g *GitHubAppProvider) createAppClient(ctx context.Context, principalID, provider string) (*github.Client, error) {
+func (g *Provider) createAppClient(ctx context.Context, principalID, provider string) (*github.Client, error) {
 	correlationID := middleware.CorrelationCtx(ctx)
 
 	key, err := jwt.ParseRSAPrivateKeyFromPEM(g.privateKey)

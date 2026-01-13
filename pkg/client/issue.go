@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,21 +23,34 @@ type IssueTokenOptions struct {
 	// If empty, any issuer matching the policy will be used.
 	// You should only set this in cases where you _know_ the issuer to use.
 	RequestedIssuer string
+
+	// Permissions can be used to downscope the requested token.
+	Permissions map[string]string
 }
 
 // IssueToken requests a new token from the server using the provided token for authorization.
 func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOptions) (*core.TokenArtifact, error) {
+	// add payload to body (JSON)
+	payload := api.IssuePayload{
+		Permissions: opts.Permissions,
+		Issuer:      opts.RequestedIssuer,
+		Provider:    opts.RequestedProvider,
+	}
+	marshalled, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling payload: %w", err)
+	}
+
 	// we do this request manually, because we need to overwrite the authorization header which is used
 	// for policy matching. our helper methods cannot do that currently.
 	req, err := http.NewRequestWithContext(ctx, "POST", c.url().
 		setPath(api.IssueTokenRoute).
-		addQueryParamNotEmpty("issuer", opts.RequestedIssuer).
-		addQueryParamNotEmpty("provider", opts.RequestedProvider).
-		build(), nil)
+		build(), bytes.NewReader(marshalled))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
