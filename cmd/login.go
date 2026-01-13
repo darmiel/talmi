@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/darmiel/talmi/internal/cliconfig"
 	"github.com/darmiel/talmi/pkg/client"
@@ -25,13 +26,18 @@ var loginCmd = &cobra.Command{
 The session token is saved locally to allow future authenticated requests (like audit logs).`,
 	Example: `  talmi login --server https://talmi.example.com --token <upstream-oidc-token>`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		u, err := url.Parse(talmiAddr)
+		server := viper.GetString(TalmiAddrKey)
+		if server == "" {
+			return fmt.Errorf("server address not configured, provide via --server or env")
+		}
+
+		u, err := url.Parse(server)
 		if err != nil {
 			return fmt.Errorf("parsing server URL: %w", err)
 		}
 
 		// perform exchange via client
-		cli := client.New(talmiAddr)
+		cli := client.New(server)
 
 		log.Info().Msgf("Issuing token from server %q...", u.Host)
 
