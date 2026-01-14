@@ -16,7 +16,6 @@ import (
 
 	"github.com/darmiel/talmi/internal/api"
 	"github.com/darmiel/talmi/internal/audit"
-	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
@@ -25,8 +24,7 @@ import (
 )
 
 var (
-	serveAddr   string
-	serveConfig string
+	serveAddr string
 )
 
 // serveCmd represents the serve command
@@ -38,7 +36,7 @@ This command requires a valid configuration file defining issuers, providers, an
 	Example: `  talmi serve --config /etc/talmi/config.yaml --addr :9090`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// initialize: load issuers, providers, rules engine
-		cfg, err := config.Load(serveConfig)
+		cfg, err := f.LoadPolicyConfig()
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
@@ -130,7 +128,7 @@ This command requires a valid configuration file defining issuers, providers, an
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().StringVar(&serveConfig, "config", "", "Path to configuration file")
+	f.bindPolicyFlag(serveCmd.Flags())
 	serveCmd.Flags().StringVar(&serveAddr, "addr", ":8080", "Address to listen on")
 
 	_ = serveCmd.MarkFlagRequired("config")

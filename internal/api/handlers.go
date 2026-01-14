@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -15,7 +14,7 @@ import (
 	"github.com/darmiel/talmi/internal/api/presenter"
 	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/core"
-	"github.com/darmiel/talmi/internal/engine"
+	"github.com/darmiel/talmi/internal/service"
 )
 
 // handleHealth responds with a simple OK status to indicate the server is healthy.
@@ -66,25 +65,12 @@ func DecodePayload(r *http.Request, dest any, allowEmpty bool) error {
 func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := log.Ctx(ctx)
-	reqID, _ := ctx.Value("correlation_id").(string)
-
-	auditEntry := core.AuditEntry{
-		ID:     reqID,
-		Time:   time.Now(),
-		Action: "issue_token",
-	}
-	defer func() {
-		if err := s.auditor.Log(auditEntry); err != nil {
-			logger.Error().Err(err).Msg("failed to write audit log")
-		}
-	}()
 
 	// parse request payload
 	var payload IssuePayload
 	if err := DecodePayload(r, &payload, true /* allow empty */); err != nil {
 		logger.Warn().Err(err).Msg("failed to decode issue request payload")
 		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
-		auditEntry.Error = "invalid request payload"
 		return
 	}
 
@@ -94,121 +80,31 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	if token == "" {
 		logger.Warn().Msgf("missing or empty Authorization header")
 		presenter.Error(w, r, "missing Authorization header", http.StatusUnauthorized)
-		auditEntry.Error = "missing Authorization header"
 		return
 	}
 
-	auditEntry.RequestedIssuer = payload.Issuer
-	auditEntry.RequestedProvider = payload.Provider
-
-	var issuer core.Issuer
-	if payload.Issuer != "" { // TODO(future): check if we should allow this in the future, if there's an issuer that accepts too many token types a user might be able to abuse that
-		// the user specified a specific issuer
-		iss, ok := s.issuers.Get(payload.Issuer)
-		if !ok {
-			logger.Warn().Str("requested_issuer", payload.Issuer).Msgf("requested issuer not found")
-			presenter.Error(w, r, "requested issuer not found", http.StatusBadRequest)
-			auditEntry.Error = "requested issuer not found"
-			return
-		}
-		issuer = iss
-		logger.Debug().Str("issuer", issuer.Name()).Msg("using explicit issuer")
-	} else {
-		iss, err := s.issuers.IdentifyIssuer(token)
-		if err != nil {
-			logger.Warn().Err(err).Msgf("issuer auto-discovery failed")
-			presenter.Error(w, r, "could not identify issuer from token", http.StatusBadRequest)
-			auditEntry.Error = "issuer auto-discovery failed"
-			return
-		}
-		issuer = iss
-		logger.Debug().Str("issuer", issuer.Name()).Msg("using discovered issuer")
-	}
-
-	principal, err := issuer.Verify(ctx, token)
-	if err != nil {
-		logger.Warn().Err(err).Str("issuer", issuer.Name()).Msgf("upstream token verification failed")
-		presenter.Error(w, r, "token verification failed", http.StatusUnauthorized)
-		auditEntry.Error = "upstream token verification failed"
-		return
-	}
-	auditEntry.Principal = principal
-
-	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
-		return c.Str("sub", principal.ID)
+	result, err := s.tokenService.IssueToken(ctx, service.IssueRequest{
+		Token:                token,
+		RequestedIssuer:      payload.Issuer,
+		RequestedProvider:    payload.Provider,
+		RequestedPermissions: payload.Permissions,
 	})
-
-	// evaluate policies
-	rule, err := s.engine.Evaluate(principal, payload.Provider) // TODO(future): here as well, check if we should allow filtering by provider
 	if err != nil {
-		auditEntry.Granted = false
-
-		if errors.Is(err, engine.ErrNoRuleMatch) {
-			logger.Warn().Msg("policy denied")
-			presenter.Error(w, r, "access denied: no matching policy rule", http.StatusForbidden)
-			auditEntry.Error = "access denied: no matching policy rule"
-			return
+		logger.Error().Err(err).Msg("token issuance failed")
+		status := http.StatusBadRequest // generic default status
+		var httpError service.HTTPError
+		if errors.As(err, &httpError) {
+			status = httpError.StatusCode
 		}
-		logger.Error().Err(err).Msgf("policy engine error")
-		presenter.Error(w, r, "internal policy error", http.StatusInternalServerError)
-		auditEntry.Error = "internal policy error"
+		presenter.Error(w, r, "token issuance failed: "+err.Error(), status)
 		return
-	}
-	auditEntry.PolicyName = rule.Name
-
-	// find provider
-	grant := rule.Grant
-	provider, ok := s.providers[grant.Provider]
-	if !ok {
-		logger.Error().Str("grant_provider", grant.Provider).Msg("grant references unknown provider")
-		presenter.Error(w, r, "misconfiguration: provider not found", http.StatusInternalServerError)
-		auditEntry.Error = "misconfiguration: provider not found"
-		return
-	}
-	auditEntry.Provider = provider.Name()
-
-	// downscope permissions
-	effectivePermissions, err := provider.Downscope(grant.Permissions, payload.Permissions)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to downscope permissions")
-		presenter.Error(w, r, "failed to downscope permissions: "+err.Error(), http.StatusInternalServerError)
-		auditEntry.Error = "failed to downscope permissions"
-		return
-	}
-
-	effectiveGrant := grant
-	effectiveGrant.Permissions = effectivePermissions
-
-	// mint token
-	artifact, err := provider.Mint(ctx, principal, effectiveGrant)
-	if err != nil {
-		logger.Error().Err(err).Str("provider", provider.Name()).Msg("minting failed")
-		presenter.Error(w, r, "token minting failed", http.StatusInternalServerError)
-		auditEntry.Error = "token minting failed"
-		return
-	}
-	auditEntry.Granted = true
-	auditEntry.Metadata = artifact.Metadata
-	auditEntry.TokenFingerprint = artifact.Fingerprint
-
-	meta := core.TokenMetadata{
-		CorrelationID: reqID,
-		PrincipalID:   principal.ID,
-		Provider:      provider.Name(),
-		PolicyName:    rule.Name,
-		ExpiresAt:     artifact.ExpiresAt,
-		IssuedAt:      time.Now(),
-		Metadata:      artifact.Metadata,
-	}
-	if err := s.tokenStore.Save(ctx, meta); err != nil {
-		logger.Error().Err(err).Msg("failed to store token metadata")
 	}
 
 	logger.Info().
-		Str("provider", provider.Name()).
+		Str("provider", result.Rule.Grant.Provider).
 		Msg("token issued successfully")
 
-	presenter.JSON(w, r, artifact, http.StatusCreated)
+	presenter.JSON(w, r, result.Artifact, http.StatusCreated)
 }
 
 // handleAdminAudit processes requests to retrieve audit log entries.

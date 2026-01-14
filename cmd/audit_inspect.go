@@ -13,16 +13,20 @@ import (
 )
 
 var auditInspectCmd = &cobra.Command{
-	Use:     "inspect CORRELATION_ID",
+	Use:     "inspect CORRELATION-ID",
 	Short:   "Show full details of a specific audit log entry",
 	Example: `  talmi audit inspect abc123-def456-ghi789`,
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cli, err := getClient()
+		correlationID := args[0]
+		if correlationID == "" {
+			return fmt.Errorf("correlation ID cannot be empty")
+		}
+
+		cli, err := f.GetClient()
 		if err != nil {
 			return err
 		}
-
-		correlationID := args[0]
 
 		log.Debug().Msgf("Retrieving entry with correlation ID '%s'...", correlationID)
 		audits, err := cli.ListAudits(cmd.Context(), client.ListAuditsOpts{
@@ -105,6 +109,9 @@ var auditInspectCmd = &cobra.Command{
 		}
 		if entry.Error != "" {
 			printKV("Error Message", red(entry.Error))
+		}
+		if entry.Stacktrace != "" {
+			printKV("Stacktrace", red(entry.Stacktrace))
 		}
 
 		fmt.Println(bold("\n── Output ──"))

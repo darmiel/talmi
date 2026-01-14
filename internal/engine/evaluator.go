@@ -56,8 +56,10 @@ func checkRule(rule core.Rule, principal *core.Principal, requestedProvider stri
 		addResult(issuerExpr, true, "")
 	}
 
+	evalCtx := principal.EvaluationContext()
+
 	if rule.Match.Condition != nil {
-		cr := evaluateCondition(*rule.Match.Condition, principal.Attributes)
+		cr := evaluateCondition(*rule.Match.Condition, evalCtx)
 		if !cr.Matched {
 			result.Matched = false
 		}
@@ -66,6 +68,7 @@ func checkRule(rule core.Rule, principal *core.Principal, requestedProvider stri
 		ok, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
 			"rule":      rule,
 			"principal": principal,
+			"ctx":       evalCtx,
 		})
 		if err != nil {
 			addResult(rule.Match.Expr, false, fmt.Sprintf("error evaluating expression: %v", err))

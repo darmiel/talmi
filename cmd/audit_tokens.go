@@ -21,7 +21,7 @@ This includes details such as the principal who requested it, the provider used,
 This command requires an authenticated session (via 'talmi login') with admin privileges.`,
 	Example: `  talmi audit tokens`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cli, err := getClient()
+		cli, err := f.GetClient()
 		if err != nil {
 			return err
 		}

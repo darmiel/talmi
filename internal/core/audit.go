@@ -25,7 +25,9 @@ type AuditEntry struct {
 	Provider         string `json:"provider,omitempty"`
 	Granted          bool   `json:"granted"`
 	TokenFingerprint string `json:"token_fingerprint,omitempty"`
-	Error            string `json:"error,omitempty"`
+
+	Error      string `json:"error,omitempty"`
+	Stacktrace string `json:"stacktrace,omitempty"` // more detailed error info
 
 	// Metadata contains artifact details
 	Metadata map[string]any `json:"metadata,omitempty"`

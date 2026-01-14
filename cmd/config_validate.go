@@ -1,20 +1,25 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/config"
 )
 
-var configValidateConfig string
-
 var configValidateCmd = &cobra.Command{
 	Use:     "validate",
 	Short:   "Validate syntax of a Talmi configuration file",
-	Example: `  talmi config validate -f talmi.yaml`,
+	Example: `  talmi config validate talmi.yaml`,
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := config.Load(configValidateConfig)
+		path := args[0]
+		if path == "" {
+			return fmt.Errorf("configuration file path cannot be empty")
+		}
+		_, err := config.Load(path)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Configuration is invalid.")
 			return err
@@ -26,7 +31,4 @@ var configValidateCmd = &cobra.Command{
 
 func init() {
 	configCmd.AddCommand(configValidateCmd)
-
-	configValidateCmd.Flags().StringVarP(&configValidateConfig, "config", "f", "", "Path to Talmi configuration file")
-	_ = configValidateCmd.MarkFlagRequired("config")
 }

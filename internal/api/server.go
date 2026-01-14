@@ -8,14 +8,16 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
+	"github.com/darmiel/talmi/internal/service"
 )
 
 type Server struct {
-	engine     *engine.Engine
-	issuers    *issuers.Registry
-	providers  map[string]core.Provider
-	auditor    core.Auditor
-	tokenStore core.TokenStore
+	engine       *engine.Engine
+	issuers      *issuers.Registry
+	providers    map[string]core.Provider
+	auditor      core.Auditor
+	tokenStore   core.TokenStore
+	tokenService *service.TokenService
 }
 
 func NewServer(
@@ -29,12 +31,15 @@ func NewServer(
 		auditor = audit.NewNoopAuditor()
 	}
 
+	svc := service.NewTokenService(issRegistry, providers, engine, auditor, tokenStore)
+
 	return &Server{
-		engine:     engine,
-		issuers:    issRegistry,
-		providers:  providers,
-		auditor:    auditor,
-		tokenStore: tokenStore,
+		engine:       engine,
+		issuers:      issRegistry,
+		providers:    providers,
+		auditor:      auditor,
+		tokenStore:   tokenStore,
+		tokenService: svc,
 	}
 }
 

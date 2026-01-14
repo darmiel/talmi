@@ -66,7 +66,7 @@ func init() {
 }
 
 func whyTokenRemote(cmd *cobra.Command, _ []string) error {
-	cli, err := getClient()
+	cli, err := f.GetClient()
 	if err != nil {
 		return err
 	}

@@ -66,7 +66,7 @@ Different providers use different algorithms:
 }
 
 func init() {
-	rootCmd.AddCommand(fingerprintCmd)
+	debugCmd.AddCommand(fingerprintCmd)
 
 	fingerprintCmd.Flags().StringVar(&fingerprintProviderType, "type", audit.DefaultFingerprintType,
 		fmt.Sprintf("Provider type (one of: %s)", strings.Join(audit.RegisteredFingerprinterTypes(), ", ")))

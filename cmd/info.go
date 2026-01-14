@@ -14,7 +14,7 @@ var infoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "Show information about the Talmi installation",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if talmiAddr == "" {
+		if f.RemoteAddr == "" {
 			return infoLocally(cmd, args)
 		}
 		return infoRemote(cmd, args)
@@ -26,11 +26,10 @@ func init() {
 }
 
 func infoRemote(cmd *cobra.Command, _ []string) error {
-	cli, err := getClient()
+	cli, err := f.GetClient()
 	if err != nil {
 		return err
 	}
-
 	log.Info().Msg("Fetching build info from server...")
 	info, err := cli.Info(cmd.Context())
 	if err != nil {

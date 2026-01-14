@@ -17,6 +17,19 @@ type Principal struct {
 	Attributes map[string]any
 }
 
+// EvaluationContext builds a context map for condition evaluation
+func (p *Principal) EvaluationContext() map[string]any {
+	ctx := make(map[string]any, len(p.Attributes)+3)
+	for k, v := range p.Attributes {
+		ctx[k] = v
+	}
+	ctx["issuer"] = p.Issuer
+	ctx["iss"] = p.Issuer
+	ctx["id"] = p.ID
+	ctx["sub"] = p.ID
+	return ctx
+}
+
 // Grant describes exactly what access is allowed if a rule matches.
 type Grant struct {
 	// Provider is the name of the downstream provider (defined in config)

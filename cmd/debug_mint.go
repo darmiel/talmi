@@ -76,7 +76,7 @@ It uses a dummy principal and forces the execution of a specific rule's grant`,
 }
 
 func init() {
-	rootCmd.AddCommand(mintCmd)
+	debugCmd.AddCommand(mintCmd)
 
 	mintCmd.Flags().StringVarP(&mintTargetFile, "config", "f", "", "The Talmi config file to use")
 	mintCmd.Flags().StringVarP(&mintRuleName, "rule", "r", "", "The specific rule to use for minting")

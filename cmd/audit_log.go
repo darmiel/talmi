@@ -29,7 +29,7 @@ var auditLogCmd = &cobra.Command{
   # Retrieve audit log entries for a specific fingerprint
   talmi audit log --fingerprint xA+LGEy4r8==`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cli, err := getClient()
+		cli, err := f.GetClient()
 		if err != nil {
 			return err
 		}

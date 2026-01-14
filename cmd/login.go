@@ -15,7 +15,6 @@ import (
 )
 
 var (
-	loginToken  string
 	loginIssuer string
 )
 
@@ -24,13 +23,17 @@ var loginCmd = &cobra.Command{
 	Short: "Authenticate with a Talmi server",
 	Long: `Exchanges an upstream OIDC token (e.g., from GitHub Actions) for a Talmi Session Token.
 The session token is saved locally to allow future authenticated requests (like audit logs).`,
-	Example: `  talmi login --server https://talmi.example.com --token <upstream-oidc-token>`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		loginToken := args[0]
+		if loginToken == "" {
+			return fmt.Errorf("token cannot be empty")
+		}
+
 		server := viper.GetString(TalmiAddrKey)
 		if server == "" {
 			return fmt.Errorf("server address not configured, provide via --server or env")
 		}
-
 		u, err := url.Parse(server)
 		if err != nil {
 			return fmt.Errorf("parsing server URL: %w", err)
@@ -74,7 +77,6 @@ The session token is saved locally to allow future authenticated requests (like 
 func init() {
 	rootCmd.AddCommand(loginCmd)
 
-	loginCmd.Flags().StringVarP(&loginToken, "token", "t", "", "Upstream Token")
 	loginCmd.Flags().StringVar(&loginIssuer, "issuer", "", "Upstream Issuer Name (optional)")
 
 	_ = loginCmd.MarkFlagRequired("token")

@@ -12,7 +12,7 @@ import (
 )
 
 var attributesCmd = &cobra.Command{
-	Use:   "attributes",
+	Use:   "attributes JWT-TOKEN",
 	Short: "Prints the attributes (claims) of a JWT token",
 	Long: `The attributes command extracts and displays the claims from a provided JWT token.
 It does not perform any validation, it simply decodes the token and shows its contents.`,
@@ -35,7 +35,7 @@ It does not perform any validation, it simply decodes the token and shows its co
 		}
 
 		log.Info().Msg("Token Claims:")
-		enc := json.NewEncoder(os.Stderr)
+		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(claims); err != nil {
 			log.Warn().Err(err).Msg("failed to pretty-print claims")
@@ -66,5 +66,5 @@ It does not perform any validation, it simply decodes the token and shows its co
 }
 
 func init() {
-	rootCmd.AddCommand(attributesCmd)
+	debugCmd.AddCommand(attributesCmd)
 }
