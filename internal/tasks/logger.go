@@ -20,6 +20,11 @@ func NewTaskStoreLogger(task *RunnableTask) *TaskStoreLogger {
 	}
 }
 
+func (t *TaskStoreLogger) Debug(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	t.Task.AppendLog("debug", msg)
+}
+
 func (t *TaskStoreLogger) Info(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	t.Task.AppendLog("info", msg)

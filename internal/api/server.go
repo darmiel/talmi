@@ -47,6 +47,20 @@ func NewServer(
 	}
 }
 
+const (
+	RoleAuditRead    = "audit:read"
+	RoleAuditTokens  = "audit:tokens"
+	RoleAuditExplain = "audit:explain"
+
+	RoleTaskRead    = "task:read"
+	RoleTaskTrigger = "task:trigger"
+	RoleTaskLogs    = "task:logs"
+)
+
+func withRole(role string, hf http.HandlerFunc) http.Handler {
+	return middleware.RequireRoleMiddleware(role)(hf)
+}
+
 func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 	mux := http.NewServeMux()
 
@@ -57,12 +71,26 @@ func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 	// token issuer route
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)
 
-	// admin routes
-	adminMux := http.NewServeMux()
-	adminMux.HandleFunc("GET "+ListAuditsRoute, s.handleAdminAudit)
-	adminMux.HandleFunc("GET "+ListActiveTokensRoute, s.handleAdminTokens)
-	adminMux.HandleFunc("POST "+ExplainRoute, s.handleExplain)
-	mux.Handle("/v1/admin/", middleware.AdminAuth(talmiSigningKey)(adminMux))
+	injectRole := middleware.InjectRoleMiddleware(talmiSigningKey)
+
+	// audit routes
+	auditMux := http.NewServeMux()
+	auditMux.Handle("GET "+ListAuditsRoute,
+		withRole(RoleAuditRead, s.handleAdminAudit))
+	auditMux.Handle("GET "+ListActiveTokensRoute,
+		withRole(RoleAuditTokens, s.handleAdminTokens))
+	auditMux.Handle("POST "+ExplainRoute,
+		withRole(RoleAuditExplain, s.handleExplain))
+	mux.Handle(AuditParent, injectRole(auditMux))
+
+	taskMux := http.NewServeMux()
+	taskMux.Handle("GET "+ListTasksRoute,
+		withRole(RoleTaskRead, s.handleListTasks))
+	taskMux.Handle("POST "+TriggerTaskRoute,
+		withRole(RoleTaskTrigger, s.handleTriggerTask))
+	taskMux.Handle("GET "+LogsForTaskRoute,
+		withRole(RoleTaskLogs, s.handleLogsForTask))
+	mux.Handle(TaskParent, injectRole(taskMux))
 
 	return middleware.RecoverMiddleware(
 		middleware.CorrelationIDMiddleware(

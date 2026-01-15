@@ -6,7 +6,13 @@ const (
 
 	IssueTokenRoute = "/v1/token/issue"
 
-	ListAuditsRoute       = "/v1/admin/audits"
-	ListActiveTokensRoute = "/v1/admin/tokens"
-	ExplainRoute          = "/v1/admin/explain"
+	AuditParent           = "/v1/audit/"
+	ListAuditsRoute       = AuditParent + "audits"
+	ListActiveTokensRoute = AuditParent + "tokens"
+	ExplainRoute          = AuditParent + "explain"
+
+	TaskParent       = "/v1/tasks/"
+	ListTasksRoute   = TaskParent
+	TriggerTaskRoute = TaskParent + "{name}/trigger"
+	LogsForTaskRoute = TaskParent + "{name}/logs"
 )

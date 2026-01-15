@@ -101,7 +101,7 @@ This command requires a valid configuration file defining issuers, providers, an
 		if cfg.PolicySource != nil {
 			switch {
 			case cfg.PolicySource.GitHub != nil:
-				log.Info().Msg("Starting policy source sync from GitHub...")
+				log.Info().Msg("Starting policy source sync from GitHub this will overwrite local rules...")
 
 				fetcher, err := source.NewGitHubFetcher(*cfg.PolicySource.GitHub)
 				if err != nil {
@@ -115,7 +115,7 @@ This command requires a valid configuration file defining issuers, providers, an
 				}
 
 				syncFunc := syncFetcher(fetcher, knownIssuers, knownProviders, policyMgr)
-				log.Info().Msg("Bootstrapping initial policy sync from GitHub...")
+				log.Debug().Msg("Bootstrapping initial policy sync from GitHub...")
 
 				bootCtx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 				defer cancel()
@@ -125,6 +125,8 @@ This command requires a valid configuration file defining issuers, providers, an
 				}
 
 				taskMgr.Register("git-sync", cfg.PolicySource.Sync.Interval, syncFunc)
+			default:
+				return fmt.Errorf("unsupported policy source configuration")
 			}
 		}
 
@@ -175,24 +177,24 @@ func syncFetcher(
 	policyMgr *engine.PolicyManager,
 ) tasks.TaskFunc {
 	return func(ctx context.Context, logger logging.InternalLogger) error {
-		logger.Info("Starting policy fetch from source...")
+		logger.Debug("Starting policy fetch from source...")
 		rules, err := fetcher.Fetch(ctx, logger)
 		if err != nil {
 			return fmt.Errorf("fetching rules: %w", err)
 		}
 
-		logger.Info("Validating fetched rules...")
+		logger.Debug("Validating fetched rules...")
 		validRules, err := validation.ValidateRules(rules, knownIssuers, knownProviders)
 		if err != nil {
 			return fmt.Errorf("validating fetched rules: %w", err)
 		}
 
-		logger.Info("Updating policy manager with %d rules...", len(validRules))
+		logger.Debug("Updating policy manager with %d rules...", len(validRules))
 		if err := policyMgr.Update(validRules); err != nil {
 			return fmt.Errorf("updating policy manager: %w", err)
 		}
 
-		logger.Info("Policy fetch and update completed successfully")
+		logger.Debug("Policy fetch and update completed successfully")
 		return nil
 	}
 }
