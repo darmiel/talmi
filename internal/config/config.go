@@ -3,18 +3,95 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/expr-lang/expr"
 	"github.com/goccy/go-yaml"
 
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/validation"
 )
 
 type Config struct {
-	Issuers   []IssuerConfig   `yaml:"issuers"`
-	Providers []ProviderConfig `yaml:"providers"`
-	Rules     []core.Rule      `yaml:"rules"`
-	Audit     AuditConfig      `yaml:"audit"`
+	Issuers      []IssuerConfig   `yaml:"issuers"`
+	Providers    []ProviderConfig `yaml:"providers"`
+	Rules        []core.Rule      `yaml:"rules"`
+	Audit        AuditConfig      `yaml:"audit"`
+	PolicySource *PolicySource    `yaml:"policy_source"`
+}
+
+type PolicySourceSync struct {
+	Interval time.Duration `yaml:"interval"`
+}
+
+type GitHubSourceConfig struct {
+	// AppID is the GitHub App ID.
+	AppID int64 `yaml:"app_id"`
+
+	// InstallationID is the GitHub App installation ID.
+	InstallationID int64 `yaml:"installation_id"`
+
+	// ServerURL is the GitHub Enterprise server URL.
+	// For GitHub.com, this can be left empty.
+	ServerURL string `yaml:"server_url"`
+
+	// PrivateKey is the GitHub App private key in PEM format.
+	PrivateKey string `yaml:"private_key"`
+
+	// Owner of the GitHub repository.
+	Owner string `yaml:"owner"`
+
+	// Repo is the name of the GitHub repository.
+	Repo string `yaml:"repo"`
+
+	// Path is the directory path within the repository to load policies from.
+	// For example, "policies/".
+	Path string `yaml:"path"`
+
+	// Ref is the git reference to use (e.g. a branch).
+	// For example, "main".
+	Ref string `yaml:"ref"`
+}
+
+func (c *GitHubSourceConfig) Validate() error {
+	if c.AppID == 0 {
+		return fmt.Errorf("app_id is required")
+	}
+	if c.InstallationID == 0 {
+		return fmt.Errorf("installation_id is required")
+	}
+	if c.PrivateKey == "" {
+		return fmt.Errorf("private_key is required")
+	}
+	if c.Owner == "" {
+		return fmt.Errorf("owner is required")
+	}
+	if c.Repo == "" {
+		return fmt.Errorf("repo is required")
+	}
+	if c.Ref == "" {
+		return fmt.Errorf("ref is required")
+	}
+	return nil
+}
+
+// PolicySource holds configuration for the policy source => where to load policies from.
+type PolicySource struct {
+	// GitHub holds configuration for GitHub as a policy source.
+	GitHub *GitHubSourceConfig `yaml:"github,omitempty"`
+
+	Sync PolicySourceSync `yaml:"sync"`
+}
+
+func (s *PolicySource) Validate() error {
+	switch {
+	case s.GitHub != nil:
+		if err := s.GitHub.Validate(); err != nil {
+			return fmt.Errorf("validating GitHub policy source: %w", err)
+		}
+	default:
+		return fmt.Errorf("no valid policy source configured")
+	}
+	return nil
 }
 
 // IssuerConfig holds configuration for an Identity Provider.
@@ -72,60 +149,16 @@ func (c *Config) Validate() error {
 		validProviders[p.Name] = struct{}{}
 	}
 
-	seenRuleNames := make(map[string]struct{})
-	for idx, rule := range c.Rules {
-		if rule.Name == "" {
-			return fmt.Errorf("rule at index %d has empty name", idx)
-		}
+	validRules, err := validation.ValidateRules(c.Rules, validIssuers, validProviders)
+	if err != nil {
+		return fmt.Errorf("validating rules: %w", err)
+	}
+	c.Rules = validRules
 
-		// validate unique rule names
-		if _, exists := seenRuleNames[rule.Name]; exists {
-			return fmt.Errorf("duplicate rule name found: '%s'", rule.Name)
+	if c.PolicySource != nil {
+		if err := c.PolicySource.Validate(); err != nil {
+			return fmt.Errorf("validating policy source: %w", err)
 		}
-		seenRuleNames[rule.Name] = struct{}{}
-
-		match := &rule.Match
-
-		// validate issuer: it needs to be set and known
-		if match.Issuer == "" {
-			return fmt.Errorf("rule '%s' has empty match.issuer", rule.Name)
-		}
-		if _, ok := validIssuers[match.Issuer]; !ok {
-			return fmt.Errorf("rule '%s' references unknown issuer '%s'", rule.Name, match.Issuer)
-		}
-
-		// validate conditions
-		if match.Condition != nil && match.Expr != "" {
-			return fmt.Errorf("rule '%s' has both match.condition and match.expr set; only one is allowed", rule.Name)
-		}
-		if match.Condition == nil && match.Expr == "" && !match.AllowEmptyCondition {
-			return fmt.Errorf("rule '%s' has neither match.condition nor match.expr set, and allow_empty_condition is false", rule.Name)
-		}
-		if match.Expr != "" {
-			out, err := expr.Compile(match.Expr, expr.AsBool())
-			if err != nil {
-				return fmt.Errorf("compiling expr for rule '%s': %w", rule.Name, err)
-			}
-			match.CompiledExpr = out
-			c.Rules[idx] = rule
-		}
-		if match.Condition != nil {
-			if err := match.Condition.Validate(); err != nil {
-				return fmt.Errorf("validating condition for rule '%s': %w", rule.Name, err)
-			}
-		}
-
-		// validate grant
-		grant := &rule.Grant
-
-		// validate grant provider: it needs to be set and known
-		if grant.Provider == "" {
-			return fmt.Errorf("rule '%s' has empty grant.provider", rule.Name)
-		}
-		if _, ok := validProviders[grant.Provider]; !ok {
-			return fmt.Errorf("rule '%s' references unknown provider '%s'", rule.Name, grant.Provider)
-		}
-
 	}
 
 	return nil

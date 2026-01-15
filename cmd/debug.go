@@ -11,5 +11,3 @@ var debugCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(debugCmd)
 }
-
-// TODO: add attributes, fingerprint, mint commands

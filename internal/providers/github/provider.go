@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-github/v80/github"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
@@ -16,6 +14,7 @@ import (
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/ghapp"
 )
 
 const Type = "github-app"
@@ -236,33 +235,10 @@ func (g *Provider) Mint(
 func (g *Provider) createAppClient(ctx context.Context, principalID, provider string) (*github.Client, error) {
 	correlationID := middleware.CorrelationCtx(ctx)
 
-	key, err := jwt.ParseRSAPrivateKeyFromPEM(g.privateKey)
+	client, err := ghapp.NewClient(g.appID, g.privateKey, g.serverBaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parsing github app private key: %w", err)
+		return nil, err
 	}
-	now := time.Now()
-	claims := jwt.MapClaims{
-		"iat": now.Unix(),
-		"exp": now.Add(9 * time.Minute).Unix(),
-		"iss": g.appID,
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	signedToken, err := token.SignedString(key)
-	if err != nil {
-		return nil, fmt.Errorf("signing github app jwt: %w", err)
-	}
-
-	client := github.NewClient(nil).
-		WithAuthToken(signedToken)
-
-	if g.serverBaseURL != "" {
-		// we don't interact with uploads, so just use a dummy URL here.
-		client, err = client.WithEnterpriseURLs(g.serverBaseURL, "https://github.com/api/uploads")
-		if err != nil {
-			return nil, fmt.Errorf("creating github enterprise client: %w", err)
-		}
-	}
-
 	// set user agent for auditing
 	client.UserAgent = audit.CreateUserAgent(correlationID, principalID, provider)
 
