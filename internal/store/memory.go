@@ -19,7 +19,7 @@ func NewInMemoryTokenStore() *InMemoryTokenStore {
 	}
 }
 
-func (s *InMemoryTokenStore) Save(ctx context.Context, meta core.TokenMetadata) error {
+func (s *InMemoryTokenStore) Save(_ context.Context, meta core.TokenMetadata) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -27,7 +27,7 @@ func (s *InMemoryTokenStore) Save(ctx context.Context, meta core.TokenMetadata) 
 	return nil
 }
 
-func (s *InMemoryTokenStore) ListActive(ctx context.Context) ([]core.TokenMetadata, error) {
+func (s *InMemoryTokenStore) ListActive(_ context.Context) ([]core.TokenMetadata, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -41,4 +41,24 @@ func (s *InMemoryTokenStore) ListActive(ctx context.Context) ([]core.TokenMetada
 	}
 
 	return activeTokens, nil
+}
+
+func (s *InMemoryTokenStore) DeleteExpired(_ context.Context) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	var active []core.TokenMetadata
+	var deletedCount int64
+
+	for _, t := range s.tokens {
+		if t.ExpiresAt.After(now) {
+			active = append(active, t)
+		} else {
+			deletedCount++
+		}
+	}
+
+	s.tokens = active
+	return deletedCount, nil
 }

@@ -37,4 +37,7 @@ type TokenStore interface {
 
 	// ListActive returns tokens that have not expired yet
 	ListActive(ctx context.Context) ([]TokenMetadata, error)
+
+	// DeleteExpired removes tokens from the underlying storage that have expired
+	DeleteExpired(ctx context.Context) (int64, error)
 }

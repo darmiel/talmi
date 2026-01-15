@@ -98,6 +98,19 @@ This command requires a valid configuration file defining issuers, providers, an
 		policyMgr := engine.NewManager(cfg.Rules)
 		taskMgr := tasks.NewManager()
 
+		taskMgr.Register("token-cleanup", 1*time.Hour, func(ctx context.Context, logger logging.InternalLogger) error {
+			count, err := tokenStore.DeleteExpired(ctx)
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				logger.Info("Deleted %d expired tokens", count)
+			} else {
+				logger.Info("No expired tokens to delete")
+			}
+			return nil
+		})
+
 		if cfg.PolicySource != nil {
 			switch {
 			case cfg.PolicySource.GitHub != nil:
