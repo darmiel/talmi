@@ -87,12 +87,10 @@ func (f *Factory) GetLocalService(ctx context.Context) (*service.TokenService, e
 		return nil, fmt.Errorf("building provider registry: %w", err)
 	}
 
-	eng := engine.New(cfg.Rules)
-
 	return service.NewTokenService(
 		issReg,
 		provReg,
-		eng,
+		engine.NewManager(cfg.Rules),
 		audit.NewNoopAuditor(),        // for local CLI operations, we don't do auditing
 		store.NewInMemoryTokenStore(), // for local CLI operations, in-memory store is sufficient
 	), nil

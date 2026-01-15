@@ -4,12 +4,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var auditCmd = &cobra.Command{
-	Use:   "audit",
-	Short: "Administrative audit commands",
-	Long:  `View audit logs and inspect active tokens on the server. Requires an authenticated session (talmi login).`,
+var tasksCmd = &cobra.Command{
+	Use:     "tasks",
+	Aliases: []string{"task"},
+	Short:   "Manage background tasks and policies",
+	Long:    `Inspect status, trigger runs, and view logs for background tasks (like policy sync).`,
 }
 
 func init() {
-	rootCmd.AddCommand(auditCmd)
+	rootCmd.AddCommand(tasksCmd)
 }

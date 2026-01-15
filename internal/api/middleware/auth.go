@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,12 +11,11 @@ import (
 	"github.com/darmiel/talmi/internal/api/presenter"
 )
 
-const adminRole = "admin"
-
-// AdminAuth is a middleware that checks for admin privileges in the JWT token.
+// InjectRoleMiddleware is a middleware that reads the Talmi JWT token and injects user roles into the request context.
+// You shoule use the RequireRoleMiddleware to enforce role-based access control on specific handlers.
 // TODO(future): this is currently a simple middleware for admin role checking, used for a PoC.
 // TODO(future): This should be replaced with a more flexible RBAC system in the future.
-func AdminAuth(signingKey []byte) func(handler http.Handler) http.Handler {
+func InjectRoleMiddleware(signingKey []byte) func(handler http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
@@ -49,24 +49,51 @@ func AdminAuth(signingKey []byte) func(handler http.Handler) http.Handler {
 				return
 			}
 
-			hasPrivilege := false
+			var rolesAsStr []string
 			for _, roleAny := range roles {
 				roleStr, ok := roleAny.(string)
 				if !ok {
 					continue
 				}
-				if roleStr == adminRole {
-					hasPrivilege = true
+				rolesAsStr = append(rolesAsStr, roleStr)
+			}
+
+			ctx := context.WithValue(r.Context(), "roles", rolesAsStr)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		})
+	}
+}
+
+func RequireRoleMiddleware(requiredRole string) func(handler http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rolesAny := r.Context().Value("roles")
+			if rolesAny == nil {
+				presenter.Error(w, r, "forbidden: missing roles", http.StatusForbidden)
+				return
+			}
+
+			roles, ok := rolesAny.([]string)
+			if !ok {
+				presenter.Error(w, r, "forbidden: invalid roles", http.StatusForbidden)
+				return
+			}
+
+			hasRole := false
+			for _, role := range roles {
+				if role == requiredRole {
+					hasRole = true
 					break
 				}
 			}
-			if !hasPrivilege {
-				presenter.Error(w, r, "insufficient privileges", http.StatusUnauthorized)
+
+			if !hasRole {
+				presenter.Error(w, r, "forbidden: insufficient role", http.StatusForbidden)
 				return
 			}
 
 			next.ServeHTTP(w, r)
-			return
 		})
 	}
 }

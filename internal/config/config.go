@@ -32,7 +32,7 @@ type GitHubSourceConfig struct {
 
 	// ServerURL is the GitHub Enterprise server URL.
 	// For GitHub.com, this can be left empty.
-	ServerURL string `yaml:"server_url"`
+	ServerURL string `yaml:"server"`
 
 	// PrivateKey is the GitHub App private key in PEM format.
 	PrivateKey string `yaml:"private_key"`

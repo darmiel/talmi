@@ -15,7 +15,6 @@ import (
 )
 
 var f = NewFactory()
-var userConfig string
 
 const (
 	LogLevelKey   = "log.level"

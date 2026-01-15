@@ -57,6 +57,7 @@ type urlBuilder struct {
 	baseURL      string
 	path         string
 	orderedQuery []kv
+	params       map[string]string
 }
 
 func newURLBuilder(baseURL string) *urlBuilder {
@@ -113,10 +114,26 @@ func (u *urlBuilder) addQueryParamNotEmpty(key string, value any) *urlBuilder {
 	return u
 }
 
+func (u *urlBuilder) setPathParam(key, value string) *urlBuilder {
+	if u.params == nil {
+		u.params = make(map[string]string)
+	}
+	u.params[key] = value
+	return u
+}
+
 func (u *urlBuilder) build() string {
 	var bob strings.Builder
 	bob.WriteString(u.baseURL)
-	bob.WriteString(u.path)
+
+	path := u.path
+	if u.params != nil {
+		for k, v := range u.params {
+			placeholder := "{" + k + "}"
+			path = strings.ReplaceAll(path, placeholder, v)
+		}
+	}
+	bob.WriteString(path)
 
 	if len(u.orderedQuery) > 0 {
 		bob.WriteString("?")

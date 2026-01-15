@@ -7,6 +7,7 @@ import "github.com/rs/zerolog"
 // for example when storing task logs.
 // I don't like it either, we can refactor later! :)
 type InternalLogger interface {
+	Debug(format string, args ...any)
 	Info(format string, args ...any)
 	Warn(format string, args ...any)
 	Error(format string, args ...any)
@@ -20,6 +21,10 @@ type ZLogger struct {
 
 func NewZLogger(zlog zerolog.Logger) ZLogger {
 	return ZLogger{ZLog: zlog}
+}
+
+func (l ZLogger) Debug(format string, args ...any) {
+	l.ZLog.Debug().Msgf(format, args...)
 }
 
 func (l ZLogger) Info(format string, args ...any) {
@@ -42,6 +47,12 @@ type MultiLogger struct {
 
 func NewMultiLogger(loggers ...InternalLogger) MultiLogger {
 	return MultiLogger{Loggers: loggers}
+}
+
+func (l MultiLogger) Debug(format string, args ...any) {
+	for _, logger := range l.Loggers {
+		logger.Debug(format, args...)
+	}
 }
 
 func (l MultiLogger) Info(format string, args ...any) {

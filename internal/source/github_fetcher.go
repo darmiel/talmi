@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -45,8 +46,8 @@ func (f *GitHubFetcher) Fetch(ctx context.Context, logger logging.InternalLogger
 		ref = "main"
 	}
 
-	logger.Info("Fetching tree for ref %s...", ref)
-	tree, _, err := gh.Git.GetTree(ctx, f.cfg.Owner, f.cfg.Ref, ref, true)
+	logger.Debug("Fetching tree for ref %s...", ref)
+	tree, _, err := gh.Git.GetTree(ctx, f.cfg.Owner, f.cfg.Repo, ref, true)
 	if err != nil {
 		return nil, fmt.Errorf("get tree failed: %w", err)
 	}
@@ -71,6 +72,9 @@ func (f *GitHubFetcher) Fetch(ctx context.Context, logger logging.InternalLogger
 		logger.Warn("No policy files found in %s @ %s", f.cfg.Path, ref)
 		return nil, nil
 	}
+
+	// sort targetFiles by name to allow for order-dependent rules
+	slices.Sort(targetFiles)
 
 	var (
 		mu       sync.Mutex
@@ -105,7 +109,7 @@ func (f *GitHubFetcher) Fetch(ctx context.Context, logger logging.InternalLogger
 			allRules = append(allRules, partialConfig.Rules...)
 			mu.Unlock()
 
-			logger.Info("Loaded %s, found %d rules", path, len(partialConfig.Rules))
+			logger.Debug("Loaded %s, found %d rules", path, len(partialConfig.Rules))
 			return nil
 		})
 	}
