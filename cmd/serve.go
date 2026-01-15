@@ -19,8 +19,12 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
+	"github.com/darmiel/talmi/internal/logging"
 	"github.com/darmiel/talmi/internal/providers"
+	"github.com/darmiel/talmi/internal/source"
 	"github.com/darmiel/talmi/internal/store"
+	"github.com/darmiel/talmi/internal/tasks"
+	"github.com/darmiel/talmi/internal/validation"
 )
 
 var (
@@ -91,10 +95,41 @@ This command requires a valid configuration file defining issuers, providers, an
 		// TODO: initialize token store based on config
 		tokenStore = store.NewInMemoryTokenStore()
 
-		eng := engine.New(cfg.Rules)
+		policyMgr := engine.NewManager(cfg.Rules)
+		taskMgr := tasks.NewManager()
+
+		if cfg.PolicySource != nil {
+			switch {
+			case cfg.PolicySource.GitHub != nil:
+				log.Info().Msg("Starting policy source sync from GitHub...")
+
+				fetcher, err := source.NewGitHubFetcher(*cfg.PolicySource.GitHub)
+				if err != nil {
+					return fmt.Errorf("initializing GitHub policy fetcher: %w", err)
+				}
+
+				knownIssuers := issRegistry.KnownIssuers()
+				knownProviders := make(map[string]struct{})
+				for name := range provRegistry {
+					knownProviders[name] = struct{}{}
+				}
+
+				syncFunc := syncFetcher(fetcher, knownIssuers, knownProviders, policyMgr)
+				log.Info().Msg("Bootstrapping initial policy sync from GitHub...")
+
+				bootCtx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+				defer cancel()
+
+				if err := syncFunc(bootCtx, logging.NewZLogger(log.Logger)); err != nil {
+					return fmt.Errorf("initial policy sync from GitHub: %w", err)
+				}
+
+				taskMgr.Register("git-sync", cfg.PolicySource.Sync.Interval, syncFunc)
+			}
+		}
 
 		// setup server
-		srv := api.NewServer(eng, issRegistry, provRegistry, auditor, tokenStore)
+		srv := api.NewServer(policyMgr, taskMgr, issRegistry, provRegistry, auditor, tokenStore)
 
 		server := &http.Server{
 			Addr:    serveAddr,
@@ -132,4 +167,32 @@ func init() {
 	serveCmd.Flags().StringVar(&serveAddr, "addr", ":8080", "Address to listen on")
 
 	_ = serveCmd.MarkFlagRequired("config")
+}
+
+func syncFetcher(
+	fetcher source.Fetcher,
+	knownIssuers, knownProviders map[string]struct{},
+	policyMgr *engine.PolicyManager,
+) tasks.TaskFunc {
+	return func(ctx context.Context, logger logging.InternalLogger) error {
+		logger.Info("Starting policy fetch from source...")
+		rules, err := fetcher.Fetch(ctx, logger)
+		if err != nil {
+			return fmt.Errorf("fetching rules: %w", err)
+		}
+
+		logger.Info("Validating fetched rules...")
+		validRules, err := validation.ValidateRules(rules, knownIssuers, knownProviders)
+		if err != nil {
+			return fmt.Errorf("validating fetched rules: %w", err)
+		}
+
+		logger.Info("Updating policy manager with %d rules...", len(validRules))
+		if err := policyMgr.Update(validRules); err != nil {
+			return fmt.Errorf("updating policy manager: %w", err)
+		}
+
+		logger.Info("Policy fetch and update completed successfully")
+		return nil
+	}
 }

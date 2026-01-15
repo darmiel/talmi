@@ -17,26 +17,26 @@ import (
 
 // TokenService is the main service that handles the minting process
 type TokenService struct {
-	issuers    *issuers.Registry
-	providers  map[string]core.Provider
-	engine     *engine.Engine
-	auditor    core.Auditor
-	tokenStore core.TokenStore
+	issuers       *issuers.Registry
+	providers     map[string]core.Provider
+	policyManager *engine.PolicyManager
+	auditor       core.Auditor
+	tokenStore    core.TokenStore
 }
 
 func NewTokenService(
 	issuers *issuers.Registry,
 	providers map[string]core.Provider,
-	engine *engine.Engine,
+	policyManager *engine.PolicyManager,
 	auditor core.Auditor,
 	tokenStore core.TokenStore,
 ) *TokenService {
 	return &TokenService{
-		issuers:    issuers,
-		providers:  providers,
-		engine:     engine,
-		auditor:    auditor,
-		tokenStore: tokenStore,
+		issuers:       issuers,
+		providers:     providers,
+		policyManager: policyManager,
+		auditor:       auditor,
+		tokenStore:    tokenStore,
 	}
 }
 
@@ -94,7 +94,7 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	})
 
 	// now that we have verified the principal, we can continue with evaluating the grant
-	rule, err := s.engine.Evaluate(principal, req.RequestedProvider) // TODO(future): see above
+	rule, err := s.policyManager.GetEngine().Evaluate(principal, req.RequestedProvider) // TODO(future): see above
 	if err != nil {
 		auditEntry.Granted = false
 		auditEntry.Stacktrace = err.Error()

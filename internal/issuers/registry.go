@@ -34,6 +34,14 @@ func (r *Registry) IdentifyIssuer(token string) (core.Issuer, error) {
 	return iss, nil
 }
 
+func (r *Registry) KnownIssuers() map[string]struct{} {
+	known := make(map[string]struct{})
+	for name := range r.issuers {
+		known[name] = struct{}{}
+	}
+	return known
+}
+
 func BuildRegistry(ctx context.Context, cfgs []config.IssuerConfig) (*Registry, error) {
 	issuers := make(map[string]core.Issuer)
 	urlMap := make(map[string]string)
