@@ -6,6 +6,8 @@ const (
 
 	IssueTokenRoute = "/v1/token/issue"
 
+	WebhookRoute = "/v1/webhooks/github"
+
 	AuditParent           = "/v1/audit/"
 	ListAuditsRoute       = AuditParent + "audits"
 	ListActiveTokensRoute = AuditParent + "tokens"

@@ -50,6 +50,9 @@ type GitHubSourceConfig struct {
 	// Ref is the git reference to use (e.g. a branch).
 	// For example, "main".
 	Ref string `yaml:"ref"`
+
+	// WebhookSecret is the secret used to validate GitHub webhooks.
+	WebhookSecret string `yaml:"webhook_secret"`
 }
 
 func (c *GitHubSourceConfig) Validate() error {
