@@ -144,7 +144,15 @@ This command requires a valid configuration file defining issuers, providers, an
 		}
 
 		// setup server
-		srv := api.NewServer(policyMgr, taskMgr, issRegistry, provRegistry, auditor, tokenStore)
+		srv := api.NewServer(
+			policyMgr,
+			taskMgr,
+			issRegistry,
+			provRegistry,
+			auditor,
+			tokenStore,
+			cfg,
+		)
 
 		server := &http.Server{
 			Addr:    serveAddr,

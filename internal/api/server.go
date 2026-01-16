@@ -5,6 +5,7 @@ import (
 
 	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/audit"
+	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
@@ -20,6 +21,7 @@ type Server struct {
 	auditor       core.Auditor
 	tokenStore    core.TokenStore
 	tokenService  *service.TokenService
+	config        *config.Config
 }
 
 func NewServer(
@@ -29,6 +31,7 @@ func NewServer(
 	providers map[string]core.Provider,
 	auditor core.Auditor,
 	tokenStore core.TokenStore,
+	config *config.Config,
 ) *Server {
 	if auditor == nil {
 		auditor = audit.NewNoopAuditor()
@@ -44,6 +47,7 @@ func NewServer(
 		auditor:       auditor,
 		tokenStore:    tokenStore,
 		tokenService:  svc,
+		config:        config,
 	}
 }
 
@@ -70,6 +74,9 @@ func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 
 	// token issuer route
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)
+
+	// webhook route
+	mux.HandleFunc("POST "+WebhookRoute, s.handleGitHubWebhook)
 
 	injectRole := middleware.InjectRoleMiddleware(talmiSigningKey)
 
