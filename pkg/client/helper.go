@@ -11,6 +11,8 @@ import (
 	"github.com/darmiel/talmi/internal/api/presenter"
 )
 
+var ErrInvalidSession = fmt.Errorf("invalid session token")
+
 func (c *Client) get(ctx context.Context, url string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -42,6 +44,9 @@ func parseErrorResponse(resp *http.Response) error {
 		return fmt.Errorf("request failed with status %d and unreadable body: %w", resp.StatusCode, err)
 	}
 	if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
+		if errResp.Error == "invalid session token" {
+			return ErrInvalidSession
+		}
 		return fmt.Errorf("api error: '%s' (correlation: %s)", errResp.Error, errResp.CorrelationID)
 	}
 	return fmt.Errorf("api error: *unparsed '%s' (status %d)", string(body), resp.StatusCode)

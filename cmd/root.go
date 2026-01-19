@@ -12,6 +12,7 @@ import (
 
 	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/logging"
+	"github.com/darmiel/talmi/pkg/client"
 )
 
 var f = NewFactory()
@@ -47,8 +48,14 @@ based on verified identities from upstream IdPs (like OIDC).`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		log.Fatal().Err(err).Msg("execution failed")
-		os.Exit(1)
+		switch {
+		case errors.Is(err, client.ErrInvalidSession):
+			log.Error().Msg("session token is invalid or expired, please use 'talmi login' to authenticate")
+			os.Exit(403)
+		default:
+			log.Fatal().Err(err).Msg("execution failed")
+			os.Exit(1)
+		}
 	}
 }
 
