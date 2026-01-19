@@ -17,10 +17,11 @@ func NewManager() *Manager {
 
 func (m *Manager) Register(name string, interval time.Duration, fn TaskFunc) {
 	task := &RunnableTask{
-		Name:     name,
-		Interval: interval,
-		Handler:  fn,
-		Logs:     make([]LogEntry, 0),
+		Name:         name,
+		Interval:     interval,
+		Handler:      fn,
+		Logs:         make([]LogEntry, 0),
+		registeredAt: time.Now(),
 	}
 	m.tasks.Store(name, task)
 

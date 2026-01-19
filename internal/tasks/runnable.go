@@ -14,6 +14,8 @@ type RunnableTask struct {
 	Interval time.Duration
 	Handler  TaskFunc
 
+	registeredAt time.Time
+
 	mu         sync.RWMutex
 	Running    bool
 	LastRun    time.Time
@@ -71,14 +73,21 @@ func (t *RunnableTask) Status() TaskStatus {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
+	var nextTime time.Time
+	if t.Interval > 0 {
+		if !t.LastRun.IsZero() {
+			nextTime = t.LastRun.Add(t.Interval)
+		} else {
+			nextTime = t.registeredAt.Add(t.Interval)
+		}
+	}
+
 	s := TaskStatus{
 		Name:       t.Name,
 		Running:    t.Running,
 		LastRun:    t.LastRun,
 		LastResult: t.LastResult,
-	}
-	if t.Interval > 0 {
-		s.NextRun = t.LastRun.Add(t.Interval)
+		NextRun:    nextTime,
 	}
 	return s
 }

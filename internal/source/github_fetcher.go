@@ -9,7 +9,6 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/google/go-github/v80/github"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
@@ -79,43 +78,36 @@ func (f *GitHubFetcher) Fetch(ctx context.Context, logger logging.InternalLogger
 	var (
 		mu       sync.Mutex
 		allRules []core.Rule
-		eg       errgroup.Group
 	)
-	eg.SetLimit(5)
 
-	for _, path := range targetFiles {
-		eg.Go(func() error {
-			fileContent, _, _, err := gh.Repositories.GetContents(ctx, f.cfg.Owner, f.cfg.Repo, path, &github.RepositoryContentGetOptions{
-				Ref: ref,
-			})
-			if err != nil {
-				logger.Warn("Failed to download %s: %v", path, err)
-				return fmt.Errorf("download %s: %w", path, err)
-			}
+	for i, path := range targetFiles {
+		logger.Debug("Queuing download %d/%d: for %s", i+1, len(targetFiles), path)
 
-			content, err := fileContent.GetContent()
-			if err != nil {
-				logger.Warn("Failed to decode content of %s: %v", path, err)
-				return fmt.Errorf("decode content %s: %w", path, err)
-			}
-
-			var partialConfig config.Config
-			if err := yaml.Unmarshal([]byte(content), &partialConfig); err != nil {
-				logger.Error("Failed to parse YAML in %s: %v", path, err)
-				return fmt.Errorf("syntax error in %s: %w", path, err)
-			}
-
-			mu.Lock()
-			allRules = append(allRules, partialConfig.Rules...)
-			mu.Unlock()
-
-			logger.Debug("Loaded %s, found %d rules", path, len(partialConfig.Rules))
-			return nil
+		fileContent, _, _, err := gh.Repositories.GetContents(ctx, f.cfg.Owner, f.cfg.Repo, path, &github.RepositoryContentGetOptions{
+			Ref: ref,
 		})
-	}
+		if err != nil {
+			logger.Warn("Failed to download %s: %v", path, err)
+			return nil, fmt.Errorf("download %s: %w", path, err)
+		}
 
-	if err := eg.Wait(); err != nil {
-		return nil, err
+		content, err := fileContent.GetContent()
+		if err != nil {
+			logger.Warn("Failed to decode content of %s: %v", path, err)
+			return nil, fmt.Errorf("decode content %s: %w", path, err)
+		}
+
+		var partialConfig config.Config
+		if err := yaml.Unmarshal([]byte(content), &partialConfig); err != nil {
+			logger.Error("Failed to parse YAML in %s: %v", path, err)
+			return nil, fmt.Errorf("syntax error in %s: %w", path, err)
+		}
+
+		mu.Lock()
+		allRules = append(allRules, partialConfig.Rules...)
+		mu.Unlock()
+
+		logger.Debug("Loaded %s, found %d rules", path, len(partialConfig.Rules))
 	}
 
 	logger.Info("Fetch complete. Total rules loaded: %d", len(allRules))
