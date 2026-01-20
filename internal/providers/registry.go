@@ -6,6 +6,7 @@ import (
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	githubprovider "github.com/darmiel/talmi/internal/providers/github"
+	jfrogprovider "github.com/darmiel/talmi/internal/providers/jfrog"
 	stubprovider "github.com/darmiel/talmi/internal/providers/stub"
 	talmiprovider "github.com/darmiel/talmi/internal/providers/talmi"
 )
@@ -17,10 +18,12 @@ func BuildRegistry(cfgs []config.ProviderConfig, signingKey []byte) (map[string]
 		var err error
 
 		switch cfg.Type {
-		case stubprovider.Type:
-			p, err = stubprovider.New(cfg.Name)
 		case githubprovider.Type:
 			p, err = githubprovider.NewFromConfig(cfg)
+		case jfrogprovider.Type:
+			p, err = jfrogprovider.NewFromConfig(cfg)
+		case stubprovider.Type:
+			p, err = stubprovider.New(cfg.Name)
 		case talmiprovider.Type:
 			p, err = talmiprovider.NewFromConfig(cfg, signingKey)
 		default:

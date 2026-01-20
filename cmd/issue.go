@@ -18,6 +18,7 @@ var (
 	issueReqProvider string
 	issueTargetFile  string
 	issuePermissions []string
+	issueRawOutput   bool
 )
 
 var issueCmd = &cobra.Command{
@@ -61,6 +62,7 @@ func init() {
 	issueCmd.Flags().StringVar(&issueReqIssuer, "issuer", "", "Explicit issuer name (optional)")
 	issueCmd.Flags().StringVar(&issueReqProvider, "provider", "", "Requested provider name (optional)")
 	issueCmd.Flags().StringArrayVar(&issuePermissions, "permission", []string{}, "Requested permission in key=value format (can be specified multiple times)")
+	issueCmd.Flags().BoolVarP(&issueRawOutput, "raw", "r", false, "Only output raw token without formatting")
 
 	_ = issueCmd.MarkFlagRequired("token")
 }
@@ -79,6 +81,11 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 	})
 	if err != nil {
 		return err
+	}
+
+	if issueRawOutput {
+		fmt.Println(artifact.Value)
+		return nil
 	}
 
 	log.Info().Msgf("Successfully retrieved artifact:")
@@ -101,6 +108,11 @@ func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]
 	})
 	if err != nil {
 		return fmt.Errorf("local issuance failed: %w", err)
+	}
+
+	if issueRawOutput {
+		fmt.Println(result.Artifact.Value)
+		return nil
 	}
 
 	log.Info().Msgf("Minted token!")

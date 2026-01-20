@@ -7,7 +7,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -57,7 +56,7 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			sub := truncate(tok.PrincipalID, 64)
 			t.AppendRow(table.Row{
 				tok.IssuedAt.Format(time.RFC3339),
-				fmt.Sprintf("%s (%s)", tok.ExpiresAt.Format("15:04"), faint(timeLeft.String())),
+				fmt.Sprintf("%s (in %s)", tok.ExpiresAt.Format("15:04"), faint(timeLeft.String())),
 				bold(sub),
 				tok.Provider,
 				bold(tok.PolicyName),
@@ -65,9 +64,7 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 			})
 		}
 
-		s := table.StyleRounded
-		s.Format.Header = text.FormatDefault
-		t.SetStyle(s)
+		applyTableFormat(t)
 		t.Render()
 		return nil
 	},

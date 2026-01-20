@@ -2,6 +2,7 @@
 *.raw
 *.pem
 talmi.yaml
+/demo
 
 # temp
 *.yaml
