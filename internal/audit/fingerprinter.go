@@ -10,8 +10,9 @@ import (
 const (
 	DefaultFingerprintType = "default"
 	GitHubFingerprintType  = "github"
-	TalmiFingerprintType   = "talmi_jwt"
+	JFrogFingerprintType   = "jfrog"
 	StubFingerprintType    = "stub"
+	TalmiFingerprintType   = "talmi"
 )
 
 var fingerprintRegistry = map[string]core.Fingerprinter{
@@ -42,8 +43,9 @@ func RegisteredFingerprinterTypes() []string {
 
 func init() {
 	RegisterFingerprinter(GitHubFingerprintType, calculateGitHubFingerprint)
-	RegisterFingerprinter(TalmiFingerprintType, calculateGitHubFingerprint)
+	RegisterFingerprinter(JFrogFingerprintType, calculateGitHubFingerprint)
 	RegisterFingerprinter(StubFingerprintType, calculateGitHubFingerprint)
+	RegisterFingerprinter(TalmiFingerprintType, calculateGitHubFingerprint)
 }
 
 func calculateGitHubFingerprint(token string) string {

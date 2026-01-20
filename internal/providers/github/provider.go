@@ -108,10 +108,10 @@ func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
 		Result:   &conf,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create decoder for github_app provider '%s': %w", cfg.Name, err)
+		return nil, fmt.Errorf("failed to create decoder for %s provider '%s': %w", Type, cfg.Name, err)
 	}
 	if err := decoder.Decode(cfg.Config); err != nil {
-		return nil, fmt.Errorf("failed to decode config for github_app provider '%s': %w", cfg.Name, err)
+		return nil, fmt.Errorf("failed to decode config for %s provider '%s': %w", Type, cfg.Name, err)
 	}
 
 	return New(cfg.Name, conf)
