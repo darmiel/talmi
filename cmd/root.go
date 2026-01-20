@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,7 +16,24 @@ import (
 	"github.com/darmiel/talmi/pkg/client"
 )
 
-var f = NewFactory()
+// BeQuietError can be used to signal that no error output should be shown.
+type BeQuietError struct {
+	ExitCode int
+}
+
+func (e BeQuietError) Error() string {
+	return "program exited quietly"
+}
+
+var (
+	f = NewFactory()
+
+	greenCheck = color.GreenString("✓")
+	redCross   = color.RedString("✗")
+
+	faint = color.New(color.Faint).SprintFunc()
+	bold  = color.New(color.Bold).SprintFunc()
+)
 
 const (
 	LogLevelKey   = "log.level"
@@ -53,6 +71,14 @@ func Execute() {
 			log.Error().Msg("session token is invalid or expired, please use 'talmi login' to authenticate")
 			os.Exit(403)
 		default:
+			var bqe BeQuietError
+			if errors.As(err, &bqe) {
+				if bqe.ExitCode == 0 {
+					bqe.ExitCode = 1
+				}
+				os.Exit(bqe.ExitCode)
+				return
+			}
 			log.Fatal().Err(err).Msg("execution failed")
 			os.Exit(1)
 		}

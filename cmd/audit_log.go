@@ -55,10 +55,8 @@ var auditLogCmd = &cobra.Command{
 			"Time", "Correlation ID", "Principal", "Action",
 		})
 
-		bold := color.New(color.Bold).SprintFunc()
 		green := color.New(color.FgGreen).SprintFunc()
 		red := color.New(color.FgRed).SprintFunc()
-		faint := color.New(color.Faint).SprintFunc()
 
 		for _, e := range audits {
 			subRaw := "(unknown)"

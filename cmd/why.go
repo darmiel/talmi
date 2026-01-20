@@ -130,9 +130,6 @@ func whyTokenLocally(cmd *cobra.Command, _ []string) error {
 }
 
 func printTrace(trace *core.EvaluationTrace) {
-	bold := color.New(color.Bold).SprintFunc()
-	faint := color.New(color.Faint).SprintFunc()
-
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()

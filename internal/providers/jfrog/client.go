@@ -5,10 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-
-	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/audit"
@@ -67,7 +64,7 @@ type CreateTokenResponse struct {
 // CreateToken creates a new access token in JFrog Artifactory based on the provided payload.
 func (g *Provider) CreateToken(
 	ctx context.Context,
-	principalID, provider string,
+	principalID string,
 	payload *CreateTokenRequest,
 ) (*CreateTokenResponse, error) {
 	data, err := json.Marshal(payload)
@@ -77,7 +74,6 @@ func (g *Provider) CreateToken(
 	body := bytes.NewReader(data)
 
 	url := g.serverBaseURL + createTokenEndpoint
-	log.Debug().Msgf("Creating JFrog Artifactory token via %s and payload %s", url, string(data))
 	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
@@ -87,7 +83,7 @@ func (g *Provider) CreateToken(
 
 	// inject audit user-agent
 	correlationID := middleware.CorrelationCtx(ctx)
-	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, principalID, provider))
+	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, principalID, g.Name()))
 
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
@@ -98,8 +94,7 @@ func (g *Provider) CreateToken(
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		bdy, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code: %d (%s)", resp.StatusCode, string(bdy))
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	var tokenResp CreateTokenResponse

@@ -73,14 +73,16 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 		return err
 	}
 
-	log.Info().Msgf("Requesting to mint artifact...")
-	artifact, err := cli.IssueToken(cmd.Context(), token, client.IssueTokenOptions{
+	log.Debug().Msgf("Requesting to mint artifact...")
+	artifact, correlationID, err := cli.IssueToken(cmd.Context(), token, client.IssueTokenOptions{
 		RequestedProvider: issueReqProvider,
 		RequestedIssuer:   issueReqIssuer,
 		Permissions:       permissions,
 	})
 	if err != nil {
-		return err
+		log.Error().Msgf("%s failed to retrieve artifact (correlation ID: %s)", redCross, correlationID)
+		log.Error().Msgf("error: %v", err)
+		return BeQuietError{}
 	}
 
 	if issueRawOutput {
@@ -88,7 +90,7 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 		return nil
 	}
 
-	log.Info().Msgf("Successfully retrieved artifact:")
+	log.Info().Msgf("%s successfully retrieved artifact (%s)", greenCheck, faint(correlationID))
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(artifact)
@@ -107,7 +109,9 @@ func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]
 		RequestedPermissions: permissions,
 	})
 	if err != nil {
-		return fmt.Errorf("local issuance failed: %w", err)
+		log.Error().Msgf("%s local issuance failed", redCross)
+		log.Error().Msgf("error: %v", err)
+		return BeQuietError{}
 	}
 
 	if issueRawOutput {
@@ -115,8 +119,7 @@ func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]
 		return nil
 	}
 
-	log.Info().Msgf("Minted token!")
-
+	log.Info().Msgf("%s successfully issued artifact", greenCheck)
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(result.Artifact)
