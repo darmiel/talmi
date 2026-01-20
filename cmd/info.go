@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
@@ -47,9 +46,6 @@ func infoLocally(_ *cobra.Command, _ []string) error {
 }
 
 func printInfo(info *buildinfo.Info) {
-	bold := color.New(color.Bold).SprintFunc()
-	faint := color.New(color.Faint).SprintFunc()
-
 	fmt.Println(bold("\n── Talmi Build Information ──"))
 	fmt.Printf("  %s:    %s\n", faint("Version"), info.Version)
 	fmt.Printf("  %s:     %s\n", faint("Commit"), info.CommitHash)

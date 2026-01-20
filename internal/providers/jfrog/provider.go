@@ -119,7 +119,7 @@ func (g *Provider) Mint(
 		requestExpiresIn = 3600
 	}
 
-	resp, err := g.CreateToken(ctx, principal.ID, grant.Provider, &CreateTokenRequest{
+	resp, err := g.CreateToken(ctx, principal.ID, &CreateTokenRequest{
 		Scope:                 grantConf.Scope,
 		ExpiresIn:             requestExpiresIn,
 		Refreshable:           false,

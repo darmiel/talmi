@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -42,9 +41,6 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 		t.AppendHeader(table.Row{
 			"Issued", "Expires", "Principal", "Provider", "Policy", "Meta",
 		})
-
-		bold := color.New(color.Bold).SprintFunc()
-		faint := color.New(color.Faint).SprintfFunc()
 
 		for _, tok := range tokens {
 			timeLeft := time.Until(tok.ExpiresAt).Round(time.Minute)

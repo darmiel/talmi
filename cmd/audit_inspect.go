@@ -43,10 +43,8 @@ var auditInspectCmd = &cobra.Command{
 
 		entry := audits[0]
 
-		bold := color.New(color.Bold).SprintFunc()
 		green := color.New(color.FgGreen).SprintFunc()
 		red := color.New(color.FgRed).SprintFunc()
-		faint := color.New(color.Faint).SprintFunc()
 
 		printKV := func(key string, val any) {
 			fmt.Printf("  %-26s %v\n", faint(key)+":", val)

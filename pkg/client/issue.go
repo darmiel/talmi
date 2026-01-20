@@ -29,7 +29,11 @@ type IssueTokenOptions struct {
 }
 
 // IssueToken requests a new token from the server using the provided token for authorization.
-func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOptions) (*core.TokenArtifact, error) {
+func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOptions) (
+	*core.TokenArtifact,
+	string,
+	error,
+) {
 	// add payload to body (JSON)
 	payload := api.IssuePayload{
 		Permissions: opts.Permissions,
@@ -38,7 +42,7 @@ func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOp
 	}
 	marshalled, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshalling payload: %w", err)
+		return nil, "", fmt.Errorf("marshalling payload: %w", err)
 	}
 
 	// we do this request manually, because we need to overwrite the authorization header which is used
@@ -47,27 +51,34 @@ func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOp
 		setPath(api.IssueTokenRoute).
 		build(), bytes.NewReader(marshalled))
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
+		return nil, "", fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("connection failed: %w", err)
+		return nil, correlationFromResponse(resp), fmt.Errorf("connection failed: %w", err)
 	}
 	defer func(body io.ReadCloser) {
 		_ = body.Close()
 	}(resp.Body)
 
 	if resp.StatusCode >= 400 {
-		return nil, parseErrorResponse(resp)
+		return nil, correlationFromResponse(resp), parseErrorResponse(resp)
 	}
 
 	var result core.TokenArtifact
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
+		return nil, correlationFromResponse(resp), fmt.Errorf("decoding response: %w", err)
 	}
 
-	return &result, nil
+	return &result, correlationFromResponse(resp), nil
+}
+
+func correlationFromResponse(resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+	return resp.Header.Get("X-Correlation-ID")
 }

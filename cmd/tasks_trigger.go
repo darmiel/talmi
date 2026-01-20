@@ -29,7 +29,7 @@ var tasksTriggerCmd = &cobra.Command{
 		}
 
 		log.Info().Msgf("%s triggered task '%s' successfully.",
-			color.GreenString("✓"), color.New(color.Bold).Sprint(name))
+			greenCheck, color.New(color.Bold).Sprint(name))
 		log.Info().Msgf("Run '%s' to see progress.", color.CyanString("talmi tasks logs "+name))
 		return nil
 	},

@@ -49,9 +49,9 @@ var tasksListCmd = &cobra.Command{
 
 			prefix := ""
 			if task.LastResult == "success" {
-				prefix = color.GreenString("✓")
+				prefix = greenCheck
 			} else if task.LastResult != "" {
-				prefix = color.RedString("✗")
+				prefix = redCross
 			}
 
 			t.AppendRow(table.Row{

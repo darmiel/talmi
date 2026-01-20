@@ -146,7 +146,7 @@ func (g *Provider) Mint(
 	}
 
 	// authenticate as the app
-	appClient, err := g.createAppClient(ctx, principal.ID, grant.Provider)
+	appClient, err := g.createAppClient(ctx, principal.ID)
 	if err != nil {
 		return nil, fmt.Errorf("creating github app client: %w", err)
 	}
@@ -232,7 +232,7 @@ func (g *Provider) Mint(
 	}, nil
 }
 
-func (g *Provider) createAppClient(ctx context.Context, principalID, provider string) (*github.Client, error) {
+func (g *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
 	correlationID := middleware.CorrelationCtx(ctx)
 
 	client, err := ghapp.NewClient(g.appID, g.privateKey, g.serverBaseURL)
@@ -240,7 +240,7 @@ func (g *Provider) createAppClient(ctx context.Context, principalID, provider st
 		return nil, err
 	}
 	// set user agent for auditing
-	client.UserAgent = audit.CreateUserAgent(correlationID, principalID, provider)
+	client.UserAgent = audit.CreateUserAgent(correlationID, principalID, g.Name())
 
 	return client, nil
 }

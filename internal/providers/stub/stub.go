@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/audit"
+	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -22,12 +23,14 @@ var _ core.Provider = (*Provider)(nil)
 
 type Provider struct {
 	name string
+	cfg  map[string]any
 }
 
 // New creates a new Provider with the given name.
-func New(name string) (*Provider, error) {
+func New(cfg config.ProviderConfig) (*Provider, error) {
 	return &Provider{
-		name: name,
+		name: cfg.Name,
+		cfg:  cfg.Config,
 	}, nil
 }
 
@@ -58,7 +61,8 @@ func (s *Provider) Mint(
 		ExpiresAt:   time.Now().Add(1 * time.Hour),
 		Provider:    info,
 		Metadata: map[string]any{
-			"env": "stub",
+			"env":    "stub",
+			"config": s.cfg,
 		},
 	}, nil
 }
