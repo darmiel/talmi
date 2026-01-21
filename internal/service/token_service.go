@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -42,7 +44,7 @@ func NewTokenService(
 
 func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*IssueResponse, error) {
 	logger := log.Ctx(ctx)
-	reqID, _ := ctx.Value("correlation_id").(string) // assumes a middleware set this
+	reqID, _ := ctx.Value("correlation_id").(string)
 
 	auditEntry := core.AuditEntry{
 		ID:                reqID,
@@ -53,7 +55,7 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	}
 	defer func() {
 		if err := s.auditor.Log(auditEntry); err != nil {
-			logger.Error().Err(err).Msg("failed to write audit log entry")
+			logger.Error().Err(err).Msg("failed to write audit log entry for token issuance")
 		}
 	}()
 
@@ -96,7 +98,7 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	// now that we have verified the principal, we can continue with evaluating the grant
 	rule, err := s.policyManager.GetEngine().Evaluate(principal, req.RequestedProvider) // TODO(future): see above
 	if err != nil {
-		auditEntry.Granted = false
+		auditEntry.Success = false
 		auditEntry.Stacktrace = err.Error()
 
 		if errors.Is(err, engine.ErrNoRuleMatch) {
@@ -114,30 +116,46 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	grant := rule.Grant
 
 	// now find the corresponding provider used to mint the token
-	provider, ok := s.providers[grant.Provider]
+	baseProvider, ok := s.providers[grant.Provider]
 	if !ok {
 		auditEntry.Error = "provider configuration error"
 		auditEntry.Stacktrace = fmt.Sprintf("cannot find '%s' in providers", grant.Provider)
 		return nil, httpError(http.StatusInternalServerError,
 			fmt.Errorf("provider '%s' configured in rule but not found in registry", grant.Provider))
 	}
-	auditEntry.Provider = provider.Name()
+	auditEntry.Provider = baseProvider.Name()
 
-	// permission downscoping
-	// TODO(future): maybe make this configurable / deny downscoping?
-	effectivePermissions, err := provider.Downscope(grant.Permissions, req.RequestedPermissions)
-	if err != nil {
-		auditEntry.Error = "permission downscope failed"
-		auditEntry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusBadRequest,
-			fmt.Errorf("downscoping failed: %w", err))
+	minter, ok := baseProvider.(core.TokenMinter)
+	if !ok {
+		auditEntry.Error = "minting not supported"
+		return nil, httpError(http.StatusExpectationFailed,
+			fmt.Errorf("provider '%s' does not support minting", grant.Provider))
 	}
 
 	effectiveGrant := grant
-	effectiveGrant.Permissions = effectivePermissions
+
+	// permission downscoping
+	if len(req.RequestedPermissions) > 0 {
+		downscoper, ok := baseProvider.(core.PermissionDownscoper)
+		if !ok {
+			// we should fail hard here because the requestor wants less access, but we cannot guarantee it
+			auditEntry.Error = "downscoping requested but not supported"
+			return nil, httpError(http.StatusBadRequest,
+				fmt.Errorf("provider '%s' does not support downscoping", grant.Provider))
+		}
+
+		effectivePermissions, err := downscoper.Downscope(grant.Permissions, req.RequestedPermissions)
+		if err != nil {
+			auditEntry.Error = "downscoping failed"
+			auditEntry.Stacktrace = err.Error()
+			return nil, httpError(http.StatusBadRequest, fmt.Errorf("downscoping failed: %w", err))
+		}
+
+		effectiveGrant.Permissions = effectivePermissions
+	}
 
 	// finally, we can mint the token! :)
-	artifact, err := provider.Mint(ctx, principal, effectiveGrant)
+	artifact, err := minter.Mint(ctx, principal, effectiveGrant)
 	if err != nil {
 		auditEntry.Error = "minting failed"
 		auditEntry.Stacktrace = err.Error()
@@ -145,18 +163,35 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 			fmt.Errorf("minting failed: %w", err))
 	}
 
-	auditEntry.Granted = true
+	auditEntry.Success = true
 	auditEntry.Metadata = artifact.Metadata
 	auditEntry.TokenFingerprint = artifact.Fingerprint
 
+	// token revocation
+	revocationToken := ""
+	revocationID := artifact.RevocationID() // might be empty depending on the provider
+	isRevocable := false
+	if _, ok := baseProvider.(core.TokenRevoker); ok {
+		rawToken, err := GenerateRandomString(32)
+		if err != nil {
+			return nil, fmt.Errorf("crypto error: %w", err)
+		}
+		revocationToken = rawToken
+		artifact.RevocationToken = revocationToken
+		isRevocable = true
+	}
+
 	meta := core.TokenMetadata{
-		CorrelationID: reqID,
-		PrincipalID:   principal.ID,
-		Provider:      provider.Name(),
-		PolicyName:    rule.Name,
-		ExpiresAt:     artifact.ExpiresAt,
-		IssuedAt:      time.Now(),
-		Metadata:      artifact.Metadata,
+		CorrelationID:   reqID,
+		PrincipalID:     principal.ID,
+		Provider:        baseProvider.Name(),
+		PolicyName:      rule.Name,
+		IssuedAt:        time.Now(),
+		ExpiresAt:       artifact.ExpiresAt,
+		Revocable:       isRevocable,
+		RevocationToken: revocationToken,
+		RevocationID:    revocationID,
+		Metadata:        artifact.Metadata,
 	}
 	if err := s.tokenStore.Save(ctx, meta); err != nil {
 		logger.Error().Err(err).Msg("failed to save token metadata")
@@ -169,4 +204,67 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 		Principal: principal,
 		Rule:      rule,
 	}, nil
+}
+
+func (s *TokenService) RevokeToken(ctx context.Context, tokenVal, revocationToken string) (*core.TokenMetadata, error) {
+	logger := log.Ctx(ctx)
+	reqID, _ := ctx.Value("correlation_id").(string)
+
+	auditEntry := core.AuditEntry{
+		ID:     reqID,
+		Time:   time.Now(),
+		Action: "token.revoke",
+	}
+	defer func() {
+		if err := s.auditor.Log(auditEntry); err != nil {
+			logger.Error().Err(err).Msg("failed to write audit log entry for token revocation")
+		}
+	}()
+
+	meta, err := s.tokenStore.FindByRevocationToken(ctx, revocationToken)
+	if err != nil {
+		auditEntry.Error = "invalid auth token"
+		auditEntry.Stacktrace = err.Error()
+		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("invalid auth token"))
+	}
+	if meta.Revoked {
+		auditEntry.Error = "already revoked"
+		return nil, httpError(http.StatusGone, fmt.Errorf("already revoked"))
+	}
+
+	baseProvider, ok := s.providers[meta.Provider]
+	if !ok {
+		auditEntry.Error = "provider missing"
+		auditEntry.Stacktrace = fmt.Sprintf("cannot find provider '%s'", meta.Provider)
+		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("provider missing"))
+	}
+	revoker, ok := baseProvider.(core.TokenRevoker)
+	if !ok {
+		auditEntry.Error = "provider not revoker"
+		auditEntry.Stacktrace = fmt.Sprintf("provider '%s' is not a core.TokenRevoker", meta.Provider)
+		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("provider no longer supports revocation"))
+	}
+
+	// actually perform revocation of token
+	if err := revoker.Revoke(ctx, meta.RevocationID, tokenVal); err != nil {
+		auditEntry.Error = "revoking failed"
+		auditEntry.Stacktrace = err.Error()
+		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("revocation failed: %w", err))
+	}
+
+	// mark as revoked in database
+	if err := s.tokenStore.SetRevoked(ctx, meta.CorrelationID); err != nil {
+		logger.Error().Err(err).Msg("failed to mark token revoked in store")
+	}
+
+	auditEntry.Success = true
+	return meta, nil
+}
+
+func GenerateRandomString(bytes int) (string, error) {
+	b := make([]byte, bytes)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

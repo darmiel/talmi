@@ -19,7 +19,10 @@ var info = core.ProviderInfo{
 	Version: "v1",
 }
 
-var _ core.Provider = (*Provider)(nil)
+var (
+	_ core.TokenMinter = (*Provider)(nil)
+	// TODO: should we implement a basic PermissionDownscoper for better debugging?
+)
 
 type Provider struct {
 	name string
@@ -36,10 +39,6 @@ func New(cfg config.ProviderConfig) (*Provider, error) {
 
 func (s *Provider) Name() string {
 	return s.name
-}
-
-func (s *Provider) Downscope(allowed, _ map[string]string) (map[string]string, error) {
-	return allowed, nil // No downscoping for stub provider
 }
 
 func (s *Provider) Mint(

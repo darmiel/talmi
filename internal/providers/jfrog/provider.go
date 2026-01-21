@@ -21,6 +21,11 @@ var info = core.ProviderInfo{
 	Version: "v1",
 }
 
+var (
+	_ core.TokenMinter  = (*Provider)(nil)
+	_ core.TokenRevoker = (*Provider)(nil)
+)
+
 type Provider struct {
 	name          string
 	serverBaseURL string
@@ -75,10 +80,6 @@ func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
 
 func (g *Provider) Name() string {
 	return g.name
-}
-
-func (g *Provider) Downscope(allowed, requested map[string]string) (map[string]string, error) {
-	return allowed, nil // no downscoping implemented
 }
 
 func (g *Provider) Mint(
@@ -139,7 +140,7 @@ func (g *Provider) Mint(
 		responseExpiresIn = 60 * 60 * 24 * 365 * 100
 	}
 
-	return &core.TokenArtifact{
+	artifact := &core.TokenArtifact{
 		Value:       resp.AccessToken,
 		Fingerprint: resp.TokenID, // just use the token ID as the fingerprint, TODO: check if this is sufficient
 		ExpiresAt:   time.Now().Add(time.Duration(responseExpiresIn) * time.Second),
@@ -150,5 +151,23 @@ func (g *Provider) Mint(
 			"scope":      resp.Scope,
 			"username":   resp.Username,
 		},
-	}, nil
+	}
+	artifact.SetRevocationID(resp.TokenID) // JFrog tokens can be revoked by their token ID
+
+	return artifact, nil
+}
+
+func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
+	logger := log.Ctx(ctx)
+	logger.Debug().Msgf("JFrogArtifactoryProvider Revoke called for revocation ID: %s", revocationID)
+
+	if revocationID == "" {
+		return fmt.Errorf("cannot revoke jfrog-artifactory token: revocation ID is empty")
+	}
+
+	if err := g.RevokeToken(ctx, revocationID); err != nil {
+		return fmt.Errorf("deleting jfrog-artifactory token ID %s: %w", revocationID, err)
+	}
+
+	return nil
 }

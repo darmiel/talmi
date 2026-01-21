@@ -23,7 +23,7 @@ type AuditEntry struct {
 	// Decision details
 	PolicyName       string `json:"policy_name,omitempty"`
 	Provider         string `json:"provider,omitempty"`
-	Granted          bool   `json:"granted"`
+	Success          bool   `json:"success"`
 	TokenFingerprint string `json:"token_fingerprint,omitempty"`
 
 	Error      string `json:"error,omitempty"`

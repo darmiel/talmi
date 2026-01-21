@@ -4,7 +4,8 @@ const (
 	HealthCheckRoute = "/healthz"
 	AboutRoute       = "/icanhaztalmi"
 
-	IssueTokenRoute = "/v1/token/issue"
+	IssueTokenRoute  = "/v1/token/issue"
+	RevokeTokenRoute = "/v1/token/revoke"
 
 	WebhookRoute = "/v1/webhooks/github"
 

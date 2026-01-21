@@ -9,6 +9,22 @@ import (
 	"github.com/google/go-github/v80/github"
 )
 
+func NewRawClient(signedToken, enterpriseURL string) (*github.Client, error) {
+	// we can now use this signed JWT to authenticate as the GitHub App
+	client := github.NewClient(nil).WithAuthToken(signedToken)
+
+	if enterpriseURL != "" {
+		// we don't interact with uploads, so just use a dummy URL here.
+		var err error
+		client, err = client.WithEnterpriseURLs(enterpriseURL, enterpriseURL)
+		if err != nil {
+			return nil, fmt.Errorf("creating github enterprise client: %w", err)
+		}
+	}
+
+	return client, nil
+}
+
 // NewClient creates an authenticated GitHub client using an App ID and private key.
 // If enterpriseURL is non-empty, it configures the client for GitHub Enterprise.
 // Note that you cannot use media uploads with this client as it uses the same URL for both base and upload.
@@ -31,18 +47,7 @@ func NewClient(appID int64, privateKey []byte, enterpriseURL string) (*github.Cl
 		return nil, fmt.Errorf("signing github app jwt: %w", err)
 	}
 
-	// we can now use this signed JWT to authenticate as the GitHub App
-	client := github.NewClient(nil).WithAuthToken(signedToken)
-
-	if enterpriseURL != "" {
-		// we don't interact with uploads, so just use a dummy URL here.
-		client, err = client.WithEnterpriseURLs(enterpriseURL, enterpriseURL)
-		if err != nil {
-			return nil, fmt.Errorf("creating github enterprise client: %w", err)
-		}
-	}
-
-	return client, nil
+	return NewRawClient(signedToken, enterpriseURL)
 }
 
 // InstallationTokenClient creates a GitHub client authenticated as the installation

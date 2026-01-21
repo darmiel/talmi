@@ -11,11 +11,13 @@ import (
 func (c *Client) Info(
 	ctx context.Context,
 ) (*buildinfo.Info, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.url().setPath(api.AboutRoute).build(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.url().
+		setPath(api.AboutRoute).
+		build(), nil)
 	if err != nil {
 		return nil, err
 	}
 	var info buildinfo.Info
-	err = c.do(req, &info)
+	_, err = c.do(req, &info)
 	return &info, err
 }

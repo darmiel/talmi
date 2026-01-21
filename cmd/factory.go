@@ -36,16 +36,23 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
-// GetClient returns an authenticated HTTP client for remote operations.
-func (f *Factory) GetClient() (*client.Client, error) {
+func (f *Factory) GetRemoteAddr() (string, error) {
 	server := f.RemoteAddr // prio 1: command-line flag
 	if server == "" {
 		server = viper.GetString(TalmiAddrKey) // prio 2: config/env
 	}
 	if server == "" {
-		return nil, fmt.Errorf("server address not configured (use --server or set TALMI_ADDR)")
+		return "", fmt.Errorf("server address not configured (use --server or set TALMI_ADDR)")
 	}
+	return server, nil
+}
 
+// GetClient returns an authenticated HTTP client for remote operations.
+func (f *Factory) GetClient() (*client.Client, error) {
+	server, err := f.GetRemoteAddr()
+	if err != nil {
+		return nil, err
+	}
 	var token string
 	if cfg, err := cliconfig.Load(); err == nil {
 		if cred, err := cfg.GetCredential(server); err == nil { // token prio 1: saved credential
