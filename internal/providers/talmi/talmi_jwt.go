@@ -20,7 +20,9 @@ var info = core.ProviderInfo{
 	Version: "v1",
 }
 
-var _ core.Provider = (*Provider)(nil)
+var (
+	_ core.TokenMinter = (*Provider)(nil)
+)
 
 type Provider struct {
 	name       string
@@ -59,10 +61,6 @@ func NewFromConfig(cfg config.ProviderConfig, signingKey []byte) (*Provider, err
 
 func (p *Provider) Name() string {
 	return p.name
-}
-
-func (p *Provider) Downscope(allowed, _ map[string]string) (map[string]string, error) {
-	return allowed, nil // No downscoping for talmi_jwt
 }
 
 func (p *Provider) Mint(

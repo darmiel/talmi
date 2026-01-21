@@ -29,11 +29,11 @@ type IssueTokenOptions struct {
 }
 
 // IssueToken requests a new token from the server using the provided token for authorization.
-func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOptions) (
-	*core.TokenArtifact,
-	string,
-	error,
-) {
+func (c *Client) IssueToken(
+	ctx context.Context,
+	token string,
+	opts IssueTokenOptions,
+) (*core.TokenArtifact, string, error) {
 	// add payload to body (JSON)
 	payload := api.IssuePayload{
 		Permissions: opts.Permissions,
@@ -74,6 +74,21 @@ func (c *Client) IssueToken(ctx context.Context, token string, opts IssueTokenOp
 	}
 
 	return &result, correlationFromResponse(resp), nil
+}
+
+func (c *Client) RevokeToken(ctx context.Context, originalToken string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", c.url().
+		setPath(api.RevokeTokenRoute).
+		build(), nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("X-Original-Token", "Bearer "+originalToken)
+	correlation, err := c.do(req, nil)
+	if err != nil {
+		return "", fmt.Errorf("revoking token: %w", err)
+	}
+	return correlation, nil
 }
 
 func correlationFromResponse(resp *http.Response) string {

@@ -67,7 +67,7 @@ var auditInspectCmd = &cobra.Command{
 		}
 
 		status := green("granted")
-		if !entry.Granted {
+		if !entry.Success {
 			status = red("denied")
 		}
 

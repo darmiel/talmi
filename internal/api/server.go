@@ -74,6 +74,7 @@ func (s *Server) Routes(talmiSigningKey []byte) http.Handler {
 
 	// token issuer route
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)
+	mux.HandleFunc("POST "+RevokeTokenRoute, s.handleRevoke) // TODO: DELETE may be better??
 
 	// webhook route
 	mux.HandleFunc("POST "+WebhookRoute, s.handleGitHubWebhook)

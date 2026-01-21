@@ -47,9 +47,14 @@ It uses a dummy principal and forces the execution of a specific rule's grant`,
 			return fmt.Errorf("failed to build provider registry: %w", err)
 		}
 
-		provider, ok := providerRegistry[grant.Provider]
+		baseProvider, ok := providerRegistry[grant.Provider]
 		if !ok {
 			return fmt.Errorf("provider '%s' configured in rule but not found in registry", grant.Provider)
+		}
+
+		minter, ok := baseProvider.(core.TokenMinter)
+		if !ok {
+			return fmt.Errorf("provider '%s' does not support token minting", grant.Provider)
 		}
 
 		dummyPrincipal := &core.Principal{
@@ -57,7 +62,7 @@ It uses a dummy principal and forces the execution of a specific rule's grant`,
 			Issuer:     "dummy-issuer",
 			Attributes: map[string]any{},
 		}
-		artifact, err := provider.Mint(cmd.Context(), dummyPrincipal, grant)
+		artifact, err := minter.Mint(cmd.Context(), dummyPrincipal, grant)
 		if err != nil {
 			return fmt.Errorf("minting failed: %w", err)
 		}

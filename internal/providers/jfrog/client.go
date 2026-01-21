@@ -11,7 +11,10 @@ import (
 	"github.com/darmiel/talmi/internal/audit"
 )
 
-const createTokenEndpoint = "/access/api/v1/tokens"
+const (
+	createTokenEndpoint = "/access/api/v1/tokens"
+	deleteTokenEndpoint = createTokenEndpoint // + token_id
+)
 
 // CreateTokenRequest represents the request body for creating an access token in JFrog Artifactory.
 // info from: https://jfrog.com/help/r/jfrog-rest-apis/recommended-configurations
@@ -102,4 +105,36 @@ func (g *Provider) CreateToken(
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 	return &tokenResp, nil
+}
+
+// RevokeToken deletes an access token in JFrog Artifactory based on the provided payload.
+func (g *Provider) RevokeToken(
+	ctx context.Context,
+	tokenID string,
+) error {
+	url := g.serverBaseURL + deleteTokenEndpoint + "/" + tokenID
+	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+g.token)
+
+	// inject audit user-agent
+	correlationID := middleware.CorrelationCtx(ctx)
+	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, "", g.Name()))
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("performing request: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent { // ignore already revoked
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }

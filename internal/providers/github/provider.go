@@ -24,7 +24,11 @@ var info = core.ProviderInfo{
 	Version: "v1",
 }
 
-var _ core.Provider = (*Provider)(nil)
+var (
+	_ core.TokenMinter          = (*Provider)(nil)
+	_ core.PermissionDownscoper = (*Provider)(nil)
+	_ core.TokenRevoker         = (*Provider)(nil)
+)
 
 // Provider implements core.Provider by minting GitHub App installation tokens.
 // It supports GitHub Cloud and GitHub Enterprise.
@@ -219,7 +223,7 @@ func (g *Provider) Mint(
 
 	tok := token.GetToken()
 
-	return &core.TokenArtifact{
+	artifact := &core.TokenArtifact{
 		Value:       tok,
 		ExpiresAt:   token.GetExpiresAt().Time,
 		Fingerprint: audit.CalculateFingerprint(audit.GitHubFingerprintType, tok),
@@ -229,7 +233,32 @@ func (g *Provider) Mint(
 			"repositories": opts.Repositories,
 			"permissions":  token.GetPermissions(),
 		},
-	}, nil
+	}
+	// we don't _need_ this, because we revoke tokens by the token itself, but it's useful for revocation tracking
+	artifact.SetRevocationID("github-installation-" + fmt.Sprint(installationID))
+
+	return artifact, nil
+}
+
+func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
+	logger := log.Ctx(ctx)
+	logger.Debug().Msgf("GitHubAppProvider Revoke called for revocation ID: %s", revocationID)
+
+	if tokenVal == "" {
+		return fmt.Errorf("cannot revoke github app token: token value is empty")
+	}
+
+	client, err := ghapp.NewRawClient(tokenVal, g.serverBaseURL)
+	if err != nil {
+		return fmt.Errorf("creating github client for revocation: %w", err)
+	}
+
+	_, err = client.Apps.RevokeInstallationToken(ctx)
+	if err != nil {
+		return fmt.Errorf("revoking github installation token: %w", err)
+	}
+
+	return nil
 }
 
 func (g *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {

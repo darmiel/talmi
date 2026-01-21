@@ -75,6 +75,6 @@ func (c *Client) ExplainTrace(
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	var trace core.EvaluationTrace
-	err = c.do(req, &trace)
+	_, err = c.do(req, &trace)
 	return &trace, err
 }

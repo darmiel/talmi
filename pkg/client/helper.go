@@ -18,7 +18,8 @@ func (c *Client) get(ctx context.Context, url string, result any) error {
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	return c.do(req, result)
+	_, err = c.do(req, result)
+	return err
 }
 
 func (c *Client) post(ctx context.Context, url string, payload, result any) error {
@@ -34,7 +35,8 @@ func (c *Client) post(ctx context.Context, url string, payload, result any) erro
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	return c.do(req, result)
+	_, err = c.do(req, result)
+	return err
 }
 
 func parseErrorResponse(resp *http.Response) error {
@@ -52,7 +54,7 @@ func parseErrorResponse(resp *http.Response) error {
 	return fmt.Errorf("api error: *unparsed '%s' (status %d)", string(body), resp.StatusCode)
 }
 
-func (c *Client) do(req *http.Request, result any) error {
+func (c *Client) do(req *http.Request, result any) (string, error) {
 	// inject auth token if available
 	if c.authToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.authToken)
@@ -60,21 +62,21 @@ func (c *Client) do(req *http.Request, result any) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("connection failed: %w", err)
+		return "", fmt.Errorf("connection failed: %w", err)
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 
 	if resp.StatusCode >= 400 {
-		return parseErrorResponse(resp)
+		return correlationFromResponse(resp), parseErrorResponse(resp)
 	}
 
 	if result != nil {
 		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-			return fmt.Errorf("failed to decode response: %w", err)
+			return correlationFromResponse(resp), fmt.Errorf("failed to decode response: %w", err)
 		}
 	}
 
-	return nil
+	return correlationFromResponse(resp), nil
 }

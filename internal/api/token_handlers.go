@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -53,12 +52,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.Error().Err(err).Msg("token issuance failed")
-		status := http.StatusBadRequest // generic default status
-		var httpError service.HTTPError
-		if errors.As(err, &httpError) {
-			status = httpError.StatusCode
-		}
-		presenter.Error(w, r, "token issuance failed: "+err.Error(), status)
+		presenter.Err(w, r, err, "token issuance failed")
 		return
 	}
 
@@ -67,4 +61,31 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		Msg("token issued successfully")
 
 	presenter.JSON(w, r, result.Artifact, http.StatusCreated)
+}
+
+func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := log.Ctx(ctx)
+
+	authHeader := r.Header.Get("Authorization")
+	authProof := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// I'm not sure what I think of using a header for retrieving the original token, but I think this is the most
+	// compatibility option, this may change in the future.
+	originalTokenHeader := r.Header.Get("X-Original-Token")
+	originalToken := strings.TrimPrefix(originalTokenHeader, "Bearer ")
+
+	meta, err := s.tokenService.RevokeToken(ctx, originalToken, authProof)
+	if err != nil {
+		logger.Error().Err(err).Msg("revoking token failed")
+		presenter.Err(w, r, err, "revoking token failed")
+		return
+	}
+
+	logger.Info().
+		Str("origin_correlation", meta.CorrelationID).
+		Str("provider", meta.Provider).
+		Msg("token revoked successfully")
+
+	presenter.JSON(w, r, map[string]string{"status": "ok"}, http.StatusOK)
 }

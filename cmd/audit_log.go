@@ -66,11 +66,11 @@ var auditLogCmd = &cobra.Command{
 				sub = bold(subRaw)
 			}
 
-			var granted string
-			if e.Granted {
-				granted = green("✔")
+			var success string
+			if e.Success {
+				success = green("✔")
 			} else {
-				granted = red("✖")
+				success = red("✖")
 				sub = red(subRaw) // make it red!
 			}
 
@@ -78,7 +78,7 @@ var auditLogCmd = &cobra.Command{
 				e.Time.Format(time.RFC3339),
 				e.ID,
 				sub,
-				granted + " " + e.Action,
+				success + " " + e.Action,
 			})
 		}
 
