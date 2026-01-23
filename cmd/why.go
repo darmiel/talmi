@@ -71,13 +71,13 @@ func whyTokenRemote(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	trace, err := cli.ExplainTrace(cmd.Context(), whyToken, client.ExplainTraceOptions{
+	trace, correlation, err := cli.ExplainTrace(cmd.Context(), whyToken, client.ExplainTraceOptions{
 		RequestedIssuer:   whyIssuer,
 		RequestedProvider: whyProvider,
 		ReplayID:          whyReplayID,
 	})
 	if err != nil {
-		return err
+		return logError(err, correlation, "failed to get explanation from server")
 	}
 
 	printTrace(trace)

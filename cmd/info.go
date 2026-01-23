@@ -30,9 +30,9 @@ func infoRemote(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	log.Info().Msg("Fetching build info from server...")
-	info, err := cli.Info(cmd.Context())
+	info, correlation, err := cli.Info(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("failed to get info from server: %w", err)
+		return logError(err, correlation, "failed to get info from server")
 	}
 	printInfo(info)
 	return nil

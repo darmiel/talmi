@@ -242,10 +242,10 @@ func (g *Provider) Mint(
 
 func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
 	logger := log.Ctx(ctx)
-	logger.Debug().Msgf("GitHubAppProvider Revoke called for revocation ID: %s", revocationID)
+	logger.Debug().Msgf("GitHubAppProvider Revoke called for revocation ID: %s and token %s", revocationID, tokenVal)
 
 	if tokenVal == "" {
-		return fmt.Errorf("cannot revoke github app token: token value is empty")
+		return fmt.Errorf("original token required for %T token revocation", Type)
 	}
 
 	client, err := ghapp.NewRawClient(tokenVal, g.serverBaseURL)

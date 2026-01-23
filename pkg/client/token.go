@@ -83,7 +83,10 @@ func (c *Client) RevokeToken(ctx context.Context, originalToken string) (string,
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("X-Original-Token", "Bearer "+originalToken)
+	if originalToken != "" {
+		// some providers require the original token for revocation
+		req.Header.Set("X-Original-Token", "Bearer "+originalToken)
+	}
 	correlation, err := c.do(req, nil)
 	if err != nil {
 		return "", fmt.Errorf("revoking token: %w", err)

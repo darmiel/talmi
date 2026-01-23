@@ -25,9 +25,9 @@ This command requires an authenticated session (via 'talmi login') with admin pr
 		}
 
 		log.Debug().Msg("Fetching active tokens...")
-		tokens, err := cli.ListActiveTokens(cmd.Context())
+		tokens, correlation, err := cli.ListActiveTokens(cmd.Context())
 		if err != nil {
-			return err
+			return logError(err, correlation, "retrieving active tokens failed")
 		}
 
 		if len(tokens) == 0 {

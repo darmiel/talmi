@@ -29,15 +29,15 @@ var auditInspectCmd = &cobra.Command{
 		}
 
 		log.Debug().Msgf("Retrieving entry with correlation ID '%s'...", correlationID)
-		audits, err := cli.ListAudits(cmd.Context(), client.ListAuditsOpts{
+		audits, correlation, err := cli.ListAudits(cmd.Context(), client.ListAuditsOpts{
 			Limit:         1,
 			CorrelationID: correlationID,
 		})
 		if err != nil {
-			return err
+			return logError(err, correlation, "failed to retrieve audit log entry")
 		}
 		if len(audits) == 0 {
-			log.Warn().Str("correlation_id", correlationID).Msg("No audit log entries found")
+			log.Warn().Str("correlation_id", correlationID).Msg("no audit log entries found")
 			return nil
 		}
 

@@ -24,12 +24,11 @@ var tasksTriggerCmd = &cobra.Command{
 		}
 
 		log.Debug().Msgf("Triggering tasks '%s'...", name)
-		if err := cli.TriggerTask(cmd.Context(), name); err != nil {
-			return fmt.Errorf("triggering task: %w", err)
+		if correlation, err := cli.TriggerTask(cmd.Context(), name); err != nil {
+			return logError(err, correlation, "failed to trigger task")
 		}
 
-		log.Info().Msgf("%s triggered task '%s' successfully.",
-			greenCheck, color.New(color.Bold).Sprint(name))
+		logSuccess("triggered task '%s'", bold(name))
 		log.Info().Msgf("Run '%s' to see progress.", color.CyanString("talmi tasks logs "+name))
 		return nil
 	},

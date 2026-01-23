@@ -13,30 +13,37 @@ import (
 
 var ErrInvalidSession = fmt.Errorf("invalid session token")
 
-func (c *Client) get(ctx context.Context, url string, result any) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
-	_, err = c.do(req, result)
-	return err
+type APIError struct {
+	CorrelationID string
+	Message       string
 }
 
-func (c *Client) post(ctx context.Context, url string, payload, result any) error {
+func (e APIError) Error() string {
+	return fmt.Sprintf("api error: '%s' (correlation: %s)", e.Message, e.CorrelationID)
+}
+
+func (c *Client) get(ctx context.Context, url string, result any) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	return c.do(req, result)
+}
+
+func (c *Client) post(ctx context.Context, url string, payload, result any) (string, error) {
 	var body io.Reader
 	if payload != nil {
 		bodyBytes, err := json.Marshal(payload)
 		if err != nil {
-			return fmt.Errorf("marshaling payload: %w", err)
+			return "", fmt.Errorf("marshaling payload: %w", err)
 		}
 		body = bytes.NewBuffer(bodyBytes)
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
 	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
+		return "", fmt.Errorf("creating request: %w", err)
 	}
-	_, err = c.do(req, result)
-	return err
+	return c.do(req, result)
 }
 
 func parseErrorResponse(resp *http.Response) error {
@@ -49,7 +56,10 @@ func parseErrorResponse(resp *http.Response) error {
 		if errResp.Error == "invalid session token" {
 			return ErrInvalidSession
 		}
-		return fmt.Errorf("api error: '%s' (correlation: %s)", errResp.Error, errResp.CorrelationID)
+		return APIError{
+			CorrelationID: errResp.CorrelationID,
+			Message:       errResp.Error,
+		}
 	}
 	return fmt.Errorf("api error: *unparsed '%s' (status %d)", string(body), resp.StatusCode)
 }
