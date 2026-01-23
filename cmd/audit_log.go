@@ -34,13 +34,13 @@ var auditLogCmd = &cobra.Command{
 		}
 
 		log.Debug().Msg("Fetching audit log...")
-		audits, err := cli.ListAudits(cmd.Context(), client.ListAuditsOpts{
+		audits, correlation, err := cli.ListAudits(cmd.Context(), client.ListAuditsOpts{
 			Limit:       auditLogLimit,
 			PrincipalID: auditLogPrincipal,
 			Fingerprint: auditLogFingerprint,
 		})
 		if err != nil {
-			return err
+			return logError(err, correlation, "failed to retrieve audit log entries")
 		}
 
 		if len(audits) == 0 {

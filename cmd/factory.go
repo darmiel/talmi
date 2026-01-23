@@ -3,9 +3,11 @@ package cmd
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -105,4 +107,26 @@ func (f *Factory) GetLocalService(ctx context.Context) (*service.TokenService, e
 
 func (f *Factory) bindPolicyFlag(flags *pflag.FlagSet) {
 	flags.StringVarP(&f.PolicyPath, "policy", "f", "", "The Talmi policy config file to use")
+}
+
+func unwrapAPIError(err error) string {
+	var apiErr client.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Message
+	}
+	return err.Error()
+}
+
+func logSuccess(format string, args ...any) {
+	log.Info().Msgf("%s %s", greenCheck, fmt.Sprintf(format, args...))
+}
+
+func logError(err error, correlation, format string, args ...any) error {
+	suffix := ""
+	if correlation != "" {
+		suffix += fmt.Sprintf(" (correlation: %s)", correlation)
+	}
+	log.Error().Msgf("%s %s%s", redCross, fmt.Sprintf(format, args...), suffix)
+	log.Error().Msgf("error: %v", unwrapAPIError(err))
+	return BeQuietError{}
 }

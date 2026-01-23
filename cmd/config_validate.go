@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/config"
@@ -21,10 +20,9 @@ var configValidateCmd = &cobra.Command{
 		}
 		_, err := config.Load(path)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Configuration is invalid.")
-			return err
+			return logError(err, "", "configuration validation failed")
 		}
-		log.Info().Msg("Configuration is valid.")
+		logSuccess("configuration is valid")
 		return nil
 	},
 }

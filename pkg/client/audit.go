@@ -19,7 +19,7 @@ type ListAuditsOpts struct {
 }
 
 // ListAudits retrieves the latest audit entries from the server, limited to the specified number.
-func (c *Client) ListAudits(ctx context.Context, opts ListAuditsOpts) ([]core.AuditEntry, error) {
+func (c *Client) ListAudits(ctx context.Context, opts ListAuditsOpts) ([]core.AuditEntry, string, error) {
 	ub := c.url().setPath(api.ListAuditsRoute)
 	if opts.Limit > 0 {
 		ub = ub.addQueryParam("limit", opts.Limit)
@@ -34,17 +34,17 @@ func (c *Client) ListAudits(ctx context.Context, opts ListAuditsOpts) ([]core.Au
 		ub = ub.addQueryParam("fingerprint", opts.Fingerprint)
 	}
 	var resp []core.AuditEntry
-	err := c.get(ctx, ub.build(), &resp)
-	return resp, err
+	correlation, err := c.get(ctx, ub.build(), &resp)
+	return resp, correlation, err
 }
 
 // ListActiveTokens retrieves the list of currently active tokens from the server.
-func (c *Client) ListActiveTokens(ctx context.Context) ([]core.TokenMetadata, error) {
+func (c *Client) ListActiveTokens(ctx context.Context) ([]core.TokenMetadata, string, error) {
 	var resp []core.TokenMetadata
-	err := c.get(ctx, c.url().
+	correlation, err := c.get(ctx, c.url().
 		setPath(api.ListActiveTokensRoute).
 		build(), &resp)
-	return resp, err
+	return resp, correlation, err
 }
 
 type ExplainTraceOptions struct {
@@ -57,7 +57,7 @@ func (c *Client) ExplainTrace(
 	ctx context.Context,
 	token string,
 	opts ExplainTraceOptions,
-) (*core.EvaluationTrace, error) {
+) (*core.EvaluationTrace, string, error) {
 	formData := url.Values{
 		"token": {token},
 	}
@@ -70,11 +70,11 @@ func (c *Client) ExplainTrace(
 		addQueryParamNotEmpty("replay_id", opts.ReplayID).
 		build(), body)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	var trace core.EvaluationTrace
-	_, err = c.do(req, &trace)
-	return &trace, err
+	correlation, err := c.do(req, &trace)
+	return &trace, correlation, err
 }

@@ -10,14 +10,14 @@ import (
 
 func (c *Client) Info(
 	ctx context.Context,
-) (*buildinfo.Info, error) {
+) (*buildinfo.Info, string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", c.url().
 		setPath(api.AboutRoute).
 		build(), nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	var info buildinfo.Info
-	_, err = c.do(req, &info)
-	return &info, err
+	correlation, err := c.do(req, &info)
+	return &info, correlation, err
 }

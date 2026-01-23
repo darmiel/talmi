@@ -79,10 +79,11 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 		RequestedIssuer:   issueReqIssuer,
 		Permissions:       permissions,
 	})
+	if correlationID == "" {
+		correlationID = "n/a"
+	}
 	if err != nil {
-		log.Error().Msgf("%s failed to retrieve artifact (correlation ID: %s)", redCross, correlationID)
-		log.Error().Msgf("error: %v", err)
-		return BeQuietError{}
+		return logError(err, correlationID, "failed to retrieve artifact")
 	}
 
 	if issueRawOutput {
@@ -90,7 +91,8 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 		return nil
 	}
 
-	log.Info().Msgf("%s successfully retrieved artifact (%s)", greenCheck, faint(correlationID))
+	logSuccess("successfully retrieved artifact (correlation: %s)", faint(correlationID))
+
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(artifact)
@@ -109,9 +111,7 @@ func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]
 		RequestedPermissions: permissions,
 	})
 	if err != nil {
-		log.Error().Msgf("%s local issuance failed", redCross)
-		log.Error().Msgf("error: %v", err)
-		return BeQuietError{}
+		return logError(err, "", "local issuance failed")
 	}
 
 	if issueRawOutput {
@@ -119,7 +119,8 @@ func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]
 		return nil
 	}
 
-	log.Info().Msgf("%s successfully issued artifact", greenCheck)
+	logSuccess("artifact issued locally")
+
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(result.Artifact)

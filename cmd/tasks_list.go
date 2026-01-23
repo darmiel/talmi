@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -22,9 +21,9 @@ var tasksListCmd = &cobra.Command{
 		}
 
 		log.Debug().Msg("Retrieving tasks...")
-		tasks, err := cli.ListTasks(cmd.Context())
+		tasks, correlation, err := cli.ListTasks(cmd.Context())
 		if err != nil {
-			return fmt.Errorf("listing tasks: %w", err)
+			return logError(err, correlation, "failed to list tasks")
 		}
 
 		t := table.NewWriter()
@@ -55,7 +54,7 @@ var tasksListCmd = &cobra.Command{
 			}
 
 			t.AppendRow(table.Row{
-				color.New(color.Bold).Sprint(task.Name),
+				bold(task.Name),
 				state,
 				lastRun,
 				nextRun,

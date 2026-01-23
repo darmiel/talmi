@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -69,13 +68,10 @@ The session token is saved locally to allow future authenticated requests (like 
 			Token: artifact.Value,
 		}
 		if err := cliconfig.Save(cfg); err != nil {
-			log.Error().Msgf("%s login succeeded but could not save credentials", redCross)
-			log.Error().Msgf("error: %v", err)
-			return BeQuietError{}
+			return logError(err, "", "login succeeded but could not save credentials")
 		}
 
-		log.Info().Msgf("%s successfully saved credentials for %s",
-			greenCheck, color.New(color.Bold).Sprint(u.Host))
+		logSuccess("saved credentials for %s", bold(u.Host))
 		return nil
 	},
 }

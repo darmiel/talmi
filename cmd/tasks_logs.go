@@ -24,9 +24,9 @@ var tasksLogsCmd = &cobra.Command{
 		}
 
 		log.Debug().Msgf("Retrieving logs for task '%s'...", name)
-		logs, err := cli.GetTaskLogs(cmd.Context(), name)
+		logs, correlation, err := cli.GetTaskLogs(cmd.Context(), name)
 		if err != nil {
-			return fmt.Errorf("retrieving task logs: %w", err)
+			return logError(err, correlation, "failed to retrieve task logs")
 		}
 
 		log.Info().Msgf("Logs for task '%s':", name)
@@ -43,7 +43,7 @@ var tasksLogsCmd = &cobra.Command{
 			case "error":
 				level = color.RedString("err")
 			case "debug":
-				level = color.New(color.Faint).Sprint("dbg")
+				level = faint("dbg")
 			default:
 				level = entry.Level
 			}
