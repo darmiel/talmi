@@ -12,8 +12,8 @@ import (
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
-	"github.com/darmiel/talmi/internal/ghapp"
 	"github.com/darmiel/talmi/internal/logging"
+	githubprovider "github.com/darmiel/talmi/internal/providers/github"
 )
 
 type GitHubFetcher struct {
@@ -30,12 +30,12 @@ func NewGitHubFetcher(cfg config.GitHubSourceConfig) (*GitHubFetcher, error) {
 func (f *GitHubFetcher) Fetch(ctx context.Context, logger logging.InternalLogger) ([]core.Rule, error) {
 	logger.Info("Starting GitHub source sync for repo %s/%s (ref: %s)", f.cfg.Owner, f.cfg.Repo, f.cfg.Ref)
 
-	appClient, err := ghapp.NewClient(f.cfg.AppID, []byte(f.cfg.PrivateKey), f.cfg.ServerURL)
+	appClient, err := githubprovider.NewClient(f.cfg.AppID, []byte(f.cfg.PrivateKey), f.cfg.ServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("app auth failed: %w", err)
 	}
 
-	gh, err := ghapp.InstallationTokenClient(ctx, appClient, f.cfg.InstallationID)
+	gh, err := githubprovider.InstallationTokenClient(ctx, appClient, f.cfg.InstallationID)
 	if err != nil {
 		return nil, fmt.Errorf("installation auth failed: %w", err)
 	}

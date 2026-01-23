@@ -14,7 +14,6 @@ import (
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
-	"github.com/darmiel/talmi/internal/ghapp"
 )
 
 const Type = "github-app"
@@ -248,7 +247,7 @@ func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 		return fmt.Errorf("original token required for %T token revocation", Type)
 	}
 
-	client, err := ghapp.NewRawClient(tokenVal, g.serverBaseURL)
+	client, err := NewRawClient(tokenVal, g.serverBaseURL)
 	if err != nil {
 		return fmt.Errorf("creating github client for revocation: %w", err)
 	}
@@ -264,7 +263,7 @@ func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 func (g *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
 	correlationID := middleware.CorrelationCtx(ctx)
 
-	client, err := ghapp.NewClient(g.appID, g.privateKey, g.serverBaseURL)
+	client, err := NewClient(g.appID, g.privateKey, g.serverBaseURL)
 	if err != nil {
 		return nil, err
 	}
