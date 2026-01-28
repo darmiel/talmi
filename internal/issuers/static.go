@@ -39,7 +39,7 @@ func (s *StaticIssuer) Name() string {
 	return s.name
 }
 
-func (s *StaticIssuer) Verify(ctx context.Context, token string) (*core.Principal, error) {
+func (s *StaticIssuer) Verify(_ context.Context, token string) (*core.Principal, error) {
 	attrs, ok := s.tokenMap[token]
 	if !ok {
 		return nil, fmt.Errorf("invalid token: %s", token)

@@ -3,6 +3,7 @@ package issuers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
@@ -19,14 +20,26 @@ func (r *Registry) Get(name string) (core.Issuer, bool) {
 }
 
 func (r *Registry) IdentifyIssuer(token string) (core.Issuer, error) {
-	url, err := ExtractIssuerURL(token)
-	if err != nil {
-		return nil, fmt.Errorf("extracting issuer URL: %w (is it a valid JWT?)", err)
+	var name string // the name of the issuer
+
+	switch {
+	case strings.HasPrefix(token, "eyJ"): // likely a JWT
+		url, err := ExtractIssuerURL(token)
+		if err != nil {
+			return nil, fmt.Errorf("extracting issuer URL: %w (is it a valid JWT?)", err)
+		}
+		var ok bool
+		if name, ok = r.urlMap[url]; !ok {
+			return nil, fmt.Errorf("no issuer found for URL: %s", url)
+		}
+	default: // it may be a static issuer with a raw token
+		k, _, ok := r.findStaticIssuerByToken(token)
+		if !ok {
+			return nil, fmt.Errorf("no static issuer found for provided token")
+		}
+		name = k
 	}
-	name, ok := r.urlMap[url]
-	if !ok {
-		return nil, fmt.Errorf("no issuer found for URL: %s", url)
-	}
+
 	iss, ok := r.issuers[name]
 	if !ok {
 		return nil, fmt.Errorf("issuer %q not found in registry", name)
@@ -82,4 +95,15 @@ func BuildRegistry(ctx context.Context, cfgs []config.IssuerConfig) (*Registry, 
 		issuers: issuers,
 		urlMap:  urlMap,
 	}, nil
+}
+
+func (r *Registry) findStaticIssuerByToken(token string) (string, *StaticIssuer, bool) {
+	for k, iss := range r.issuers {
+		if staticIss, ok := iss.(*StaticIssuer); ok {
+			if _, ok := staticIss.tokenMap[token]; ok {
+				return k, staticIss, true
+			}
+		}
+	}
+	return "", nil, false
 }
