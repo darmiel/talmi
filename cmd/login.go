@@ -11,11 +11,14 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/darmiel/talmi/internal/cliconfig"
+	"github.com/darmiel/talmi/internal/core"
+	talmiprovider "github.com/darmiel/talmi/internal/providers/talmi"
 	"github.com/darmiel/talmi/pkg/client"
 )
 
 var (
-	loginIssuer string
+	loginIssuer     string
+	loginTargetKind string
 )
 
 var loginCmd = &cobra.Command{
@@ -45,8 +48,13 @@ The session token is saved locally to allow future authenticated requests (like 
 		log.Info().Msgf("Issuing token from server %q...", u.Host)
 
 		artifact, correlationID, err := cli.IssueToken(cmd.Context(), loginToken, client.IssueTokenOptions{
-			RequestedProvider: "talmi",
-			RequestedIssuer:   loginIssuer,
+			RequestedTargets: []core.Target{
+				{
+					Kind:     loginTargetKind,
+					Resource: "?",
+				},
+			},
+			RequestedIssuer: loginIssuer,
 		})
 		if err != nil {
 			log.Error().Msgf("%s failed to issue token (correlation ID: %s)", redCross, correlationID)
@@ -80,6 +88,7 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 
 	loginCmd.Flags().StringVar(&loginIssuer, "issuer", "", "Upstream Issuer Name (optional)")
+	loginCmd.Flags().StringVar(&loginTargetKind, "target-kind", talmiprovider.DefaultKind, "Target Kind to request (optional)")
 
 	_ = loginCmd.MarkFlagRequired("token")
 }

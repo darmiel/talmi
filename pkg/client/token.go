@@ -14,10 +14,8 @@ import (
 
 // IssueTokenOptions contains optional parameters for issuing a token.
 type IssueTokenOptions struct {
-	// RequestedProvider is an optional provider name to request the token from.
-	// If empty, any provider matching the policy will be used.
-	// You should only set this in cases where you _know_ the provider to use.
-	RequestedProvider string
+	// RequestedTargets are optional targets
+	RequestedTargets []core.Target
 
 	// RequestedIssuer is an optional issuer to request the token from.
 	// If empty, any issuer matching the policy will be used.
@@ -38,7 +36,7 @@ func (c *Client) IssueToken(
 	payload := api.IssuePayload{
 		Permissions: opts.Permissions,
 		Issuer:      opts.RequestedIssuer,
-		Provider:    opts.RequestedProvider,
+		Targets:     opts.RequestedTargets,
 	}
 	marshalled, err := json.Marshal(payload)
 	if err != nil {

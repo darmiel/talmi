@@ -7,19 +7,19 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/api/presenter"
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/service"
 )
 
 type IssuePayload struct {
+	Targets []core.Target `json:"targets"`
+
 	// Permissions specifies requested permissions for the issued token.
 	Permissions map[string]string `json:"permissions"`
 
 	// Issuer specifies the desired issuer to verify the token against.
 	// It skips issuer auto-discovery.
-	Issuer string
-
-	// Provider specifies the desired provider to issue the token from.
-	Provider string
+	Issuer string `json:"issuer"`
 }
 
 // handleIssue processes token issuance requests.
@@ -47,7 +47,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	result, err := s.tokenService.IssueToken(ctx, service.IssueRequest{
 		Token:                token,
 		RequestedIssuer:      payload.Issuer,
-		RequestedProvider:    payload.Provider,
+		RequestedTargets:     payload.Targets,
 		RequestedPermissions: payload.Permissions,
 	})
 	if err != nil {

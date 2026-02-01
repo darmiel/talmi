@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -47,17 +48,34 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	reqID, _ := ctx.Value("correlation_id").(string)
 
 	auditEntry := core.AuditEntry{
-		ID:                reqID,
-		Time:              time.Now(),
-		Action:            "token.issue",
-		RequestedIssuer:   req.RequestedIssuer,
-		RequestedProvider: req.RequestedProvider,
+		ID:               reqID,
+		Time:             time.Now(),
+		Action:           "token.issue",
+		RequestedIssuer:  req.RequestedIssuer,
+		RequestedTargets: req.RequestedTargets,
 	}
 	defer func() {
 		if err := s.auditor.Log(auditEntry); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for token issuance")
 		}
 	}()
+
+	// validate target uniformity
+	if len(req.RequestedTargets) > 0 {
+		kind := req.RequestedTargets[0].Kind
+		for _, t := range req.RequestedTargets {
+			if t.Kind == "" {
+				auditEntry.Error = "empty target kind"
+				return nil, httpError(http.StatusBadRequest, fmt.Errorf("empty target kind not allowed"))
+			}
+			if t.Kind != kind {
+				auditEntry.Error = "cannot mix target kinds"
+				auditEntry.Stacktrace = fmt.Sprintf("found %s and expected %s", t.Kind, kind)
+				return nil, httpError(http.StatusBadRequest,
+					fmt.Errorf("cannot mix targets (found %s and expected %s)", t.Kind, kind))
+			}
+		}
+	}
 
 	// first we need to identify the issuer that we use to create the principal
 	var issuer core.Issuer
@@ -96,7 +114,7 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	})
 
 	// now that we have verified the principal, we can continue with evaluating the grant
-	rule, err := s.policyManager.GetEngine().Evaluate(principal, req.RequestedProvider) // TODO(future): see above
+	rule, err := s.policyManager.GetEngine().Evaluate(principal, req.RequestedTargets) // TODO(future): see above
 	if err != nil {
 		auditEntry.Success = false
 		auditEntry.Stacktrace = err.Error()
@@ -124,6 +142,17 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 			fmt.Errorf("provider '%s' configured in rule but not found in registry", grant.Provider))
 	}
 	auditEntry.Provider = baseProvider.Name()
+
+	// we need to make sure the provider actually supports the requested kind for minting
+	if len(req.RequestedTargets) > 0 {
+		reqKind := req.RequestedTargets[0].Kind
+		if !slices.Contains(baseProvider.SupportedKinds(), reqKind) {
+			auditEntry.Error = "provider does not support target kind"
+			auditEntry.Stacktrace = fmt.Sprintf("kind '%s' not supported by '%s'", reqKind, baseProvider.Name())
+			return nil, httpError(http.StatusInternalServerError,
+				fmt.Errorf("provider '%s' does not support target kind '%s'", baseProvider.Name(), reqKind))
+		}
+	}
 
 	minter, ok := baseProvider.(core.TokenMinter)
 	if !ok {
@@ -155,7 +184,7 @@ func (s *TokenService) IssueToken(ctx context.Context, req IssueRequest) (*Issue
 	}
 
 	// finally, we can mint the token! :)
-	artifact, err := minter.Mint(ctx, principal, effectiveGrant)
+	artifact, err := minter.Mint(ctx, principal, req.RequestedTargets, effectiveGrant)
 	if err != nil {
 		auditEntry.Error = "minting failed"
 		auditEntry.Stacktrace = err.Error()

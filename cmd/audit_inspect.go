@@ -90,10 +90,13 @@ var auditInspectCmd = &cobra.Command{
 
 		fmt.Println(bold("\n── Request & Policy ──"))
 		printKV("Action", entry.Action)
-		if entry.RequestedProvider != "" {
-			printKV("Req. Provider", entry.RequestedProvider)
+		if len(entry.RequestedTargets) > 0 {
+			printKV("Req. Targets", "")
+			for _, t := range entry.RequestedTargets {
+				fmt.Printf("       %s\n", t)
+			}
 		} else {
-			printKV("Req. Provider", faint("(first grant)"))
+			printKV("Req. Targets", faint("(all)"))
 		}
 		if entry.RequestedIssuer != "" {
 			printKV("Req. Issuer", entry.RequestedIssuer)

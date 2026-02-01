@@ -14,7 +14,10 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-const Type = "jfrog-artifactory"
+const (
+	Type        = "artifactory"
+	DefaultKind = "artifactory"
+)
 
 var info = core.ProviderInfo{
 	Type:    Type,
@@ -27,10 +30,11 @@ var (
 )
 
 type Provider struct {
-	name          string
-	serverBaseURL string
-	token         string
-	httpClient    *http.Client
+	name           string
+	serverBaseURL  string
+	token          string
+	httpClient     *http.Client
+	supportedKinds []string
 }
 
 type ProviderConfig struct {
@@ -45,7 +49,10 @@ type GrantConfig struct {
 	Audience          string `mapstructure:"audience,omitempty"`
 }
 
-func New(name, serverBaseURL, token string) (*Provider, error) {
+func New(name, serverBaseURL, token string, kinds []string) (*Provider, error) {
+	if len(kinds) == 0 {
+		kinds = []string{DefaultKind}
+	}
 	normalizedServerBaseURL := strings.TrimRight(serverBaseURL, "/")
 	if normalizedServerBaseURL == "" {
 		return nil, fmt.Errorf("server base URL cannot be empty for %s provider '%s'", Type, name)
@@ -54,10 +61,11 @@ func New(name, serverBaseURL, token string) (*Provider, error) {
 		return nil, fmt.Errorf("token cannot be empty for %s provider '%s'", Type, name)
 	}
 	return &Provider{
-		name:          name,
-		serverBaseURL: normalizedServerBaseURL,
-		token:         token,
-		httpClient:    http.DefaultClient,
+		name:           name,
+		serverBaseURL:  normalizedServerBaseURL,
+		token:          token,
+		httpClient:     http.DefaultClient,
+		supportedKinds: kinds,
 	}, nil
 }
 
@@ -75,16 +83,21 @@ func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
 		return nil, fmt.Errorf("failed to decode config for %s provider '%s': %w", Type, cfg.Name, err)
 	}
 
-	return New(cfg.Name, conf.Server, conf.Token)
+	return New(cfg.Name, conf.Server, conf.Token, cfg.Kinds)
 }
 
 func (g *Provider) Name() string {
 	return g.name
 }
 
+func (g *Provider) SupportedKinds() []string {
+	return g.supportedKinds
+}
+
 func (g *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
+	_ []core.Target,
 	grant core.Grant,
 ) (*core.TokenArtifact, error) {
 	logger := log.Ctx(ctx)

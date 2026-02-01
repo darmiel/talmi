@@ -23,7 +23,7 @@ func BuildRegistry(cfgs []config.ProviderConfig, signingKey []byte) (map[string]
 		case jfrogprovider.Type:
 			p, err = jfrogprovider.NewFromConfig(cfg)
 		case stubprovider.Type:
-			p, err = stubprovider.New(cfg)
+			p, err = stubprovider.NewFromConfig(cfg)
 		case talmiprovider.Type:
 			p, err = talmiprovider.NewFromConfig(cfg, signingKey)
 		default:

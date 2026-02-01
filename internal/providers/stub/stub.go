@@ -12,7 +12,10 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-const Type = "stub"
+const (
+	Type        = "stub"
+	DefaultKind = "stub"
+)
 
 var info = core.ProviderInfo{
 	Type:    Type,
@@ -25,15 +28,20 @@ var (
 )
 
 type Provider struct {
-	name string
-	cfg  map[string]any
+	name           string
+	cfg            map[string]any
+	supportedKinds []string
 }
 
-// New creates a new Provider with the given name.
-func New(cfg config.ProviderConfig) (*Provider, error) {
+// NewFromConfig creates a new Provider with the given name.
+func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
+	if len(cfg.Kinds) == 0 {
+		cfg.Kinds = []string{DefaultKind}
+	}
 	return &Provider{
-		name: cfg.Name,
-		cfg:  cfg.Config,
+		name:           cfg.Name,
+		cfg:            cfg.Config,
+		supportedKinds: cfg.Kinds,
 	}, nil
 }
 
@@ -41,9 +49,14 @@ func (s *Provider) Name() string {
 	return s.name
 }
 
+func (s *Provider) SupportedKinds() []string {
+	return s.supportedKinds
+}
+
 func (s *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
+	targets []core.Target,
 	grant core.Grant,
 ) (*core.TokenArtifact, error) {
 	logger := log.Ctx(ctx)
@@ -60,8 +73,9 @@ func (s *Provider) Mint(
 		ExpiresAt:   time.Now().Add(1 * time.Hour),
 		Provider:    info,
 		Metadata: map[string]any{
-			"env":    "stub",
-			"config": s.cfg,
+			"env":     "stub",
+			"config":  s.cfg,
+			"targets": targets,
 		},
 	}, nil
 }

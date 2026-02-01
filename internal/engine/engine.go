@@ -21,7 +21,7 @@ func New(rules []core.Rule) *Engine {
 }
 
 // Trace evaluates the principal against all rules and returns a detailed trace of the evaluation.
-func (e *Engine) Trace(principal *core.Principal, requestedProvider string) core.EvaluationTrace {
+func (e *Engine) Trace(principal *core.Principal, targets []core.Target) core.EvaluationTrace {
 	trace := core.EvaluationTrace{
 		Principal:     principal,
 		RuleResults:   make([]core.RuleResult, 0, len(e.rules)),
@@ -29,7 +29,7 @@ func (e *Engine) Trace(principal *core.Principal, requestedProvider string) core
 	}
 
 	for _, rule := range e.rules {
-		result := checkRule(rule, principal, requestedProvider)
+		result := checkRule(rule, principal, targets)
 
 		apiResult := core.RuleResult{
 			RuleName:         rule.Name,

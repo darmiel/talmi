@@ -4,6 +4,7 @@ go 1.25.4
 
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/expr-lang/expr v1.17.7
 	github.com/fatih/color v1.18.0
 	github.com/goccy/go-yaml v1.19.2
@@ -38,5 +39,5 @@ require (
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )

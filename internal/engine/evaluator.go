@@ -2,10 +2,12 @@ package engine
 
 import (
 	"fmt"
+	"path"
 	"reflect"
 	"strings"
 
 	"github.com/expr-lang/expr"
+	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/core"
 )
@@ -17,9 +19,9 @@ type ruleResult struct {
 }
 
 // Evaluate evaluates the principal against the rules and returns the first matching rule and its grant.
-func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Rule, error) {
+func (e *Engine) Evaluate(principal *core.Principal, targets []core.Target) (*core.Rule, error) {
 	for _, rule := range e.rules {
-		result := checkRule(rule, principal, requestedProvider)
+		result := checkRule(rule, principal, targets)
 		if result.Matched {
 			return &rule, nil
 		}
@@ -27,8 +29,23 @@ func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (
 	return nil, ErrNoRuleMatch
 }
 
-// checkRule evaluates a single rule against the principal and requested provider.
-func checkRule(rule core.Rule, principal *core.Principal, requestedProvider string) ruleResult {
+func MatchResource(pattern, requested string) bool {
+	if pattern == "" || pattern == "*" {
+		return true
+	}
+	if pattern == requested {
+		return true
+	}
+	matched, err := path.Match(pattern, requested)
+	if err != nil && matched {
+		log.Warn().Msgf("cannot match resource pattern '%s': %v", pattern, err)
+		return true
+	}
+	return false
+}
+
+// checkRule evaluates a single [core.Rule] against the [core.Principal] and requested provider.
+func checkRule(rule core.Rule, principal *core.Principal, targets []core.Target) ruleResult {
 	result := ruleResult{
 		Matched:    true, // fail on any mismatch
 		Conditions: []core.ConditionResult{},
@@ -45,6 +62,7 @@ func checkRule(rule core.Rule, principal *core.Principal, requestedProvider stri
 		}
 	}
 
+	// Identity Checks
 	issuerExpr := fmt.Sprintf("issuer %s '%s'", core.OpEqual, rule.Match.Issuer)
 	if rule.Match.Issuer != principal.Issuer {
 		addResult(
@@ -86,16 +104,39 @@ func checkRule(rule core.Rule, principal *core.Principal, requestedProvider stri
 		addResult("(no condition)", false, "no condition or expression defined in rule")
 	}
 
-	if requestedProvider != "" {
-		providerExpr := fmt.Sprintf("provider %s '%s'", core.OpEqual, rule.Grant.Provider)
-		if rule.Grant.Provider != requestedProvider {
-			addResult(
-				providerExpr,
-				false,
-				fmt.Sprintf("provider mismatch: requested '%s', got '%s'", requestedProvider, rule.Grant.Provider),
-			)
-		} else {
-			addResult(providerExpr, true, "")
+	log.Info().Msgf("Targets: %d", len(targets))
+
+	// Target Checks
+	if len(targets) > 0 {
+		requestedKind := targets[0].Kind // we enforce uniform kinds in service layer
+
+		// first we need to check the kind
+		if rule.Match.Target.Kind != "" {
+			log.Info().Msg("has kind")
+
+			if rule.Match.Target.Kind != requestedKind {
+				addResult(fmt.Sprintf("TargetKind == %s", rule.Match.Target.Kind), false,
+					fmt.Sprintf("Request is for '%s'", requestedKind))
+			} else {
+				addResult(fmt.Sprintf("TargetKind == %s", rule.Match.Target.Kind), true, "")
+			}
+		}
+
+		// then we check the resource patterns
+		if rule.Match.Target.Resource != "" {
+			log.Info().Msg("has resource pattern")
+
+			allAllowed := true
+			for _, t := range targets {
+				if !MatchResource(rule.Match.Target.Resource, t.Resource) {
+					addResult(fmt.Sprintf("Resource '%s' matches '%s'", t.Resource, rule.Match.Target.Resource),
+						false, "Denied by pattern")
+					allAllowed = false
+				}
+			}
+			if allAllowed {
+				addResult(fmt.Sprintf("Resources match '%s'", rule.Match.Target.Resource), true, "")
+			}
 		}
 	}
 

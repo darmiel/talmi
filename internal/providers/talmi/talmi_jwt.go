@@ -13,7 +13,10 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-const Type = "talmi-jwt"
+const (
+	Type        = "talmi-jwt"
+	DefaultKind = "talmi"
+)
 
 var info = core.ProviderInfo{
 	Type:    Type,
@@ -25,8 +28,9 @@ var (
 )
 
 type Provider struct {
-	name       string
-	signingKey []byte
+	name           string
+	signingKey     []byte
+	supportedKinds []string
 }
 
 type ProviderConfig struct {
@@ -37,10 +41,14 @@ type GrantConfig struct {
 	Roles []string `mapstructure:"roles"`
 }
 
-func New(name string, _ ProviderConfig, signingKey []byte) (*Provider, error) {
+func New(name string, _ ProviderConfig, kinds []string, signingKey []byte) (*Provider, error) {
+	if len(kinds) == 0 {
+		kinds = []string{DefaultKind}
+	}
 	return &Provider{
-		name:       name,
-		signingKey: signingKey,
+		name:           name,
+		signingKey:     signingKey,
+		supportedKinds: kinds,
 	}, nil
 }
 
@@ -56,16 +64,21 @@ func NewFromConfig(cfg config.ProviderConfig, signingKey []byte) (*Provider, err
 	if err := decoder.Decode(cfg.Config); err != nil {
 		return nil, fmt.Errorf("failed to decode config for github_app provider '%s': %w", cfg.Name, err)
 	}
-	return New(cfg.Name, conf, signingKey)
+	return New(cfg.Name, conf, cfg.Kinds, signingKey)
 }
 
 func (p *Provider) Name() string {
 	return p.name
 }
 
+func (p *Provider) SupportedKinds() []string {
+	return p.supportedKinds
+}
+
 func (p *Provider) Mint(
-	ctx context.Context,
+	_ context.Context,
 	principal *core.Principal,
+	_ []core.Target,
 	grant core.Grant,
 ) (*core.TokenArtifact, error) {
 	var grantConf GrantConfig

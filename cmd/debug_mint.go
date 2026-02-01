@@ -16,6 +16,7 @@ import (
 var (
 	mintTargetFile string
 	mintRuleName   string
+	mintTargets    []string
 )
 
 var mintCmd = &cobra.Command{
@@ -25,6 +26,11 @@ var mintCmd = &cobra.Command{
 It uses a dummy principal and forces the execution of a specific rule's grant`,
 	Example: `  talmi mint -f talmi.yaml -r my-github-actions-rule`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		targets, err := parseTargets(mintTargets)
+		if err != nil {
+			return err
+		}
+
 		cfg, err := config.Load(mintTargetFile)
 		if err != nil {
 			return err
@@ -62,7 +68,7 @@ It uses a dummy principal and forces the execution of a specific rule's grant`,
 			Issuer:     "dummy-issuer",
 			Attributes: map[string]any{},
 		}
-		artifact, err := minter.Mint(cmd.Context(), dummyPrincipal, grant)
+		artifact, err := minter.Mint(cmd.Context(), dummyPrincipal, targets, grant)
 		if err != nil {
 			return fmt.Errorf("minting failed: %w", err)
 		}
@@ -85,7 +91,9 @@ func init() {
 
 	mintCmd.Flags().StringVarP(&mintTargetFile, "config", "f", "", "The Talmi config file to use")
 	mintCmd.Flags().StringVarP(&mintRuleName, "rule", "r", "", "The specific rule to use for minting")
+	mintCmd.Flags().StringSliceVarP(&mintTargets, "target", "t", []string{}, "Requested provider name (optional)")
 
-	_ = mintCmd.MarkFlagRequired("target")
+	_ = mintCmd.MarkFlagRequired("config")
 	_ = mintCmd.MarkFlagRequired("rule")
+	_ = mintCmd.MarkFlagRequired("target")
 }

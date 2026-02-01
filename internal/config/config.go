@@ -106,8 +106,13 @@ type IssuerConfig struct {
 
 // ProviderConfig holds configuration for a Downstream Token Provider.
 type ProviderConfig struct {
-	Name   string         `yaml:"name"`
-	Type   string         `yaml:"type"`    // e.g., "github_app", "stub"
+	Name string `yaml:"name"`
+	Type string `yaml:"type"` // e.g., "github_app", "stub"
+
+	// Kinds overrides the default schemes this provider listens to.
+	// If empty, the provider defaults (e.g. "github") are used.
+	Kinds []string `yaml:"kinds"` // e.g., ["github", "github_enterprise"]
+
 	Config map[string]any `yaml:",inline"` // Capture remaining fields
 }
 

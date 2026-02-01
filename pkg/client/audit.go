@@ -3,8 +3,9 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/darmiel/talmi/internal/api"
 	"github.com/darmiel/talmi/internal/core"
@@ -47,32 +48,22 @@ func (c *Client) ListActiveTokens(ctx context.Context) ([]core.TokenMetadata, st
 	return resp, correlation, err
 }
 
-type ExplainTraceOptions struct {
-	RequestedIssuer   string
-	RequestedProvider string
-	ReplayID          string
-}
-
 func (c *Client) ExplainTrace(
 	ctx context.Context,
-	token string,
-	opts ExplainTraceOptions,
+	opts api.ExplainRequest,
 ) (*core.EvaluationTrace, string, error) {
-	formData := url.Values{
-		"token": {token},
-	}
-	body := bytes.NewBufferString(formData.Encode())
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.url().
-		setPath(api.ExplainRoute).
-		addQueryParamNotEmpty("issuer", opts.RequestedIssuer).
-		addQueryParamNotEmpty("provider", opts.RequestedProvider).
-		addQueryParamNotEmpty("replay_id", opts.ReplayID).
-		build(), body)
+	marshalled, err := json.Marshal(opts)
 	if err != nil {
 		return nil, "", err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.url().
+		setPath(api.ExplainRoute).
+		build(), bytes.NewReader(marshalled))
+	if err != nil {
+		return nil, "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
 
 	var trace core.EvaluationTrace
 	correlation, err := c.do(req, &trace)

@@ -4,20 +4,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	"github.com/darmiel/talmi/internal/api"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
-	"github.com/darmiel/talmi/pkg/client"
 )
 
 var (
 	whyToken        string
-	whyProvider     string
+	whyTargets      []string
 	whyIssuer       string
 	whyFilterIssuer bool
 	whyRuleFilter   string
@@ -56,7 +57,7 @@ func init() {
 	whyCmd.Flags().StringVarP(&whyTargetFile, "config", "f", "", "Run locally using this config file")
 	whyCmd.Flags().StringVarP(&whyToken, "token", "t", "", "Token to explain")
 	whyCmd.Flags().StringVarP(&whyRuleFilter, "rule", "r", "", "Filter output to specific rule name (optional)")
-	whyCmd.Flags().StringVar(&whyProvider, "provider", "", "Simulate requesting this provider (optional)")
+	whyCmd.Flags().StringSliceVar(&whyTargets, "target", []string{}, "Simulate requesting this provider (optional)")
 	whyCmd.Flags().StringVar(&whyIssuer, "issuer", "", "Simulate coming from this issuer (optional)")
 	whyCmd.Flags().StringVar(&whyReplayID, "replay-id", "", "Replay a specific audit log entry by its ID (optional)")
 	whyCmd.Flags().BoolVar(&whyFilterIssuer, "filter-issuer", false, "Only show entries where the issuer matched (optional)")
@@ -66,25 +67,38 @@ func init() {
 }
 
 func whyTokenRemote(cmd *cobra.Command, _ []string) error {
+	targets, err := parseTargets(whyTargets)
+	if err != nil {
+		return err
+	}
+
 	cli, err := f.GetClient()
 	if err != nil {
 		return err
 	}
 
-	trace, correlation, err := cli.ExplainTrace(cmd.Context(), whyToken, client.ExplainTraceOptions{
-		RequestedIssuer:   whyIssuer,
-		RequestedProvider: whyProvider,
-		ReplayID:          whyReplayID,
+	trace, correlation, err := cli.ExplainTrace(cmd.Context(), api.ExplainRequest{
+		Token:           whyToken,
+		ReplayID:        whyReplayID,
+		RequestedIssuer: whyIssuer,
+		Targets:         targets,
 	})
 	if err != nil {
 		return logError(err, correlation, "failed to get explanation from server")
 	}
+
+	spew.Dump(trace)
 
 	printTrace(trace)
 	return nil
 }
 
 func whyTokenLocally(cmd *cobra.Command, _ []string) error {
+	targets, err := parseTargets(whyTargets)
+	if err != nil {
+		return err
+	}
+
 	cfg, err := config.Load(whyTargetFile)
 	if err != nil {
 		return err
@@ -124,7 +138,7 @@ func whyTokenLocally(cmd *cobra.Command, _ []string) error {
 	}
 	log.Info().Msgf("Identity verified. Principals attributes: %v", principal.Attributes)
 
-	trace := eng.Trace(principal, whyProvider)
+	trace := eng.Trace(principal, targets)
 	printTrace(&trace)
 	return nil
 }

@@ -9,8 +9,8 @@ type IssueRequest struct {
 	// RequestedIssuer is optional. If empty, auto-discovery is attempted.
 	RequestedIssuer string
 
-	// RequestedProvider is optional. If empty, the policy engine decides.
-	RequestedProvider string
+	// RequestedTargets is optional but when omitted, the provider must be able to infer them.
+	RequestedTargets []core.Target
 
 	// RequestedPermissions allow downscoping.
 	RequestedPermissions map[string]string
@@ -26,4 +26,13 @@ type IssueResponse struct {
 
 	// Rule is the policy rule that authorized this issuance.
 	Rule *core.Rule
+}
+
+type ExplainRequest struct {
+	Token    string
+	ReplayID string // if set, token is ignored and identity is loaded from audit log
+
+	// Context overrides
+	RequestedIssuer string
+	Targets         []core.Target
 }

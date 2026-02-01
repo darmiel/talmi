@@ -9,13 +9,14 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/service"
 	"github.com/darmiel/talmi/pkg/client"
 )
 
 var (
 	issueReqIssuer   string
-	issueReqProvider string
+	issueTargets     []string
 	issueTargetFile  string
 	issuePermissions []string
 	issueRawOutput   bool
@@ -60,14 +61,19 @@ func init() {
 
 	issueCmd.Flags().StringVarP(&issueTargetFile, "config", "f", "", "Run locally using this config file")
 	issueCmd.Flags().StringVar(&issueReqIssuer, "issuer", "", "Explicit issuer name (optional)")
-	issueCmd.Flags().StringVar(&issueReqProvider, "provider", "", "Requested provider name (optional)")
-	issueCmd.Flags().StringArrayVar(&issuePermissions, "permission", []string{}, "Requested permission in key=value format (can be specified multiple times)")
+	issueCmd.Flags().StringSliceVarP(&issueTargets, "target", "t", []string{}, "Requested provider name (optional)")
+	issueCmd.Flags().StringArrayVarP(&issuePermissions, "permission", "p", []string{}, "Requested permission in key=value format (can be specified multiple times)")
 	issueCmd.Flags().BoolVarP(&issueRawOutput, "raw", "r", false, "Only output raw token without formatting")
 
 	_ = issueCmd.MarkFlagRequired("token")
 }
 
 func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]string) error {
+	targets, err := parseTargets(issueTargets)
+	if err != nil {
+		return err
+	}
+
 	cli, err := f.GetClient()
 	if err != nil {
 		return err
@@ -75,9 +81,9 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 
 	log.Debug().Msgf("Requesting to mint artifact...")
 	artifact, correlationID, err := cli.IssueToken(cmd.Context(), token, client.IssueTokenOptions{
-		RequestedProvider: issueReqProvider,
-		RequestedIssuer:   issueReqIssuer,
-		Permissions:       permissions,
+		RequestedTargets: targets,
+		RequestedIssuer:  issueReqIssuer,
+		Permissions:      permissions,
 	})
 	if correlationID == "" {
 		correlationID = "n/a"
@@ -99,6 +105,11 @@ func issueTokenRemote(cmd *cobra.Command, token string, permissions map[string]s
 }
 
 func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]string) error {
+	targets, err := parseTargets(issueTargets)
+	if err != nil {
+		return err
+	}
+
 	svc, err := f.GetLocalService(cmd.Context())
 	if err != nil {
 		return err
@@ -107,7 +118,7 @@ func issueTokenLocally(cmd *cobra.Command, token string, permissions map[string]
 	result, err := svc.IssueToken(cmd.Context(), service.IssueRequest{
 		Token:                token,
 		RequestedIssuer:      issueReqIssuer,
-		RequestedProvider:    issueReqProvider,
+		RequestedTargets:     targets,
 		RequestedPermissions: permissions,
 	})
 	if err != nil {
@@ -139,4 +150,19 @@ func getPermissionsMap() (map[string]string, error) {
 		}
 	}
 	return permissions, nil
+}
+
+func parseTargets(raw []string) ([]core.Target, error) {
+	var targets []core.Target
+	for _, r := range raw {
+		parts := strings.SplitN(r, "://", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid target format: %s, expected type://value", r)
+		}
+		targets = append(targets, core.Target{
+			Kind:     parts[0],
+			Resource: parts[1],
+		})
+	}
+	return targets, nil
 }

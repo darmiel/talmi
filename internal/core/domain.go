@@ -43,10 +43,40 @@ type Grant struct {
 	Config map[string]any `yaml:"config" json:"config"`
 }
 
+// Target represents a specific resource requested by the principal.
+// Format: <kind>://<resource>
+// Example: Kind="github", Resource="org/repo"
+type Target struct {
+	Kind     string `json:"kind"`
+	Resource string `json:"resource"`
+}
+
+func (t Target) String() string {
+	if t.Resource == "" {
+		return t.Kind + "://*"
+	}
+	return t.Kind + "://" + t.Resource
+}
+
+// MatchTarget defines the criteria for the resource being requested in a Rule.
+type MatchTarget struct {
+	// Kind must match the requested target kind exactly
+	// Example: "github"
+	Kind string `yaml:"kind" json:"kind"`
+
+	// Resource is a glob pattern to match the requested resource.
+	// Example: "my-org/*" matches "my-org/repo1", "my-org/repo2", etc.
+	Resource string `yaml:"resource" json:"resource"`
+}
+
 // Match defines the conditions required for a Rule to apply.
 type Match struct {
 	// Issuer is the name of the issuer that must have produced the Principal.
 	Issuer string `yaml:"issuer" json:"issuer"`
+
+	// Target defines which resource this rule applies to.
+	// If omitted, the rule matches ANY target
+	Target MatchTarget `yaml:"target" json:"target"`
 
 	// Condition is a condition (which can contain multiple sub-conditions) that must be satisfied.
 	// Leaving this empty means no condition-based restriction.

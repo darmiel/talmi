@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/google/go-github/v80/github"
 	"github.com/mitchellh/mapstructure"
@@ -16,7 +17,10 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-const Type = "github-app"
+const (
+	Type        = "github"
+	DefaultKind = "github"
+)
 
 var info = core.ProviderInfo{
 	Type:    Type,
@@ -41,8 +45,10 @@ type Provider struct {
 
 	serverBaseURL string
 
-	allowAllRepositories bool
-	allowAllPermissions  bool
+	//allowAllRepositories bool
+	allowAllPermissions bool
+
+	supportedKinds []string
 }
 
 type ProviderConfig struct {
@@ -73,14 +79,22 @@ type GrantConfig struct {
 	// You have to specify ONE OF InstallationID OR Owner.
 	Owner string `mapstructure:"owner"`
 
+	// Optional: Whether to allow wildcard repositories in the grant.
+	AllowWildcardRepositories bool `mapstructure:"allow_wildcard_repositories"`
+
 	// Optional: Limit access to specific repositories.
 	// If empty, and scope is not limited, all repositories are accessible.
-	Repositories []string `mapstructure:"repositories"`
+	// TODO: remove in favor of URN
+	//Repositories []string `mapstructure:"repositories"`
 }
 
 // New creates a new Provider from the given config.
 // It maps a ProviderConfig to ProviderConfig struct,
-func New(name string, cfg ProviderConfig) (*Provider, error) {
+func New(name string, cfg ProviderConfig, kinds []string) (*Provider, error) {
+	if len(kinds) == 0 {
+		kinds = []string{DefaultKind}
+	}
+
 	var keyBytes []byte
 	if cfg.PrivateKey != "" {
 		keyBytes = []byte(cfg.PrivateKey)
@@ -94,12 +108,13 @@ func New(name string, cfg ProviderConfig) (*Provider, error) {
 		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", name)
 	}
 	return &Provider{
-		name:                 name,
-		appID:                cfg.AppID,
-		privateKey:           keyBytes,
-		serverBaseURL:        cfg.ServerBaseURL,
-		allowAllRepositories: cfg.AllowAllRepositories,
-		allowAllPermissions:  cfg.AllowAllPermissions,
+		name:          name,
+		appID:         cfg.AppID,
+		privateKey:    keyBytes,
+		serverBaseURL: cfg.ServerBaseURL,
+		//allowAllRepositories: cfg.AllowAllRepositories,
+		allowAllPermissions: cfg.AllowAllPermissions,
+		supportedKinds:      kinds,
 	}, nil
 }
 
@@ -117,11 +132,15 @@ func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
 		return nil, fmt.Errorf("failed to decode config for %s provider '%s': %w", Type, cfg.Name, err)
 	}
 
-	return New(cfg.Name, conf)
+	return New(cfg.Name, conf, cfg.Kinds)
 }
 
 func (g *Provider) Name() string {
 	return g.name
+}
+
+func (g *Provider) SupportedKinds() []string {
+	return g.supportedKinds
 }
 
 func (g *Provider) Downscope(allowed, requested map[string]string) (map[string]string, error) {
@@ -131,6 +150,7 @@ func (g *Provider) Downscope(allowed, requested map[string]string) (map[string]s
 func (g *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
+	targets []core.Target,
 	grant core.Grant,
 ) (*core.TokenArtifact, error) {
 	logger := log.Ctx(ctx)
@@ -199,11 +219,24 @@ func (g *Provider) Mint(
 		Permissions: &ghPerms,
 	}
 
-	// limit the token scope to a few repositories if specified
-	if len(grantConf.Repositories) > 0 {
-		opts.Repositories = grantConf.Repositories
-	} else if !g.allowAllRepositories {
-		return nil, fmt.Errorf("github_app grant must specify repositories or the provider must allow all repositories")
+	var scopedRepos []string
+	for _, t := range targets {
+		if t.Resource == "" || t.Resource == "*" {
+			continue // wildcard
+		}
+		parts := strings.Split(t.Resource, "/")
+		repoName := parts[len(parts)-1]
+		if repoName != "" {
+			scopedRepos = append(scopedRepos, repoName)
+		}
+	}
+
+	if len(scopedRepos) > 0 {
+		// if we scoped to a repository, we can just use that
+		opts.Repositories = scopedRepos
+	} else if !grantConf.AllowWildcardRepositories {
+		// otherwise make sure we do not accidentally allow all repositories
+		return nil, fmt.Errorf("unscoped access denied: please request specific repositories")
 	}
 
 	logger.Info().

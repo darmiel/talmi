@@ -5,13 +5,14 @@ import "context"
 type Provider interface {
 	// Name returns the identifier of this provider (as used in config).
 	Name() string
+	SupportedKinds() []string
 }
 
 type TokenMinter interface {
 	Provider
 
 	// Mint creates a new access token based on the Principal and the Grant.
-	Mint(ctx context.Context, principal *Principal, grant Grant) (*TokenArtifact, error)
+	Mint(ctx context.Context, principal *Principal, targets []Target, grant Grant) (*TokenArtifact, error)
 }
 
 type PermissionDownscoper interface {

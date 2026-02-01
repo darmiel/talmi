@@ -15,10 +15,10 @@ type AuditEntry struct {
 	// Principal identifies who made the request
 	Principal *Principal `json:"principal"`
 
-	// RequestedProvider that was targeted
-	RequestedProvider string `json:"requested_provider,omitempty"`
 	// RequestedIssuer that was used
-	RequestedIssuer string `json:"issuer,omitempty"`
+	RequestedIssuer string `json:"requested_issuer,omitempty"`
+	// RequestedTargets that were requested
+	RequestedTargets []Target `json:"requested_targets,omitempty"`
 
 	// Decision details
 	PolicyName       string `json:"policy_name,omitempty"`
