@@ -8,7 +8,7 @@ type Semantics interface {
 	Kind() string
 
 	// Covers reports whether the union of allows authorizes this exact request.
-	// On failure it returns a (human-readable) reason for the audit / trace.
+	// On failure, it returns a (human-readable) reason for the audit / trace.
 	Covers(allows []core.Allow, req core.ResourceRequest) (ok bool, reason string)
 
 	// CompareLevel orders two actions on the same permission for least-privilege ranking.
@@ -34,6 +34,9 @@ func NewRegistry() *Registry {
 
 // Register adds a new realm and its semantics to the registry.
 func (r *Registry) Register(realmName string, semantics Semantics) {
+	if r.byRealm == nil {
+		r.byRealm = make(map[string]Semantics)
+	}
 	r.byRealm[realmName] = semantics
 }
 

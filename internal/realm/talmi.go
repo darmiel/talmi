@@ -2,6 +2,7 @@ package realm
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/darmiel/talmi/internal/core"
 )
@@ -28,13 +29,8 @@ func (Talmi) Covers(allows []core.Allow, req core.ResourceRequest) (bool, string
 
 func talmiActionCovered(allows []core.Allow, res core.Resource, want core.Action) bool {
 	for _, allow := range allows {
-		if !matchAnyPattern(allow.Resources, res) {
-			continue
-		}
-		for _, have := range allow.Actions {
-			if have == want {
-				return true
-			}
+		if matchAnyPattern(allow.Resources, res) && slices.Contains(allow.Actions, want) {
+			return true
 		}
 	}
 	return false

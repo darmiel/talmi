@@ -3,10 +3,14 @@ package realm
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/darmiel/talmi/internal/core"
 )
 
 func TestGitHubCovers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		allows []core.Allow
@@ -88,15 +92,15 @@ func TestGitHubCovers(t *testing.T) {
 	}
 
 	gh := GitHub{}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			is := assert.New(t)
+
 			got, reason := gh.Covers(tt.allows, tt.req)
-			if got != tt.want {
-				t.Errorf("Covers() = %v, want %v; reason: %s", got, tt.want, reason)
-			}
-			if !got && reason == "" {
-				t.Errorf("Covers() returned false but reason is empty")
+			is.Equal(tt.want, got, "reason: %s", reason)
+			if !got {
+				is.NotEmpty(reason, "false result must carry a reason")
 			}
 		})
 	}
