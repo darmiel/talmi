@@ -3,6 +3,8 @@ package realm
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -29,6 +31,8 @@ func TestParseArtifactoryLevel(t *testing.T) {
 }
 
 func TestArtifactoryCovers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		allows []core.Allow
@@ -72,12 +76,13 @@ func TestArtifactoryCovers(t *testing.T) {
 	af := Artifactory{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			is := assert.New(t)
+
 			got, reason := af.Covers(tt.allows, tt.req)
-			if got != tt.want {
-				t.Errorf("Covers() = %v (reason %q), want %v", got, reason, tt.want)
-			}
-			if !got && reason == "" {
-				t.Error("Covers() returned false with empty reason")
+			is.Equal(tt.want, got, "reason: %s", reason)
+			if !got {
+				is.NotEmpty(reason, "false result must carry a reason")
 			}
 		})
 	}
