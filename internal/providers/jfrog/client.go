@@ -65,7 +65,7 @@ type CreateTokenResponse struct {
 }
 
 // CreateToken creates a new access token in JFrog Artifactory based on the provided payload.
-func (g *Provider) CreateToken(
+func (p *Provider) CreateToken(
 	ctx context.Context,
 	principalID string,
 	payload *CreateTokenRequest,
@@ -76,19 +76,19 @@ func (g *Provider) CreateToken(
 	}
 	body := bytes.NewReader(data)
 
-	url := g.serverBaseURL + createTokenEndpoint
+	url := p.serverBaseURL + createTokenEndpoint
 	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+g.token)
+	req.Header.Set("Authorization", "Bearer "+p.token)
 
 	// inject audit user-agent
 	correlationID := middleware.CorrelationCtx(ctx)
-	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, principalID, g.Name()))
+	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, principalID, p.Name()))
 
-	resp, err := g.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("performing request: %w", err)
 	}
@@ -108,23 +108,23 @@ func (g *Provider) CreateToken(
 }
 
 // RevokeToken deletes an access token in JFrog Artifactory based on the provided payload.
-func (g *Provider) RevokeToken(
+func (p *Provider) RevokeToken(
 	ctx context.Context,
 	tokenID string,
 ) error {
-	url := g.serverBaseURL + deleteTokenEndpoint + "/" + tokenID
+	url := p.serverBaseURL + deleteTokenEndpoint + "/" + tokenID
 	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+g.token)
+	req.Header.Set("Authorization", "Bearer "+p.token)
 
 	// inject audit user-agent
 	correlationID := middleware.CorrelationCtx(ctx)
-	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, "", g.Name()))
+	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, "", p.Name()))
 
-	resp, err := g.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("performing request: %w", err)
 	}

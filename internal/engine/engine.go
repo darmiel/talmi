@@ -1,52 +1,21 @@
 package engine
 
 import (
-	"fmt"
-
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/realm"
 )
 
-var ErrNoRuleMatch = fmt.Errorf("no matching rule found for this principal and resource")
-
-// Engine holds the loaded policies and evaluates them.
+// Engine holds an immutable snapshot of rules and evaluates authorization against them.
+// Build a new Engine to change rules!
 type Engine struct {
-	rules []core.Rule
+	rules  []core.Rule
+	realms *realm.Registry
 }
 
-// New creates a new Engine with the given rules.
-func New(rules []core.Rule) *Engine {
+// New creates a new Engine with the given rules and realm semantics.
+func New(rules []core.Rule, realms *realm.Registry) *Engine {
 	return &Engine{
-		rules: rules,
+		rules:  rules,
+		realms: realms,
 	}
-}
-
-// Trace evaluates the principal against all rules and returns a detailed trace of the evaluation.
-func (e *Engine) Trace(principal *core.Principal, requestedProvider string) core.EvaluationTrace {
-	trace := core.EvaluationTrace{
-		Principal:     principal,
-		RuleResults:   make([]core.RuleResult, 0, len(e.rules)),
-		FinalDecision: false,
-	}
-
-	for _, rule := range e.rules {
-		result := checkRule(rule, principal, requestedProvider)
-
-		apiResult := core.RuleResult{
-			RuleName:         rule.Name,
-			Description:      rule.Description,
-			Matched:          result.Matched,
-			ConditionResults: result.Conditions,
-		}
-		trace.RuleResults = append(trace.RuleResults, apiResult)
-
-		if result.Matched {
-			if !trace.FinalDecision {
-				trace.FinalDecision = true
-				trace.GrantedRule = rule.Name
-				// keep going to show other rules in the trace, but mark it as "winner"
-			}
-		}
-	}
-
-	return trace
 }

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 
-	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -18,121 +19,120 @@ const Type = "jfrog-artifactory"
 
 var info = core.ProviderInfo{
 	Type:    Type,
-	Version: "v1",
+	Version: "v2",
 }
 
 var (
-	_ core.TokenMinter  = (*Provider)(nil)
-	_ core.TokenRevoker = (*Provider)(nil)
+	_ core.ResourceProvider = (*Provider)(nil)
+	_ core.TokenRevoker     = (*Provider)(nil)
 )
 
 type Provider struct {
 	name          string
+	realm         string
 	serverBaseURL string
 	token         string
+	groups        []string
+	resources     []string
+	maxAction     []core.Action
+	defaultTTL    time.Duration
 	httpClient    *http.Client
 }
 
 type ProviderConfig struct {
-	Server string `mapstructure:"server"`
-	Token  string `mapstructure:"token"`
+	Server     string
+	Token      string
+	Groups     []string
+	Resources  []string
+	MaxActions []core.Action
+	DefaultTTL time.Duration
 }
 
-type GrantConfig struct {
-	Scope             string `mapstructure:"scope"`
-	ExpiryInSeconds   int64  `mapstructure:"expiry_in_seconds"`
-	DescriptionSuffix string `mapstructure:"description,omitempty"`
-	Audience          string `mapstructure:"audience,omitempty"`
-}
+func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
+	normalizedServerBaseURL := strings.TrimRight(cfg.Server, "/")
+	switch {
+	case normalizedServerBaseURL == "":
+		return nil, fmt.Errorf("jfrog artifactory provider %q: server is required", name)
+	case cfg.Token == "":
+		return nil, fmt.Errorf("jfrog artifactory provider %q: token is required", name)
+	case len(cfg.Groups) == 0:
+		// without groups the minted token would be unscoped which we refuse (for now).
+		return nil, fmt.Errorf("jfrog artifactory provider %q: at least one group is required", name)
+	}
 
-func New(name, serverBaseURL, token string) (*Provider, error) {
-	normalizedServerBaseURL := strings.TrimRight(serverBaseURL, "/")
-	if normalizedServerBaseURL == "" {
-		return nil, fmt.Errorf("server base URL cannot be empty for %s provider '%s'", Type, name)
+	ttl := cfg.DefaultTTL
+	if ttl <= 0 {
+		ttl = 1 * time.Hour
 	}
-	if token == "" {
-		return nil, fmt.Errorf("token cannot be empty for %s provider '%s'", Type, name)
-	}
+
 	return &Provider{
 		name:          name,
+		realm:         realm,
 		serverBaseURL: normalizedServerBaseURL,
-		token:         token,
-		httpClient:    http.DefaultClient,
+		token:         cfg.Token,
+		groups:        slices.Clone(cfg.Groups),
+		resources:     slices.Clone(cfg.Resources),
+		maxAction:     slices.Clone(cfg.MaxActions),
+		defaultTTL:    ttl,
+		httpClient:    &http.Client{Timeout: 30 * time.Second}, // TODO: make this configurable
 	}, nil
 }
 
-func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
-	var conf ProviderConfig
-
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Metadata: nil,
-		Result:   &conf,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create decoder for %s provider '%s': %w", Type, cfg.Name, err)
-	}
-	if err := decoder.Decode(cfg.Config); err != nil {
-		return nil, fmt.Errorf("failed to decode config for %s provider '%s': %w", Type, cfg.Name, err)
-	}
-
-	return New(cfg.Name, conf.Server, conf.Token)
+func (p *Provider) Name() string {
+	return p.name
 }
 
-func (g *Provider) Name() string {
-	return g.name
+func (p *Provider) Realm() string {
+	return p.realm
 }
 
-func (g *Provider) Mint(
+func (p *Provider) Capabilities(_ context.Context) (core.Capability, error) {
+	return core.Capability{
+		Realm:      p.realm,
+		Resources:  p.resources,
+		MaxActions: p.maxAction,
+	}, nil
+}
+
+// Plan batches all requests into one token
+func (p *Provider) Plan(_ context.Context, requests []core.ResourceRequest) ([]core.MintPlan, error) {
+	if len(requests) == 0 {
+		return nil, nil
+	}
+	return []core.MintPlan{
+		{
+			Provider: p.name,
+			Realm:    p.realm,
+			Covers:   slices.Clone(requests),
+		},
+	}, nil
+}
+
+func (p *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
-	grant core.Grant,
+	plan core.MintPlan,
 ) (*core.TokenArtifact, error) {
 	logger := log.Ctx(ctx)
-	logger.Debug().Msgf("JFrogArtifactoryProvider Mint called for principal ID: %s", principal.ID)
-
-	var grantConf GrantConfig
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Metadata: nil,
-		Result:   &grantConf,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create decoder for jfrog-artifactory grant config: %w", err)
-	}
-	if err := decoder.Decode(grant.Config); err != nil {
-		return nil, fmt.Errorf("failed to decode jfrog-artifactory grant config: %w", err)
-	}
+	scope := groupScope(p.groups)
+	description := fmt.Sprintf("[talmi for %s]", principal.ID)
 
 	logger.Info().
-		Str("provider", g.name).
-		Str("scope", grantConf.Scope).
-		Int64("expires_in", grantConf.ExpiryInSeconds).
-		Str("audience", grantConf.Audience).
-		Msg("minting JFrog Artifactory installation token")
+		Str("provider", p.name).
+		Str("scope", scope).
+		Str("description", description).
+		Msg("minting JFrog Artifactory token")
 
-	description := fmt.Sprintf("[talmi for %s]", principal.ID)
-	if grantConf.DescriptionSuffix != "" {
-		description += " " + grantConf.DescriptionSuffix
-	}
-
-	requestExpiresIn := grantConf.ExpiryInSeconds
-	if requestExpiresIn <= 0 {
-		// Talmi should be used for ephemeral tokens, so we set a default expiry of 1 hour
-		requestExpiresIn = 3600
-	}
-
-	resp, err := g.CreateToken(ctx, principal.ID, &CreateTokenRequest{
-		Scope:                 grantConf.Scope,
-		ExpiresIn:             requestExpiresIn,
+	resp, err := p.CreateToken(ctx, principal.ID, &CreateTokenRequest{
+		Scope:                 scope,
+		ExpiresIn:             int64(p.defaultTTL / time.Second),
 		Refreshable:           false,
 		Description:           description,
-		Audience:              grantConf.Audience,
 		IncludeReferenceToken: false,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating JFrog Artifactory token: %w", err)
+		return nil, fmt.Errorf("creating jfrog artifactory token: %w", err)
 	}
-
-	logger.Debug().Msgf("Minted JFrog Artifactory token ID: %s", resp.TokenID)
 
 	responseExpiresIn := resp.ExpiresIn
 	if responseExpiresIn <= 0 {
@@ -142,7 +142,7 @@ func (g *Provider) Mint(
 
 	artifact := &core.TokenArtifact{
 		Value:       resp.AccessToken,
-		Fingerprint: resp.TokenID, // just use the token ID as the fingerprint, TODO: check if this is sufficient
+		Fingerprint: audit.CalculateFingerprint(audit.JFrogFingerprintType, resp.AccessToken),
 		ExpiresAt:   time.Now().Add(time.Duration(responseExpiresIn) * time.Second),
 		Provider:    info,
 		Metadata: map[string]any{
@@ -150,6 +150,7 @@ func (g *Provider) Mint(
 			"token_type": resp.TokenType,
 			"scope":      resp.Scope,
 			"username":   resp.Username,
+			"covers":     coveredResources(plan.Covers),
 		},
 	}
 	artifact.SetRevocationID(resp.TokenID) // JFrog tokens can be revoked by their token ID
@@ -157,17 +158,30 @@ func (g *Provider) Mint(
 	return artifact, nil
 }
 
-func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
-	logger := log.Ctx(ctx)
-	logger.Debug().Msgf("JFrogArtifactoryProvider Revoke called for revocation ID: %s", revocationID)
-
+func (p *Provider) Revoke(ctx context.Context, revocationID, _ string) error {
 	if revocationID == "" {
-		return fmt.Errorf("cannot revoke jfrog-artifactory token: revocation ID is empty")
+		return fmt.Errorf("revoking jfrog artifactory token: revocation ID is empty")
 	}
-
-	if err := g.RevokeToken(ctx, revocationID); err != nil {
-		return fmt.Errorf("deleting jfrog-artifactory token ID %s: %w", revocationID, err)
+	if err := p.RevokeToken(ctx, revocationID); err != nil {
+		return fmt.Errorf("revoking jfrog artifactory token ID %s: %w", revocationID, err)
 	}
-
 	return nil
+}
+
+// groupScope builds a JFrog "applied-permisions/groups" scope, quoting each group so names with spaces
+// or commas are handled correctly.
+func groupScope(groups []string) string {
+	quoted := make([]string, len(groups))
+	for i, g := range groups {
+		quoted[i] = strconv.Quote(g)
+	}
+	return "applied-permissions/groups:" + strings.Join(quoted, ",")
+}
+
+func coveredResources(covers []core.ResourceRequest) []string {
+	out := make([]string, len(covers))
+	for i, c := range covers {
+		out[i] = string(c.Resource)
+	}
+	return out
 }
