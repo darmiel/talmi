@@ -32,6 +32,7 @@ type Provider struct {
 	ttl        time.Duration
 	mintErr    error
 	revokeErr  error
+	capError   error
 	mu         sync.Mutex
 	revoked    []string
 }
@@ -68,6 +69,12 @@ func WithRevokeError(err error) Option {
 	}
 }
 
+func WithCapabilitiesError(err error) Option {
+	return func(provider *Provider) {
+		provider.capError = err
+	}
+}
+
 func New(name, realm string, opts ...Option) *Provider {
 	p := &Provider{
 		name:  name,
@@ -89,6 +96,9 @@ func (p *Provider) Realm() string {
 }
 
 func (p *Provider) Capabilities(_ context.Context) (core.Capability, error) {
+	if p.capError != nil {
+		return core.Capability{}, p.capError
+	}
 	return core.Capability{
 		Realm:      p.realm,
 		Resources:  p.resources,
