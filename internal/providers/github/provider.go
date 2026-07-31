@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/go-github/v80/github"
-	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/audit"
-	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -20,67 +22,51 @@ const Type = "github-app"
 
 var info = core.ProviderInfo{
 	Type:    Type,
-	Version: "v1",
+	Version: "v2",
 }
 
 var (
-	_ core.TokenMinter          = (*Provider)(nil)
-	_ core.PermissionDownscoper = (*Provider)(nil)
-	_ core.TokenRevoker         = (*Provider)(nil)
+	_ core.ResourceProvider = (*Provider)(nil)
+	_ core.TokenRevoker     = (*Provider)(nil)
 )
 
 // Provider implements core.Provider by minting GitHub App installation tokens.
 // It supports GitHub Cloud and GitHub Enterprise.
 // The provider requires configuration of the App ID and the private key.
-// Grants must specify either the installation ID or the owner (user/org) where the app is installed.
-// Additionally, grants can limit the token to specific repositories and permissions.
 type Provider struct {
-	name       string
-	appID      int64
-	privateKey []byte
-
+	name          string
+	realm         string
+	appID         int64
+	privateKey    []byte
 	serverBaseURL string
 
-	allowAllRepositories bool
-	allowAllPermissions  bool
+	capTTL time.Duration
+	mu     sync.Mutex
+	cached *cachedCapability
+
+	discover func(ctx context.Context) (*discovered, error)
 }
 
-type ProviderConfig struct {
-	AppID          int64  `mapstructure:"app_id"`
-	PrivateKey     string `mapstructure:"private_key"`
-	PrivateKeyFile string `mapstructure:"private_key_path"`
-
-	// Optional: GitHub Enterprise server URL. Defaults to https://api.github.com
-	ServerBaseURL string `mapstructure:"server"`
-
-	// AllowAllRepositories has to be set to true in order to allow empty repositories list in grants.
-	// This is just a safety mechanism to avoid unintentional wide access.
-	// This does NOT mean that all repositories are granted, but rather that the provider allows it.
-	AllowAllRepositories bool `mapstructure:"allow_all_repositories"`
-
-	// AllowAllPermissions has to be set to true in order to allow empty permissions in grants.
-	// This is just a safety mechanism to avoid unintentional wide access.
-	// This does NOT mean that all permissions are granted, but rather that the provider allows it.
-	AllowAllPermissions bool `mapstructure:"allow_all_permissions"`
+type discovered struct {
+	appActions     []core.Action
+	installByOwner map[string]int64
+	reposByOwner   map[string][]string
 }
 
-type GrantConfig struct {
-	// Optional: explicitly define which installation to use. Bypasses owner lookup.
-	// You have to specify ONE OF InstallationID OR Owner.
-	InstallationID *int64 `mapstructure:"installation_id"`
+type cachedCapability struct {
+	data      *discovered
+	expiresAt time.Time
+}
 
-	// Optional: Lookup installation by owner (user/org)
-	// You have to specify ONE OF InstallationID OR Owner.
-	Owner string `mapstructure:"owner"`
-
-	// Optional: Limit access to specific repositories.
-	// If empty, and scope is not limited, all repositories are accessible.
-	Repositories []string `mapstructure:"repositories"`
+type ghMintPlan struct {
+	installationID int64
+	repos          []string
+	perms          map[string]string
 }
 
 // New creates a new Provider from the given config.
 // It maps a ProviderConfig to ProviderConfig struct,
-func New(name string, cfg ProviderConfig) (*Provider, error) {
+func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 	var keyBytes []byte
 	if cfg.PrivateKey != "" {
 		keyBytes = []byte(cfg.PrivateKey)
@@ -93,161 +79,208 @@ func New(name string, cfg ProviderConfig) (*Provider, error) {
 	} else {
 		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", name)
 	}
-	return &Provider{
-		name:                 name,
-		appID:                cfg.AppID,
-		privateKey:           keyBytes,
-		serverBaseURL:        cfg.ServerBaseURL,
-		allowAllRepositories: cfg.AllowAllRepositories,
-		allowAllPermissions:  cfg.AllowAllPermissions,
+	p := &Provider{
+		name:          name,
+		realm:         realm,
+		appID:         cfg.AppID,
+		privateKey:    keyBytes,
+		serverBaseURL: cfg.ServerBaseURL,
+		capTTL:        15 * time.Minute,
+	}
+	p.discover = p.discoverViaAPI
+
+	return p, nil
+}
+
+type ProviderConfig struct {
+	AppID          int64  `mapstructure:"app_id"`
+	PrivateKey     string `mapstructure:"private_key"`
+	PrivateKeyFile string `mapstructure:"private_key_path"`
+
+	// Optional: GitHub Enterprise server URL. Defaults to https://api.github.com
+	ServerBaseURL string `mapstructure:"server"`
+}
+
+func (p *Provider) Name() string {
+	return p.name
+}
+
+func (p *Provider) Realm() string {
+	return p.realm
+}
+
+// Invalidate drops the capability cache
+func (p *Provider) Invalidate() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cached = nil
+}
+
+func (p *Provider) Capabilities(ctx context.Context) (core.Capability, error) {
+	d, err := p.discoveredCapability(ctx)
+	if err != nil {
+		return core.Capability{}, err
+	}
+
+	resources := make([]string, 0)
+	for owner, repos := range d.reposByOwner {
+		for _, repo := range repos {
+			resources = append(resources, fmt.Sprintf("%s:%s/%s", p.realm, owner, repo))
+		}
+	}
+
+	return core.Capability{
+		Realm:      p.realm,
+		Resources:  resources,
+		MaxActions: d.appActions,
 	}, nil
 }
 
-func NewFromConfig(cfg config.ProviderConfig) (*Provider, error) {
-	var conf ProviderConfig
-
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Metadata: nil,
-		Result:   &conf,
-	})
+func (p *Provider) Plan(ctx context.Context, requests []core.ResourceRequest) ([]core.MintPlan, error) {
+	d, err := p.discoveredCapability(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create decoder for %s provider '%s': %w", Type, cfg.Name, err)
+		return nil, err
 	}
-	if err := decoder.Decode(cfg.Config); err != nil {
-		return nil, fmt.Errorf("failed to decode config for %s provider '%s': %w", Type, cfg.Name, err)
+	byOwner := make(map[string][]core.ResourceRequest)
+	for _, r := range requests {
+		owner, _, ok := splitOwnerRepo(r.Resource)
+		if !ok {
+			return nil, fmt.Errorf("malformed github resource %q", r.Resource)
+		}
+		byOwner[owner] = append(byOwner[owner], r)
 	}
 
-	return New(cfg.Name, conf)
+	plans := make([]core.MintPlan, 0, len(byOwner))
+	for owner, group := range byOwner {
+		installationID, ok := d.installByOwner[owner]
+		if !ok {
+			return nil, fmt.Errorf("no installation found for owner %q", owner)
+		}
+		plans = append(plans, core.MintPlan{
+			Provider: p.name,
+			Realm:    p.realm,
+			Covers:   group,
+			Internal: ghMintPlan{
+				installationID: installationID,
+				repos:          reposIn(group),
+				perms:          unionPerms(group),
+			},
+		})
+	}
+
+	return plans, nil
 }
 
-func (g *Provider) Name() string {
-	return g.name
+// splitOwnerRepo splits a resource of the form "owner/repo" into its components.
+func splitOwnerRepo(resource core.Resource) (owner, repo string, ok bool) {
+	body := resource.Body()
+	i := strings.IndexByte(body, '/')
+	if i <= 0 || i == len(body)-1 {
+		return "", "", false
+	}
+	return body[:i], body[i+1:], true
 }
 
-func (g *Provider) Downscope(allowed, requested map[string]string) (map[string]string, error) {
-	return Downscope(allowed, requested)
+// reposIn returns a sorted list of unique repositories in the given group of resource requests.
+func reposIn(group []core.ResourceRequest) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, r := range group {
+		if _, repo, ok := splitOwnerRepo(r.Resource); ok {
+			if _, dup := seen[repo]; !dup {
+				seen[repo] = struct{}{}
+				out = append(out, repo)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
-func (g *Provider) Mint(
+func unionPerms(group []core.ResourceRequest) map[string]string {
+	best := make(map[string]PermissionLevel)
+	raw := make(map[string]string)
+
+	for _, r := range group {
+		for _, a := range r.Actions {
+			perm, lvlStr, ok := strings.Cut(string(a), ":")
+			if !ok {
+				continue
+			}
+			lvl := parseLevel(lvlStr)
+			if lvl > best[perm] {
+				best[perm] = lvl
+				raw[perm] = lvlStr
+			}
+		}
+	}
+
+	return raw
+}
+
+func (p *Provider) Mint(
 	ctx context.Context,
 	principal *core.Principal,
-	grant core.Grant,
+	plan core.MintPlan,
 ) (*core.TokenArtifact, error) {
-	logger := log.Ctx(ctx)
-	logger.Debug().Msgf("GitHubAppProvider Mint called for principal ID: %s", principal.ID)
-
-	var grantConf GrantConfig
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Metadata: nil,
-		Result:   &grantConf,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create decoder for github_app grant config: %w", err)
-	}
-	if err := decoder.Decode(grant.Config); err != nil {
-		return nil, fmt.Errorf("failed to decode github_app grant config: %w", err)
+	mp, ok := plan.Internal.(ghMintPlan)
+	if !ok {
+		return nil, fmt.Errorf("github mint: unexpected plan payload %T", plan.Internal)
 	}
 
-	// authenticate as the app
-	appClient, err := g.createAppClient(ctx, principal.ID)
+	appClient, err := p.createAppClient(ctx, principal.ID)
 	if err != nil {
 		return nil, fmt.Errorf("creating github app client: %w", err)
 	}
-	log.Debug().Msgf("Using User-Agent: %s", appClient.UserAgent)
 
-	// determine installation ID
-	var installationID int64
-	if grantConf.InstallationID != nil && *grantConf.InstallationID != 0 {
-		installationID = *grantConf.InstallationID
-	} else if grantConf.Owner != "" {
-		// find installation by owner
-		// the most common case is that the app is installed in an org
-		installation, _, err := appClient.Apps.FindOrganizationInstallation(ctx, grantConf.Owner)
+	var perms github.InstallationPermissions
+	if len(mp.perms) > 0 {
+		b, err := json.Marshal(mp.perms)
 		if err != nil {
-			var err2 error
-			installation, _, err2 = appClient.Apps.FindUserInstallation(ctx, grantConf.Owner)
-			if err2 != nil {
-				return nil, fmt.Errorf("could not find app installation for owner '%s': %w / %v", grantConf.Owner, err, err2)
-			}
+			return nil, fmt.Errorf("marshaling permissions: %w", err)
 		}
-		installationID = installation.GetID()
-	} else {
-		return nil, fmt.Errorf("github_app grant config must specify either 'installation_id' or 'owner'")
+		if err := json.Unmarshal(b, &perms); err != nil {
+			return nil, fmt.Errorf("unmarshaling permissions: %w", err)
+		}
 	}
-	logger.Debug().Msgf("retrieved installation ID: %d", installationID)
-
-	// limit the token to a set of permissions
-	var ghPerms github.InstallationPermissions
-	if len(grant.Permissions) > 0 {
-		// use JSON to unmarshal the permissions to InstallationPermissions.
-		// this is a bit hacky, but works for now :)
-		jsonBytes, err := json.Marshal(grant.Permissions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal permissions: %w", err)
-		}
-		if err := json.Unmarshal(jsonBytes, &ghPerms); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal permissions to github installation permissions: %w", err)
-		}
-	} else if !g.allowAllPermissions {
-		// we just CANNOT accept returning a token with all permissions,
-		// that's a fire hazard.
-		return nil, fmt.Errorf("github_app grant must specify permissions or the provider must allow all permissions")
-	}
-
-	// now we can request the installation token
 	opts := &github.InstallationTokenOptions{
-		Permissions: &ghPerms,
+		Permissions:  &perms,
+		Repositories: mp.repos,
 	}
 
-	// limit the token scope to a few repositories if specified
-	if len(grantConf.Repositories) > 0 {
-		opts.Repositories = grantConf.Repositories
-	} else if !g.allowAllRepositories {
-		return nil, fmt.Errorf("github_app grant must specify repositories or the provider must allow all repositories")
-	}
-
-	logger.Info().
-		Str("provider", g.name).
-		Int64("installation_id", installationID).
-		Int("repos_count", len(opts.Repositories)).
-		Interface("permissions", ghPerms).
-		Msg("minting GitHub App installation token")
-
-	// mint the token
-	token, _, err := appClient.Apps.CreateInstallationToken(ctx, installationID, opts)
+	installationToken, _, err := appClient.Apps.CreateInstallationToken(ctx, mp.installationID, opts)
 	if err != nil {
-		return nil, fmt.Errorf("creating installation token for installation ID %d: %w", installationID, err)
+		return nil, fmt.Errorf("creating installation token for %d: %w", mp.installationID, err)
 	}
-	logger.Debug().Msgf("Minted token expiring at %s", token.GetExpiresAt().Time.String())
 
-	tok := token.GetToken()
-
+	token := installationToken.GetToken()
 	artifact := &core.TokenArtifact{
-		Value:       tok,
-		ExpiresAt:   token.GetExpiresAt().Time,
-		Fingerprint: audit.CalculateFingerprint(audit.GitHubFingerprintType, tok),
+		Value:       token,
+		ExpiresAt:   installationToken.GetExpiresAt().Time,
+		Fingerprint: audit.CalculateFingerprint(audit.GitHubFingerprintType, token),
 		Provider:    info,
 		Metadata: map[string]any{
-			"installation": installationID,
-			"repositories": opts.Repositories,
-			"permissions":  token.GetPermissions(),
+			"installation": mp.installationID,
+			"repositories": mp.repos,
+			"permissions":  installationToken.GetPermissions(),
 		},
 	}
+
 	// we don't _need_ this, because we revoke tokens by the token itself, but it's useful for revocation tracking
-	artifact.SetRevocationID("github-installation-" + fmt.Sprint(installationID))
+	artifact.SetRevocationID(fmt.Sprintf("github-installation-%d", mp.installationID))
 
 	return artifact, nil
 }
 
-func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
+func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
 	logger := log.Ctx(ctx)
-	logger.Debug().Msgf("GitHubAppProvider Revoke called for revocation ID: %s and token %s", revocationID, tokenVal)
+	logger.Debug().Msgf("GitHubApp Revoke called for revocation ID: %s and token %s", revocationID, tokenVal)
 
 	if tokenVal == "" {
 		return fmt.Errorf("original token required for %T token revocation", Type)
 	}
 
-	client, err := NewRawClient(tokenVal, g.serverBaseURL)
+	client, err := NewRawClient(tokenVal, p.serverBaseURL)
 	if err != nil {
 		return fmt.Errorf("creating github client for revocation: %w", err)
 	}
@@ -260,15 +293,15 @@ func (g *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 	return nil
 }
 
-func (g *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
+func (p *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
 	correlationID := middleware.CorrelationCtx(ctx)
 
-	client, err := NewClient(g.appID, g.privateKey, g.serverBaseURL)
+	client, err := NewClient(p.appID, p.privateKey, p.serverBaseURL)
 	if err != nil {
 		return nil, err
 	}
 	// set user agent for auditing
-	client.UserAgent = audit.CreateUserAgent(correlationID, principalID, g.Name())
+	client.UserAgent = audit.CreateUserAgent(correlationID, principalID, p.Name())
 
 	return client, nil
 }

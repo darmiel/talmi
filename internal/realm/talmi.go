@@ -48,12 +48,8 @@ func (Talmi) ValidateResourcePattern(pattern string) error {
 	if _, ok := r.Realm(); !ok {
 		return fmt.Errorf("pattern %q is missing realm prefix", pattern)
 	}
-	body, ok := r.Body()
-	if !ok {
+	if r.Body() == "" {
 		return fmt.Errorf("pattern %q is missing body", pattern)
-	}
-	if body == "" {
-		return fmt.Errorf("pattern %q has empty body", pattern)
 	}
 	if err := validGlob(pattern); err != nil {
 		return fmt.Errorf("pattern %q is not a valid glob: %v", pattern, err)
