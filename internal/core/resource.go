@@ -11,7 +11,7 @@ type Resource string
 // Action is an opaque realm-defined capability, like "contents:write" (GitHub permission).
 type Action string
 
-// Realm returns the contents after the first colon
+// Realm returns the contents before the first colon
 func (r Resource) Realm() (string, bool) {
 	i := strings.IndexByte(string(r), ':')
 	if i < 0 {
@@ -20,13 +20,13 @@ func (r Resource) Realm() (string, bool) {
 	return string(r[:i]), true
 }
 
-// Body returns the contents after the first colon
-func (r Resource) Body() (string, bool) {
+// Body returns the contents after the first colon (or the whole string if no colon is present)
+func (r Resource) Body() string {
 	i := strings.IndexByte(string(r), ':')
 	if i < 0 {
-		return "", false
+		return string(r)
 	}
-	return string(r[i+1:]), true
+	return string(r[i+1:])
 }
 
 // ResourceRequest is one requested resource together with the actions wanted on it.

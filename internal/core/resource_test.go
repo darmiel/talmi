@@ -52,9 +52,9 @@ func TestResourceRealm(t *testing.T) {
 			if gotRealm != tt.wantRealm || gotOK != tt.wantOK {
 				t.Errorf("Resource.Realm() = (%v, %v), want (%v, %v)", gotRealm, gotOK, tt.wantRealm, tt.wantOK)
 			}
-			gotBody, gotOK := tt.resource.Body()
-			if gotBody != tt.wantBody || gotOK != tt.wantOK {
-				t.Errorf("Resource.Body() = (%v, %v), want (%v, %v)", gotBody, gotOK, tt.wantBody, tt.wantOK)
+			gotBody := tt.resource.Body()
+			if gotBody != tt.wantBody {
+				t.Errorf("Resource.Body() = %v, want %v", gotBody, tt.wantBody)
 			}
 		})
 	}

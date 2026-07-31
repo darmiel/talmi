@@ -108,14 +108,8 @@ func (GitHub) ValidateResourcePattern(pattern string) error {
 	if _, ok := r.Realm(); !ok {
 		return fmt.Errorf("invalid resource pattern: missing realm prefix")
 	}
-	body, ok := r.Body()
-	if !ok {
-		// this should not happen because the check is guarded by the previous check,
-		// but keep for completeness and safety :)
-		return fmt.Errorf("invalid resource pattern: missing body")
-	}
-	if body == "" {
-		return fmt.Errorf("invalid resource pattern: empty body")
+	if r.Body() == "" {
+		return fmt.Errorf("pattern %q is missing body", pattern)
 	}
 	// just make sure the pattern is a valid glob
 	if err := validGlob(pattern); err != nil {

@@ -89,13 +89,8 @@ func (Artifactory) ValidateResourcePattern(pattern string) error {
 	if _, ok := r.Realm(); !ok {
 		return fmt.Errorf("pattern %q missing realm prefix", pattern)
 	}
-	body, ok := r.Body()
-	if !ok {
-		// this should not happen because core.Resource enforces the presence of a body, but we check anyway
-		return fmt.Errorf("pattern %q missing body", pattern)
-	}
-	if body == "" {
-		return fmt.Errorf("pattern %q has empty body", pattern)
+	if r.Body() == "" {
+		return fmt.Errorf("pattern %q is missing body", pattern)
 	}
 	if err := validGlob(pattern); err != nil {
 		return fmt.Errorf("invalid glob in pattern %q: %w", pattern, err)
