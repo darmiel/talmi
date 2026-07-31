@@ -10,119 +10,62 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-// ruleResult is a simplified result of rule evaluation
-type ruleResult struct {
-	Matched    bool
-	Conditions []core.ConditionResult
-}
-
-// Evaluate evaluates the principal against the rules and returns the first matching rule and its grant.
-func (e *Engine) Evaluate(principal *core.Principal, requestedProvider string) (*core.Rule, error) {
+// Authorize reports whether every requested resource + action is covered by the union of allow statements from all
+// rules matching the principal. Any uncovered request denies the entire authorization.
+func (e *Engine) Authorize(principal *core.Principal, requests []core.ResourceRequest) core.Decision {
+	var matched []string
+	var union []core.Allow
 	for _, rule := range e.rules {
-		result := checkRule(rule, principal, requestedProvider)
-		if result.Matched {
-			return &rule, nil
-		}
-	}
-	return nil, ErrNoRuleMatch
-}
-
-// checkRule evaluates a single rule against the principal and requested provider.
-func checkRule(rule core.Rule, principal *core.Principal, requestedProvider string) ruleResult {
-	result := ruleResult{
-		Matched:    true, // fail on any mismatch
-		Conditions: []core.ConditionResult{},
-	}
-
-	addResult := func(expression string, passed bool, reason string) {
-		result.Conditions = append(result.Conditions, core.ConditionResult{
-			Expression: expression,
-			Matched:    passed,
-			Reason:     reason,
-		})
-		if !passed {
-			result.Matched = false
+		if e.ruleMatches(rule, principal) {
+			matched = append(matched, rule.Name)
+			union = append(union, rule.Allow...)
 		}
 	}
 
-	issuerExpr := fmt.Sprintf("issuer %s '%s'", core.OpEqual, rule.Match.Issuer)
-	if rule.Match.Issuer != principal.Issuer {
-		addResult(
-			issuerExpr,
-			false,
-			fmt.Sprintf("issuer mismatch: expected '%s', got '%s'", rule.Match.Issuer, principal.Issuer),
-		)
-	} else {
-		addResult(issuerExpr, true, "")
-	}
-
-	evalCtx := principal.EvaluationContext()
-
-	if rule.Match.Condition != nil {
-		cr := evaluateCondition(*rule.Match.Condition, evalCtx)
-		if !cr.Matched {
-			result.Matched = false
-		}
-		flattenConditionResult(&result.Conditions, cr, 0)
-	} else if rule.Match.CompiledExpr != nil {
-		ok, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
-			"rule":      rule,
-			"principal": principal,
-			"ctx":       evalCtx,
-		})
-		if err != nil {
-			addResult(rule.Match.Expr, false, fmt.Sprintf("error evaluating expression: %v", err))
+	decision := core.Decision{Authorized: true, PolicyNames: matched}
+	for _, request := range requests {
+		rd := core.RequestDecision{Request: request}
+		realmName, ok := request.Resource.Realm()
+		if !ok {
+			rd.Reason = fmt.Sprintf("resource %q has no realm prefix", request.Resource)
 		} else {
-			b, bOk := ok.(bool)
-			if !bOk || !b {
-				addResult(rule.Match.Expr, false, "expression evaluated to false")
+			semantics, ok := e.realms.Get(realmName)
+			if !ok {
+				rd.Reason = fmt.Sprintf("unknown realm %q for resource %q", realmName, request.Resource)
+			} else if covered, reason := semantics.Covers(union, request); covered {
+				rd.Covered = true
 			} else {
-				addResult(rule.Match.Expr, true, "")
+				rd.Reason = reason
 			}
 		}
-	} else if !rule.Match.AllowEmptyCondition {
-		// no condition or expr means no match unless AllowEmptyCondition is true
-		// this is kinda duplicate logic of config validation, but just to make sure
-		addResult("(no condition)", false, "no condition or expression defined in rule")
-	}
-
-	if requestedProvider != "" {
-		providerExpr := fmt.Sprintf("provider %s '%s'", core.OpEqual, rule.Grant.Provider)
-		if rule.Grant.Provider != requestedProvider {
-			addResult(
-				providerExpr,
-				false,
-				fmt.Sprintf("provider mismatch: requested '%s', got '%s'", requestedProvider, rule.Grant.Provider),
-			)
-		} else {
-			addResult(providerExpr, true, "")
+		if !rd.Covered {
+			decision.Authorized = false
 		}
+		decision.PerRequest = append(decision.PerRequest, rd)
 	}
 
-	return result
+	return decision
 }
 
-func flattenConditionResult(out *[]core.ConditionResult, cr core.ConditionResult, depth int) {
-	indent := strings.Repeat("  ", depth)
-
-	if cr.Expression != "" {
-		*out = append(*out, core.ConditionResult{
-			Expression: indent + cr.Expression,
-			Matched:    cr.Matched,
-			Reason:     cr.Reason,
-		})
-		return
+func (e *Engine) ruleMatches(rule core.Rule, principal *core.Principal) bool {
+	if rule.Match.Issuer != principal.Issuer {
+		return false
 	}
-
-	if cr.Label != "" {
-		*out = append(*out, core.ConditionResult{
-			Expression: indent + "[" + cr.Label + "]",
-			Matched:    cr.Matched,
+	switch {
+	case rule.Match.Condition != nil:
+		return evaluateCondition(*rule.Match.Condition, principal.EvaluationContext()).Matched
+	case rule.Match.CompiledExpr != nil:
+		out, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
+			"ctx":       principal.EvaluationContext(),
+			"principal": principal,
 		})
-	}
-
-	for _, child := range cr.Children {
-		flattenConditionResult(out, child, depth+1)
+		if err != nil {
+			return false
+		}
+		b, ok := out.(bool)
+		return ok && b
+	default:
+		return rule.Match.AllowEmptyCondition
 	}
 }
 
@@ -192,7 +135,7 @@ func evaluateCondition(cond core.Condition, attributes map[string]any) core.Cond
 
 		switch cond.Operator {
 		case core.OpEqual:
-			if !deepEqual(val, cond.Value) {
+			if !valuesEqual(val, cond.Value) {
 				return createCondition(false, fmt.Sprintf("expected '%v' to equal '%v'", val, cond.Value))
 			}
 			return createCondition(true, "")
@@ -223,8 +166,27 @@ func evaluateCondition(cond core.Condition, attributes map[string]any) core.Cond
 	}
 }
 
-func deepEqual(a, b any) bool {
+func valuesEqual(a, b any) bool {
+	if af, ok := toFloat(a); ok {
+		if bf, ok := toFloat(b); ok {
+			return af == bf
+		}
+	}
 	return reflect.DeepEqual(a, b)
+}
+
+func toFloat(v any) (float64, bool) {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(rv.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return float64(rv.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		return rv.Float(), true
+	default:
+		return 0, false
+	}
 }
 
 func contains(container, item any) bool {
@@ -239,7 +201,7 @@ func contains(container, item any) bool {
 	v := reflect.ValueOf(container)
 	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
 		for i := 0; i < v.Len(); i++ {
-			if deepEqual(v.Index(i).Interface(), item) {
+			if valuesEqual(v.Index(i).Interface(), item) {
 				return true
 			}
 		}

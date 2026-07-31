@@ -28,21 +28,6 @@ func (p *Principal) EvaluationContext() map[string]any {
 	return ctx
 }
 
-// Grant describes exactly what access is allowed if a rule matches.
-type Grant struct {
-	// Provider is the name of the downstream provider (defined in config)
-	// that will mint the token.
-	Provider string `yaml:"provider" json:"provider"`
-
-	// Permissions is a flexible map of permissions to grant.
-	// Interpretation depends on the Provider (e.g. "contents": "read").
-	Permissions map[string]string `yaml:"permissions" json:"permissions"`
-
-	// Config allows arbitrary provider-specific configuration in the rule.
-	// This supports, for example, defining `"repositories": ["a", "b"]` for GitHub.
-	Config map[string]any `yaml:"config" json:"config"`
-}
-
 // Match defines the conditions required for a Rule to apply.
 type Match struct {
 	// Issuer is the name of the issuer that must have produced the Principal.
@@ -76,8 +61,8 @@ type Rule struct {
 	// Match defines criteria for the Principal.
 	Match Match `yaml:"match" json:"match"`
 
-	// Grant defines what is given if the match succeeds.
-	Grant Grant `yaml:"grant" json:"grant"`
+	// Allow defines what is allowed if the match succeeds.
+	Allow []Allow `yaml:"allow" json:"allow"`
 }
 
 // ProviderInfo is some additional information shown when minting a token

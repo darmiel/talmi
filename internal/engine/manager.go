@@ -5,17 +5,20 @@ import (
 	"sync/atomic"
 
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/realm"
 )
 
 type PolicyManager struct {
 	currentEngine atomic.Pointer[Engine]
+	realms        *realm.Registry
 	mu            sync.Mutex
 }
 
-func NewManager(initialRules []core.Rule) *PolicyManager {
-	m := &PolicyManager{}
-	eng := New(initialRules)
-	m.currentEngine.Store(eng)
+func NewManager(initialRules []core.Rule, realms *realm.Registry) *PolicyManager {
+	m := &PolicyManager{
+		realms: realms,
+	}
+	m.currentEngine.Store(New(initialRules, realms))
 	return m
 }
 
@@ -26,10 +29,6 @@ func (m *PolicyManager) GetEngine() *Engine {
 func (m *PolicyManager) Update(newRules []core.Rule) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	candidate := New(newRules)
-	// TODO: validate here?
-
-	m.currentEngine.Store(candidate)
+	m.currentEngine.Store(New(newRules, m.realms))
 	return nil
 }
