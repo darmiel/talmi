@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS lease_artifacts;
+DROP TABLE IF EXISTS leases;

@@ -2,54 +2,28 @@ package core
 
 import (
 	"context"
-	"time"
+	"fmt"
 )
 
-// TokenMetadata represents the state of an issued token.
-type TokenMetadata struct {
-	// CorrelationID is the unique identifier for the token and ID of the request that created (requested) it.
-	CorrelationID string `json:"correlation_id"`
+var ErrLeaseNotFound = fmt.Errorf("lease not found")
 
-	// PrincipalID is the unique identifier of the principal who owns this token.
-	PrincipalID string `json:"principal_id"`
+// LeaseStore persists issued leases and their artifacts.
+type LeaseStore interface {
+	// SaveLease persists the given lease.
+	SaveLease(ctx context.Context, lease Lease) error
 
-	// Provider is the name of the downstream provider for which this token was issued.
-	Provider string `json:"provider"`
+	// GetLease returns a lease by its ID or ErrLeaseNotFound if not found.
+	GetLease(ctx context.Context, leaseID string) (*Lease, error)
 
-	// PolicyName is the name of the policy (i.e. rule) that authorized this token issuance.
-	PolicyName string `json:"policy_name"`
+	// ListActive returns leases with at least one non-revoked and non-expired artifact.
+	ListActive(ctx context.Context) ([]Lease, error)
 
-	// IssuedAt is the time when the token was issued.
-	IssuedAt time.Time `json:"issued_at"`
+	// FindByRevocationSecret returns the lease matching the secret, or ErrLeaseNotFound if not found.
+	FindByRevocationSecret(ctx context.Context, secret string) (*Lease, error)
 
-	// ExpiresAt is the expiration time of the issued token.
-	// It is used to check if the token is "active".
-	ExpiresAt time.Time `json:"expires_at"`
+	// SetLeaseRevoked marks the lease and all its artifacts as revoked.
+	SetLeaseRevoked(ctx context.Context, leaseID string) error
 
-	// Revocable indicates whether this token can be revoked before its expiration.
-	Revocable       bool   `json:"revocable"`
-	Revoked         bool   `json:"revoked"`
-	RevocationToken string `json:"-"`
-	RevocationID    string `json:"-"`
-
-	// Metadata contains extra metadata (like scope, installation_id for GitHub, ...)
-	Metadata map[string]any `json:"metadata"`
-}
-
-// TokenStore manages the lifecycle of issued tokens.
-type TokenStore interface {
-	// Save records a new issued token
-	Save(ctx context.Context, meta TokenMetadata) error
-
-	// ListActive returns tokens that have not expired yet
-	ListActive(ctx context.Context) ([]TokenMetadata, error)
-
-	// DeleteExpired removes tokens from the underlying storage that have expired
+	// DeleteExpired removes leases where every artifact is expired or revoked.
 	DeleteExpired(ctx context.Context) (int64, error)
-
-	// FindByRevocationToken retrieves metadata for a token using its revocation token
-	FindByRevocationToken(ctx context.Context, revocationToken string) (*TokenMetadata, error)
-
-	// SetRevoked marks a token as revoked
-	SetRevoked(ctx context.Context, correlationID string) error
 }
