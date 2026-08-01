@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/audit"
+	"github.com/darmiel/talmi/internal/correlation"
 )
 
 const (
@@ -85,7 +85,7 @@ func (p *Provider) CreateToken(
 	req.Header.Set("Authorization", "Bearer "+p.token)
 
 	// inject audit user-agent
-	correlationID := middleware.CorrelationCtx(ctx)
+	correlationID := correlation.From(ctx)
 	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, principalID, p.Name()))
 
 	resp, err := p.httpClient.Do(req)
@@ -121,7 +121,7 @@ func (p *Provider) RevokeToken(
 	req.Header.Set("Authorization", "Bearer "+p.token)
 
 	// inject audit user-agent
-	correlationID := middleware.CorrelationCtx(ctx)
+	correlationID := correlation.From(ctx)
 	req.Header.Set("User-Agent", audit.CreateUserAgent(correlationID, "", p.Name()))
 
 	resp, err := p.httpClient.Do(req)
