@@ -1,7 +1,12 @@
 package service
 
-import "github.com/darmiel/talmi/internal/core"
+import (
+	"time"
 
+	"github.com/darmiel/talmi/internal/core"
+)
+
+// IssueRequest is a request to mint a lease of resource tokens.
 type IssueRequest struct {
 	// Token is the raw upstream (OIDC) token
 	Token string
@@ -9,21 +14,36 @@ type IssueRequest struct {
 	// RequestedIssuer is optional. If empty, auto-discovery is attempted.
 	RequestedIssuer string
 
-	// RequestedProvider is optional. If empty, the policy engine decides.
-	RequestedProvider string
-
-	// RequestedPermissions allow downscoping.
-	RequestedPermissions map[string]string
+	// Resources is the list of requested resources and actions.
+	Resources []core.ResourceRequest
 }
 
 type IssueResponse struct {
-	// Artifact is the issued token artifact.
-	Artifact *core.TokenArtifact
+	// LeaseID is the ID of the issued lease.
+	LeaseID string
 
-	// Principal is the principal associated with the issued token.
-	// We return it for auditing if needed by caller
-	Principal *core.Principal
+	// RevocationSecret is the secret used to revoke the lease.
+	// Empty if the lease is not revocable.
+	RevocationSecret string
 
-	// Rule is the policy rule that authorized this issuance.
-	Rule *core.Rule
+	// Artifacts is the list of issued token artifacts.
+	Artifacts []IssuedArtifact
+}
+
+// IssuedArtifact is one minted token as returned to the caller.
+type IssuedArtifact struct {
+	Provider    string
+	Realm       string
+	Covers      []core.ResourceRequest
+	Token       string // the secret token value (not stored)
+	Fingerprint string
+	ExpiresAt   time.Time
+	Metadata    map[string]any
+}
+
+// IssuerResolver is the subset of the issuer registry the service consumes.
+// Used mainly for testing.
+type IssuerResolver interface {
+	Get(name string) (core.Issuer, bool)
+	IdentifyIssuer(token string) (core.Issuer, error)
 }

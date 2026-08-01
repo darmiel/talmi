@@ -27,10 +27,12 @@ func New(providers []core.ResourceProvider, realms *realm.Registry) *Resolver {
 
 // Minted is one successfully minted artifact and what it covers
 type Minted struct {
-	Provider string
-	Realm    string
-	Covers   []core.ResourceRequest
-	Artifact *core.TokenArtifact
+	Provider     string
+	Realm        string
+	Covers       []core.ResourceRequest
+	Artifact     *core.TokenArtifact
+	Revocable    bool
+	RevocationID string
 }
 
 type candidate struct {
@@ -93,13 +95,16 @@ func (r *Resolver) Resolve(
 				r.rollback(ctx, done)
 				return nil, fmt.Errorf("minting for provider %q: %w", p.Name(), err)
 			}
+			_, revocable := p.(core.TokenRevoker)
 			done = append(done, mintedRecord{
 				provider: p,
 				minted: Minted{
-					Provider: p.Name(),
-					Realm:    p.Realm(),
-					Covers:   plan.Covers,
-					Artifact: artifact,
+					Provider:     p.Name(),
+					Realm:        p.Realm(),
+					Covers:       plan.Covers,
+					Artifact:     artifact,
+					Revocable:    revocable,
+					RevocationID: artifact.RevocationID(),
 				},
 			})
 		}
@@ -110,6 +115,21 @@ func (r *Resolver) Resolve(
 		result[i] = record.minted
 	}
 	return result, nil
+}
+
+// Revoke revokes a single artifact through its minting provider.
+func (r *Resolver) Revoke(ctx context.Context, providerName, revocationID, tokenValue string) error {
+	for _, p := range r.providers {
+		if p.Name() != providerName {
+			continue
+		}
+		revoker, ok := p.(core.TokenRevoker)
+		if !ok {
+			return fmt.Errorf("provider %q does not support revocation", providerName)
+		}
+		return revoker.Revoke(ctx, revocationID, tokenValue)
+	}
+	return fmt.Errorf("provider %q not found", providerName)
 }
 
 func (r *Resolver) candidatesByRealm(

@@ -13,9 +13,9 @@ import (
 	"github.com/google/go-github/v80/github"
 	"github.com/rs/zerolog/log"
 
-	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/correlation"
 )
 
 const Type = "github-app"
@@ -294,7 +294,7 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 }
 
 func (p *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
-	correlationID := middleware.CorrelationCtx(ctx)
+	correlationID := correlation.From(ctx)
 
 	client, err := NewClient(p.appID, p.privateKey, p.serverBaseURL)
 	if err != nil {

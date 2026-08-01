@@ -36,7 +36,7 @@ func TestResourceRealm(t *testing.T) {
 			resource:  "no-colon",
 			wantRealm: "",
 			wantOK:    false,
-			wantBody:  "",
+			wantBody:  "no-colon",
 		},
 		{
 			name:      "empty is malformed",

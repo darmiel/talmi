@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/darmiel/talmi/internal/correlation"
 )
 
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
-		reqID, _ := r.Context().Value(correlationIDKey).(string)
+		reqID := correlation.From(r.Context())
 
 		// create a logger to wrap request info
 		l := log.With().
