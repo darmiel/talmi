@@ -162,3 +162,94 @@ func TestIssueLeaseStoreFailureRollsBack(t *testing.T) {
 	is.Error(err)
 	is.Equal([]string{"stub-gh-ro"}, gh.Revoked(), "minted token must be revoked when the lease cannot be persisted")
 }
+
+func issueForRevoke(t *testing.T) (*TokenService, *stub.Provider, *store.MemoryLeaseStore, *IssueResponse) {
+	t.Helper()
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	mem := store.NewMemoryLeaseStore()
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, mem)
+
+	issued, err := svc.IssueLease(context.Background(), readRequest())
+	require.NoError(t, err)
+	require.NotEmpty(t, issued.RevocationSecret)
+	return svc, gh, mem, issued
+}
+
+func tokensFrom(resp *IssueResponse) map[string]string {
+	m := map[string]string{}
+	for _, a := range resp.Artifacts {
+		m[a.Fingerprint] = a.Token
+	}
+	return m
+}
+
+func TestRevokeLeaseSuccess(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	svc, gh, mem, issued := issueForRevoke(t)
+
+	resp, err := svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+		Tokens:           tokensFrom(issued),
+	})
+	is.NoError(err)
+	is.Len(resp.Revoked, 1)
+	is.Equal([]string{"stub-gh"}, gh.Revoked())
+
+	active, err := mem.ListActive(context.Background())
+	is.NoError(err)
+	is.Empty(active, "revoked lease must no longer be active")
+}
+
+func TestRevokeLeaseInvalidSecret(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _ := issueForRevoke(t)
+	_, err := svc.RevokeLease(context.Background(), RevokeRequest{RevocationSecret: "wrong"})
+	assert.Error(t, err)
+}
+
+func TestRevokeLeaseProviderFailureKeepsLeaseActive(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh", "ghes-corp", stub.WithResources("ghes-corp:acme/*"),
+		stub.WithMaxActions("contents:read"), stub.WithRevokeError(errors.New("boom")))
+	mem := store.NewMemoryLeaseStore()
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, mem)
+
+	issued, err := svc.IssueLease(context.Background(), readRequest())
+	require.NoError(t, err)
+
+	_, err = svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+		Tokens:           tokensFrom(issued),
+	})
+	is.Error(err)
+
+	active, err := mem.ListActive(context.Background())
+	is.NoError(err)
+	is.Len(active, 1, "failed revocation must leave the lease active")
+}
+
+func TestRevokeLeaseIdempotent(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	svc, gh, _, issued := issueForRevoke(t)
+	tokens := tokensFrom(issued)
+
+	_, err := svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+		Tokens:           tokens,
+	})
+	is.NoError(err)
+
+	resp, err := svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+		Tokens:           tokens,
+	})
+	is.NoError(err)
+	is.Empty(resp.Revoked, "second revoke is a no-op")
+	is.Len(gh.Revoked(), 1, "provider revoked exactly once")
+}

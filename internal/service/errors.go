@@ -15,8 +15,8 @@ func (e HTTPError) Unwrap() error {
 	return e.Wrapped
 }
 
-func httpError(statusCode int, err error) *HTTPError {
-	return &HTTPError{
+func httpError(statusCode int, err error) HTTPError {
+	return HTTPError{
 		StatusCode: statusCode,
 		Wrapped:    err,
 	}

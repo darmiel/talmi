@@ -47,3 +47,15 @@ type IssuerResolver interface {
 	Get(name string) (core.Issuer, bool)
 	IdentifyIssuer(token string) (core.Issuer, error)
 }
+
+// RevokeRequest revokes a lease.
+type RevokeRequest struct {
+	RevocationSecret string
+	Tokens           map[string]string // fingerprint -> token value
+}
+
+// RevokeResponse reports which artifacts were revoked.
+type RevokeResponse struct {
+	LeaseID string
+	Revoked []string
+}
