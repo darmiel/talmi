@@ -55,39 +55,45 @@ func (r *Registry) KnownIssuers() map[string]struct{} {
 	return known
 }
 
-func BuildRegistry(ctx context.Context, cfgs []config.IssuerConfig) (*Registry, error) {
+func BuildRegistry(ctx context.Context, blocks []config.IssuerBlock, sessionKey []byte) (*Registry, error) {
 	issuers := make(map[string]core.Issuer)
 	urlMap := make(map[string]string)
 
-	for _, cfg := range cfgs {
-		var iss core.Issuer
-		var issuerURL string
-		var err error
+	for _, block := range blocks {
+		if block.Name == "" {
+			return nil, fmt.Errorf("issuer is missing a name")
+		}
 
-		switch cfg.Type {
+		var (
+			iss       core.Issuer
+			issuerURL string
+			err       error
+		)
+
+		switch block.Type {
 		case "static":
-			iss, err = NewStatic(cfg)
+			iss, err = NewStatic(block)
 			// static does not have an issuer URL
-
 		case "oidc":
-			iss, err = NewOIDCIssuer(ctx, cfg)
+			iss, err = NewOIDCIssuer(ctx, block)
 			if err == nil {
-				// extract issuer URL from OIDC config
-				if url, ok := cfg.Config["issuer_url"].(string); ok {
-					issuerURL = url
-				}
+				issuerURL, _ = block.Config["issuer_url"].(string)
 			}
+		case "github-oauth":
+			iss, err = NewGitHubOAuthIssuer(block)
+		case "talmi-session":
+			iss, err = NewTalmiSessionIssuer(block, sessionKey)
 		default:
-			return nil, fmt.Errorf("unknown issuer type %q for issuer %q", cfg.Type, cfg.Name)
+			return nil, fmt.Errorf("unknown issuer type %q for issuer %q", block.Type, block.Name)
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("building issuer %q: %w", cfg.Name, err)
+			return nil, fmt.Errorf("building issuer %q: %w", block.Name, err)
 		}
 
-		issuers[cfg.Name] = iss
+		issuers[block.Name] = iss
 		if issuerURL != "" {
-			urlMap[issuerURL] = cfg.Name
+			urlMap[issuerURL] = block.Name
 		}
 	}
 

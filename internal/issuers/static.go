@@ -13,7 +13,7 @@ type StaticIssuer struct {
 	tokenMap map[string]map[string]any // token -> attributes
 }
 
-func NewStatic(cfg config.IssuerConfig) (*StaticIssuer, error) {
+func NewStatic(cfg config.IssuerBlock) (*StaticIssuer, error) {
 	rawMap, ok := cfg.Config["token_map"].(map[string]any)
 	if !ok {
 		// if no map provided, just create an empty one, which always fails verification
