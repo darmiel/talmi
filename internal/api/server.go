@@ -14,6 +14,7 @@ import (
 type TokenService interface {
 	IssueLease(ctx context.Context, req service.IssueRequest) (*service.IssueResponse, error)
 	RevokeLease(ctx context.Context, req service.RevokeRequest) (*service.RevokeResponse, error)
+	Explain(ctx context.Context, req service.IssueRequest) (*service.ExplainResponse, error)
 }
 
 type Server struct {
@@ -75,6 +76,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)
 	mux.HandleFunc("POST "+RevokeTokenRoute, s.handleRevoke)
+	mux.HandleFunc("POST "+ExplainRoute, s.handleExplain)
 
 	if s.gitHubOnWebhook != nil {
 		mux.HandleFunc("POST "+WebhookGitHubRoute, s.handleGitHubWebhook)

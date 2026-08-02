@@ -148,3 +148,13 @@ func renderLease(resp *client.IssueResponse) {
 	tw.Render()
 	fmt.Println(faint("  token values omitted - use --json or --out to capture them"))
 }
+
+func init() {
+	rootCmd.AddCommand(issueCmd)
+	issueCmd.Flags().StringVar(&issueTokenFlag, "token", "", "Upstream OIDC token (or use $TALMI_OIDC_TOKEN / arg)")
+	issueCmd.Flags().StringVar(&issueIssuer, "issuer", "", "Explicit issuer name (skips auto-discovery)")
+	issueCmd.Flags().StringVarP(&issueManifest, "manifest", "R", "", "Path to a resources manifest (yaml)")
+	issueCmd.Flags().StringVar(&issueOut, "out", "", "Write the full lease (incl. tokens) to <dir>/lease.json")
+	issueCmd.Flags().StringArrayVar(&issueResources, "resource", nil, "Resource request realm:body=action[,action] (repeatable)")
+	issueCmd.Flags().BoolVar(&issueJSON, "json", false, "Print the full lease as JSON")
+}

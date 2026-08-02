@@ -31,6 +31,11 @@ type TokenService struct {
 	revision      string
 }
 
+type ExplainResponse struct {
+	Principal *core.Principal
+	Decision  core.Decision
+}
+
 func NewTokenService(
 	issuers IssuerResolver,
 	policyManager *engine.PolicyManager,
@@ -94,6 +99,8 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 
 	// now that we have verified the principal, we can continue with authorizing the requested resources
 	decision := s.policyManager.GetEngine().Authorize(principal, req.Resources)
+	entry.Decision = &decision
+
 	if !decision.Authorized {
 		// one or more of the requested resources were denied
 		entry.Success = false
@@ -240,6 +247,26 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 	return &RevokeResponse{
 		LeaseID: lease.ID,
 		Revoked: revoked,
+	}, nil
+}
+
+// Explain verifies the token and evaluates policy without minting, persisting or auditing.
+func (s *TokenService) Explain(ctx context.Context, req IssueRequest) (*ExplainResponse, error) {
+	if len(req.Resources) == 0 {
+		return nil, httpError(http.StatusBadRequest, fmt.Errorf("no resources requested"))
+	}
+	issuer, err := s.selectIssuer(req)
+	if err != nil {
+		return nil, httpError(http.StatusUnauthorized, err)
+	}
+	principal, err := issuer.Verify(ctx, req.Token)
+	if err != nil {
+		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("verification faild: %w", err))
+	}
+	decision := s.policyManager.GetEngine().Authorize(principal, req.Resources)
+	return &ExplainResponse{
+		Principal: principal,
+		Decision:  decision,
 	}, nil
 }
 

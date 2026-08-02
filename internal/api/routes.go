@@ -4,8 +4,10 @@ const (
 	HealthCheckRoute = "/healthz"
 	AboutRoute       = "/icanhaztalmi"
 
-	IssueTokenRoute  = "/v2/token/issue"
-	RevokeTokenRoute = "/v2/token/revoke"
+	TokenParent      = "/v2/token"
+	IssueTokenRoute  = TokenParent + "/issue"
+	RevokeTokenRoute = TokenParent + "/revoke"
+	ExplainRoute     = TokenParent + "/explain"
 
 	WebhookGitHubRoute = "/v2/webhooks/github"
 
@@ -19,14 +21,4 @@ const (
 	ListTasksRoute   = TaskParent
 	TriggerTaskRoute = TaskParent + "/{name}/trigger"
 	TaskLogsRoute    = TaskParent + "/{name}/logs"
-
-	//AuditParent           = "/v1/audit/"
-	//ListAuditsRoute       = AuditParent + "audits"
-	//ListActiveTokensRoute = AuditParent + "tokens"
-	//ExplainRoute          = AuditParent + "explain"
-	//
-	//TaskParent       = "/v1/tasks/"
-	//ListTasksRoute   = TaskParent
-	//TriggerTaskRoute = TaskParent + "{name}/trigger"
-	//LogsForTaskRoute = TaskParent + "{name}/logs"
 )
