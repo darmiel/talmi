@@ -34,7 +34,8 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the Talmi server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
+		appCtx, cancelApp := context.WithCancel(cmd.Context())
+		defer cancelApp()
 
 		cfg, err := config.Load(serveConfigPath)
 		if err != nil {
@@ -50,7 +51,7 @@ var serveCmd = &cobra.Command{
 			Bool("dev", serveDevMode).
 			Msg("building runtime manager...")
 
-		mgr, err := runtime.NewManager(ctx, cfg, src, serveDevMode)
+		mgr, err := runtime.NewManager(appCtx, cfg, src, serveDevMode)
 		if err != nil {
 			return fmt.Errorf("building runtime manager: %w", err)
 		}
@@ -60,7 +61,7 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
-		taskMgr := tasks.NewManager()
+		taskMgr := tasks.NewManager(appCtx)
 		if cfg.ConfigSource != nil && cfg.ConfigSource.Sync.Interval > 0 {
 			taskMgr.Register("config-sync", cfg.ConfigSource.Sync.Interval,
 				func(ctx context.Context, logger logging.InternalLogger) error {
@@ -126,13 +127,18 @@ var serveCmd = &cobra.Command{
 				Msg("shutting down...")
 		}
 
+		cancelApp() // stop task schedulers + cancel task runs
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("server forced to shutdown: %w", err)
 		}
-		log.Info().Msg("server stopped")
+		log.Info().Msg("server stopped. waiting for tasks to finish...")
+		taskMgr.Wait()
+
+		log.Info().Msg("bye!")
 		return nil
 		//
 		//// initialize: load issuers, providers, rules engine

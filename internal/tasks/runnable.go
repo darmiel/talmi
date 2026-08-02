@@ -23,11 +23,10 @@ type RunnableTask struct {
 	Logs       []LogEntry
 }
 
-func (t *RunnableTask) Run() {
+func (t *RunnableTask) Run(parent context.Context) {
 	t.mu.Lock()
 
 	l := log.With().Str("task", t.Name).Logger()
-
 	if t.Running {
 		t.mu.Unlock()
 		l.Warn().Msg("task is already running, skipping execution")
@@ -47,7 +46,7 @@ func (t *RunnableTask) Run() {
 	taskLogger := NewCompositeLogger(t, l)
 	taskLogger.Info("starting task execution")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // TODO: make this configurable?
+	ctx, cancel := context.WithTimeout(parent, 5*time.Minute) // TODO: make this configurable?
 	defer cancel()
 
 	start := time.Now()
