@@ -9,6 +9,9 @@ const (
 
 	WebhookGitHubRoute = "/v2/webhooks/github"
 
+	LoginRoute       = "/v2/auth/session"
+	LoginConfigRoute = "/v2/auth/config"
+
 	//AuditParent           = "/v1/audit/"
 	//ListAuditsRoute       = AuditParent + "audits"
 	//ListActiveTokensRoute = AuditParent + "tokens"

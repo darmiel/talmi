@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/core"
 )
 
 func TestNewTalmiSessionRequiresKey(t *testing.T) {
@@ -99,4 +100,21 @@ func TestTalmiSessionIssuer(t *testing.T) {
 		_, err := iss.Verify(context.Background(), "garbage")
 		assert.Error(t, err)
 	})
+}
+
+func TestIssueAndVerifySession(t *testing.T) {
+	t.Parallel()
+	key := []byte("k")
+	iss, _ := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, key)
+
+	p := &core.Principal{ID: "alice", Issuer: "gh-human", Attributes: map[string]any{"teams": []any{"acme/admins"}}}
+	tok, exp, err := IssueSession(key, p, time.Hour)
+	require.NoError(t, err)
+	assert.True(t, exp.After(time.Now()))
+
+	got, err := iss.Verify(context.Background(), tok)
+	require.NoError(t, err)
+	assert.Equal(t, "alice", got.ID)
+	assert.Equal(t, "gh-human", got.Issuer) // restored from origin_iss — admin rules match this
+	assert.Contains(t, got.Attributes["teams"], "acme/admins")
 }

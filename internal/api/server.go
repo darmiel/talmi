@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/darmiel/talmi/internal/api/middleware"
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/service"
 )
 
@@ -15,8 +17,26 @@ type TokenService interface {
 
 type Server struct {
 	current             func() TokenService
+	admin               *AdminConfig
 	gitHubWebhookSecret []byte
 	gitHubOnWebhook     func(ctx context.Context) error
+}
+
+type AdminConfig struct {
+	LoginIssuer   func() (core.Issuer, bool)
+	SessionIssuer func() (core.Issuer, bool)
+	Authorize     func(principal *core.Principal, req []core.ResourceRequest) core.Decision
+	Auditor       func() core.Auditor
+	SessionKey    []byte
+	SessionTTL    time.Duration
+	LoginInfo     LoginInfo
+}
+
+// LoginInfo is the public device-flow config the CLI needs to start login.
+type LoginInfo struct {
+	Server   string   `json:"server"`
+	ClientID string   `json:"client_id"`
+	Scopes   []string `json:"scopes"`
 }
 
 type Option func(*Server)
@@ -26,6 +46,12 @@ func WithGitHubWebhook(secret []byte, onReceive func(ctx context.Context) error)
 	return func(server *Server) {
 		server.gitHubWebhookSecret = secret
 		server.gitHubOnWebhook = onReceive
+	}
+}
+
+func WithAdmin(cfg AdminConfig) Option {
+	return func(server *Server) {
+		server.admin = &cfg
 	}
 }
 
@@ -50,6 +76,13 @@ func (s *Server) Routes() http.Handler {
 
 	if s.gitHubOnWebhook != nil {
 		mux.HandleFunc("POST "+WebhookGitHubRoute, s.handleGitHubWebhook)
+	}
+
+	if s.admin != nil {
+		mux.HandleFunc("GET "+LoginConfigRoute, s.handleLoginConfig)
+		mux.HandleFunc("POST "+LoginRoute, s.handleLogin)
+
+		// ... more admin-only routes ...
 	}
 
 	return middleware.RecoverMiddleware(
