@@ -74,3 +74,15 @@ func (m *Manager) reload(ctx context.Context, initial bool) error {
 func (m *Manager) Close() error {
 	return m.stable.Close()
 }
+
+func (m *Manager) InvalidateProviders() {
+	rt := m.current.Load()
+	if rt == nil {
+		return
+	}
+	for _, p := range rt.Providers {
+		if inv, ok := p.(interface{ Invalidate() }); ok {
+			inv.Invalidate()
+		}
+	}
+}

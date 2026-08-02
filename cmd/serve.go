@@ -16,9 +16,11 @@ import (
 
 	"github.com/darmiel/talmi/internal/api"
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/logging"
 	"github.com/darmiel/talmi/internal/runtime"
 	"github.com/darmiel/talmi/internal/secret"
 	"github.com/darmiel/talmi/internal/source"
+	"github.com/darmiel/talmi/internal/tasks"
 )
 
 var (
@@ -58,9 +60,40 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
+		taskMgr := tasks.NewManager()
+		if cfg.ConfigSource != nil && cfg.ConfigSource.Sync.Interval > 0 {
+			taskMgr.Register("config-sync", cfg.ConfigSource.Sync.Interval,
+				func(ctx context.Context, logger logging.InternalLogger) error {
+					return mgr.Reload(ctx)
+				})
+		}
+		taskMgr.Register("lease-cleanup", 15*time.Minute,
+			func(ctx context.Context, logger logging.InternalLogger) error {
+				n, err := mgr.Current().LeaseStore.DeleteExpired(ctx)
+				if err == nil && n > 0 {
+					logger.Info("deleted %d expired leases", n)
+				}
+				return err
+			})
+
+		var opts []api.Option
+		if cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil && cfg.ConfigSource.GitHub.WebhookSecret != "" {
+			sec, err := secret.Resolve(cfg.ConfigSource.GitHub.WebhookSecret)
+			if err != nil {
+				return fmt.Errorf("resolving GitHub webhook secret: %w", err)
+			}
+			opts = append(opts, api.WithGitHubWebhook(sec, func(ctx context.Context) error {
+				if err := mgr.Reload(ctx); err != nil {
+					return err
+				}
+				mgr.InvalidateProviders()
+				return nil
+			}))
+		}
+
 		srv := api.NewServer(func() api.TokenService {
 			return mgr.Current().Service
-		})
+		}, opts...)
 		server := &http.Server{
 			Addr:              serveAddr,
 			Handler:           srv.Routes(),

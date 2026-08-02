@@ -66,7 +66,9 @@ func TestHandleIssue(t *testing.T) {
 				},
 			},
 		}
-		srv := NewServer(fake)
+		srv := NewServer(func() TokenService {
+			return fake
+		})
 
 		rec := do(t, srv, http.MethodPost, IssueTokenRoute, "oidc-jwt",
 			`{"resources":[{"resource":"ghes-corp:acme/x","actions":["contents:read"]}]}`)
@@ -87,20 +89,26 @@ func TestHandleIssue(t *testing.T) {
 
 	t.Run("missing auth", func(t *testing.T) {
 		t.Parallel()
-		rec := do(t, NewServer(&fakeService{}), http.MethodPost, IssueTokenRoute, "",
+		rec := do(t, NewServer(func() TokenService {
+			return &fakeService{}
+		}), http.MethodPost, IssueTokenRoute, "",
 			`{"resources":[{"resource":"r:x","actions":["a"]}]}`)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	})
 
 	t.Run("empty resources", func(t *testing.T) {
 		t.Parallel()
-		rec := do(t, NewServer(&fakeService{}), http.MethodPost, IssueTokenRoute, "jwt", `{"resources":[]}`)
+		rec := do(t, NewServer(func() TokenService {
+			return &fakeService{}
+		}), http.MethodPost, IssueTokenRoute, "jwt", `{"resources":[]}`)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
 	t.Run("bad json", func(t *testing.T) {
 		t.Parallel()
-		rec := do(t, NewServer(&fakeService{}), http.MethodPost, IssueTokenRoute, "jwt", `{bad`)
+		rec := do(t, NewServer(func() TokenService {
+			return &fakeService{}
+		}), http.MethodPost, IssueTokenRoute, "jwt", `{bad`)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
@@ -112,7 +120,9 @@ func TestHandleIssue(t *testing.T) {
 				Wrapped:    errors.New("policy denied"),
 			},
 		}
-		rec := do(t, NewServer(fake), http.MethodPost, IssueTokenRoute, "jwt",
+		rec := do(t, NewServer(func() TokenService {
+			return fake
+		}), http.MethodPost, IssueTokenRoute, "jwt",
 			`{"resources":[{"resource":"r:x","actions":["a"]}]}`)
 		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
@@ -125,7 +135,9 @@ func TestHandleRevoke(t *testing.T) {
 		t.Parallel()
 		is := assert.New(t)
 		fake := &fakeService{revokeResp: &service.RevokeResponse{LeaseID: "l1", Revoked: []string{"fp"}}}
-		srv := NewServer(fake)
+		srv := NewServer(func() TokenService {
+			return fake
+		})
 
 		rec := do(t, srv, http.MethodPost, RevokeTokenRoute, "the-secret", `{"tokens":{"fp":"tok"}}`)
 		require.Equal(t, http.StatusOK, rec.Code)
@@ -135,7 +147,9 @@ func TestHandleRevoke(t *testing.T) {
 
 	t.Run("missing secret", func(t *testing.T) {
 		t.Parallel()
-		rec := do(t, NewServer(&fakeService{}), http.MethodPost, RevokeTokenRoute, "", `{}`)
+		rec := do(t, NewServer(func() TokenService {
+			return &fakeService{}
+		}), http.MethodPost, RevokeTokenRoute, "", `{}`)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	})
 }
