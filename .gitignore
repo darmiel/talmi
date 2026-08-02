@@ -8,7 +8,7 @@ talmi.yaml
 *.yaml
 *.jsonl
 !talmi-example.yaml
-!examples/*.yaml
+!example/**/*.yaml
 charts/
 
 # If you prefer the allow list template instead of the deny list, see community template:

@@ -1,0 +1,7 @@
+- realm: ghes-corp
+  type: github-app
+  capability:
+    resources: ["ghes-corp:acme/*"]
+    max_actions: ["contents:read", "contents:write"]
+  instances:
+    - name: gh-dev
