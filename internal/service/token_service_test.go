@@ -36,13 +36,19 @@ func (f fakeIssuers) IdentifyIssuer(string) (core.Issuer, error) {
 	return f.issuer, nil
 }
 
+var _ core.Auditor = (*fakeAuditor)(nil)
+
 type fakeAuditor struct{ entries []core.AuditEntry }
 
-func (a *fakeAuditor) Log(e core.AuditEntry) error              { a.entries = append(a.entries, e); return nil }
-func (a *fakeAuditor) GetRecent(int) ([]core.AuditEntry, error) { return a.entries, nil }
-func (a *fakeAuditor) Find(func(core.AuditEntry) bool, int) ([]core.AuditEntry, error) {
+func (a *fakeAuditor) Log(_ context.Context, entry core.AuditEntry) error {
+	a.entries = append(a.entries, entry)
+	return nil
+}
+
+func (a *fakeAuditor) Query(ctx context.Context, filter core.AuditFilter) ([]core.AuditEntry, error) {
 	return nil, nil
 }
+
 func (a *fakeAuditor) Close() error { return nil }
 
 type failingStore struct{ *store.MemoryLeaseStore }
@@ -75,7 +81,7 @@ func setup(
 			principal: principal,
 			err:       verifyErr,
 		},
-	}, pm, res, leaseStore, auditor)
+	}, pm, res, leaseStore, auditor, "rev-1")
 	return svc, auditor
 }
 

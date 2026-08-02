@@ -92,12 +92,11 @@ func TestBuildProviders(t *testing.T) {
 
 func TestBuildStore(t *testing.T) {
 	t.Parallel()
-	s, cleanup, err := buildStore(context.Background(), config.StoreConfig{Type: "memory"})
+	s, err := buildStore(context.Background(), config.StoreConfig{Type: "memory"})
 	require.NoError(t, err)
 	assert.NotNil(t, s)
-	assert.Nil(t, cleanup)
 
-	_, _, err = buildStore(context.Background(), config.StoreConfig{Type: "mystery"})
+	_, err = buildStore(context.Background(), config.StoreConfig{Type: "mystery"})
 	assert.Error(t, err)
 }
 
