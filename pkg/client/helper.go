@@ -90,3 +90,10 @@ func (c *Client) do(req *http.Request, result any) (string, error) {
 
 	return correlationFromResponse(resp), nil
 }
+
+func correlationFromResponse(resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+	return resp.Header.Get("X-Correlation-ID")
+}
