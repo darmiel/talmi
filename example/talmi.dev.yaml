@@ -1,0 +1,9 @@
+grade: dev
+store: { type: memory }
+audit: { enabled: false }
+issuers:
+  include: ["issuers.d/*.yaml"]
+realms:
+  include: ["realms.d/*.yaml"]
+rules:
+  include: ["rules.d/*.yaml"]

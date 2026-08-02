@@ -1,0 +1,7 @@
+- name: dev-allow
+  match:
+    issuer: dev-ci
+    allow_empty: true
+  allow:
+    - resources: ["ghes-corp:acme/*"]
+      actions: ["contents:read"]
