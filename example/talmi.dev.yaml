@@ -1,9 +1,19 @@
 grade: dev
 store: { type: memory }
 audit: { enabled: false }
-issuers:
-  include: ["issuers.d/*.yaml"]
-realms:
-  include: ["realms.d/*.yaml"]
-rules:
-  include: ["rules.d/*.yaml"]
+
+signing:
+  algorithm: HS256
+  key: raw:thisissomesecretkeythatshouldbechanged
+
+auth:
+  login_issuer: gh-human
+  session_issuer: talmi-admins
+  session_ttl: 8h
+  server: https://github.com
+  client_id: ffffffffffffffffffff
+  scopes: [ "read:org", "read:user", "user:email" ]
+
+issuers: { include: [ "issuers.d/*.yaml" ] }
+realms: { include: [ "realms.d/*.yaml" ] }
+rules: { include: [ "rules.d/*.yaml" ] }
