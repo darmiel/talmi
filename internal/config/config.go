@@ -32,9 +32,9 @@ type StoreConfig struct {
 }
 
 type AuditConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Type    string `yaml:"type"` // jsonl | memory | noop // TODO update to postgres
-	Path    string `yaml:"path,omitempty"`
+	Enabled bool       `yaml:"enabled"`
+	Type    string     `yaml:"type"` // postgres | memory | noop // TODO update to postgres
+	DSN     secret.Ref `yaml:"dsn,omitempty"`
 }
 
 // SourceConfig points at where the sourced tree lives

@@ -26,4 +26,7 @@ type LeaseStore interface {
 
 	// DeleteExpired removes leases where every artifact is expired or revoked.
 	DeleteExpired(ctx context.Context) (int64, error)
+
+	// Close releases any resources held by the store.
+	Close() error
 }

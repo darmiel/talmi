@@ -31,20 +31,11 @@ type Runtime struct {
 	LeaseStore core.LeaseStore
 	Auditor    core.Auditor
 	Revision   string
-
-	leaseStoreCleanup func() error
 }
 
 // Close releases resources owned by the runtime
 func (r *Runtime) Close() error {
-	var errs []error
-	if r.leaseStoreCleanup != nil {
-		errs = append(errs, r.leaseStoreCleanup())
-	}
-	if r.Auditor != nil {
-		errs = append(errs, r.Auditor.Close())
-	}
-	return errors.Join(errs...)
+	return errors.Join(r.LeaseStore.Close(), r.Auditor.Close())
 }
 
 // Build assembles a new Runtime.
@@ -92,29 +83,26 @@ func Build(
 	policy := engine.NewManager(validRules, realms)
 	res := resolver.New(providers, realms)
 
-	leaseStore, cleanup, err := buildStore(ctx, cfg.Store)
+	leaseStore, err := buildStore(ctx, cfg.Store)
 	if err != nil {
 		return nil, err
 	}
 
-	auditor, err := buildAuditor(cfg.Audit)
+	auditor, err := buildAuditor(ctx, cfg.Audit)
 	if err != nil {
-		if cleanup != nil {
-			_ = cleanup()
-		}
+		_ = leaseStore.Close()
 		return nil, err
 	}
 
-	svc := service.NewTokenService(issReg, policy, res, leaseStore, auditor)
+	svc := service.NewTokenService(issReg, policy, res, leaseStore, auditor, revision)
 	return &Runtime{
-		Service:           svc,
-		Issuers:           issReg,
-		Realms:            realms,
-		Engine:            policy,
-		LeaseStore:        leaseStore,
-		Auditor:           auditor,
-		Revision:          revision,
-		leaseStoreCleanup: cleanup,
+		Service:    svc,
+		Issuers:    issReg,
+		Realms:     realms,
+		Engine:     policy,
+		LeaseStore: leaseStore,
+		Auditor:    auditor,
+		Revision:   revision,
 	}, nil
 }
 
@@ -184,32 +172,32 @@ func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, e
 	}
 }
 
-func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, func() error, error) {
+func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, error) {
 	switch cfg.Type {
 	case "", "memory":
-		return store.NewMemoryLeaseStore(), nil, nil
+		return store.NewMemoryLeaseStore(), nil
 	case "postgres":
 		dsn, err := secret.ResolveString(cfg.DSN)
 		if err != nil {
-			return nil, nil, fmt.Errorf("resolving postgres DSN: %w", err)
+			return nil, fmt.Errorf("resolving postgres DSN: %w", err)
 		}
-		pool, err := postgres.Connect(ctx, dsn)
-		if err != nil {
-			return nil, nil, fmt.Errorf("connecting to postgres: %w", err)
-		}
-		return postgres.New(pool), func() error { pool.Close(); return nil }, nil
+		return postgres.OpenLeaseStore(ctx, dsn)
 	default:
-		return nil, nil, fmt.Errorf("unknown store type %q", cfg.Type)
+		return nil, fmt.Errorf("unknown store type %q", cfg.Type)
 	}
 }
 
-func buildAuditor(cfg config.AuditConfig) (core.Auditor, error) {
+func buildAuditor(ctx context.Context, cfg config.AuditConfig) (core.Auditor, error) {
 	if !cfg.Enabled {
 		return audit.NewNoopAuditor(), nil
 	}
 	switch cfg.Type {
-	case "jsonl":
-		return audit.NewFileAuditor(cfg.Path)
+	case "postgres":
+		dsn, err := secret.ResolveString(cfg.DSN)
+		if err != nil {
+			return nil, fmt.Errorf("resolving postgres DSN: %w", err)
+		}
+		return postgres.OpenAuditor(ctx, dsn)
 	case "memory":
 		return audit.NewInMemoryAuditor(), nil
 	case "noop":
