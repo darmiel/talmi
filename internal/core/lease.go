@@ -18,7 +18,7 @@ type Lease struct {
 	PolicyNames []string `json:"policy_names"`
 
 	// PolicyRevision is the config git SHA the decision was made against,
-	// tying the lease back to a specific, reproducable policy version.
+	// tying the lease back to a specific, reproducible policy version.
 	PolicyRevision string `json:"policy_revision"`
 
 	// CreatedAt is when the lease was issued.

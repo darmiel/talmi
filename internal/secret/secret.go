@@ -12,9 +12,7 @@ type Ref string
 type resolver func(value string) ([]byte, error)
 
 var resolvers = map[string]resolver{
-	"file": func(value string) ([]byte, error) {
-		return os.ReadFile(value)
-	},
+	"file": os.ReadFile,
 	"env": func(value string) ([]byte, error) {
 		val, ok := os.LookupEnv(value)
 		if !ok {

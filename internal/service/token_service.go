@@ -218,10 +218,8 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 		return &RevokeResponse{LeaseID: lease.ID}, nil
 	}
 
-	var (
-		errs    []error
-		revoked []string
-	)
+	errs := make([]error, 0, len(pending))
+	revoked := make([]string, 0, len(pending))
 	for _, a := range pending {
 		if err := s.resolver.Revoke(ctx, a.Provider, a.RevocationID, req.Tokens[a.Fingerprint]); err != nil {
 			errs = append(errs, fmt.Errorf("provider %q artifact %s: %w", a.Provider, a.Fingerprint, err))

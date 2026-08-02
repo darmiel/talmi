@@ -65,9 +65,9 @@ func TestBuildProviders(t *testing.T) {
 		ps, err := buildProviders(specs, true)
 		require.NoError(t, err)
 		require.Len(t, ps, 1)
-		cap, err := ps[0].Capabilities(context.Background())
+		caps, err := ps[0].Capabilities(context.Background())
 		require.NoError(t, err)
-		assert.Equal(t, []string{"ghes-corp:acme/*"}, cap.Resources)
+		assert.Equal(t, []string{"ghes-corp:acme/*"}, caps.Resources)
 	})
 
 	t.Run("unknown type", func(t *testing.T) {

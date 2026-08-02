@@ -71,23 +71,6 @@ func (u *urlBuilder) setPath(path string) *urlBuilder {
 	return u
 }
 
-func (u *urlBuilder) setPaths(paths ...string) *urlBuilder {
-	fragments := make([]string, 0, len(paths))
-	for _, p := range paths {
-		trimmed := strings.Trim(p, "/")
-		if trimmed != "" {
-			fragments = append(fragments, trimmed)
-		}
-	}
-	u.path = "/" + strings.Join(fragments, "/")
-	return u
-}
-
-func (u *urlBuilder) addQueryParam(key string, value any) *urlBuilder {
-	u.orderedQuery = append(u.orderedQuery, kv{key: key, value: value})
-	return u
-}
-
 func (u *urlBuilder) addQueryParamNotEmpty(key string, value any) *urlBuilder {
 	switch v := value.(type) {
 	case string:
@@ -96,7 +79,7 @@ func (u *urlBuilder) addQueryParamNotEmpty(key string, value any) *urlBuilder {
 		}
 	case *string:
 		if v != nil && *v != "" {
-			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: *value.(*string)})
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: *v})
 		}
 	case int:
 		if v != 0 {
@@ -104,7 +87,7 @@ func (u *urlBuilder) addQueryParamNotEmpty(key string, value any) *urlBuilder {
 		}
 	case *int:
 		if v != nil && *v != 0 {
-			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: *value.(*int)})
+			u.orderedQuery = append(u.orderedQuery, kv{key: key, value: *v})
 		}
 	default:
 		if value != nil {

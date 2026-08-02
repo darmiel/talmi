@@ -90,7 +90,7 @@ func (c *Condition) UnmarshalYAML(unmarshal func(any) error) error {
 
 	// now the fun begins, because we want to support implicit conditions
 	// /shorthands like { sub: "12345" } which means { key: "sub", operator: "equals", value: "12345" }
-	var children []Condition
+	children := make([]Condition, 0, len(raw))
 
 	for k, v := range raw {
 		sub := Condition{Key: k}
@@ -187,9 +187,9 @@ func (c *Condition) Validate() error {
 	}
 	if count > 1 {
 		return fmt.Errorf("condition for key '%s' has multiple types set (all, any, not, leaf); only one is allowed", c.Key)
-	} else if count == 0 {
-		return fmt.Errorf("condition is missing required fields; must be one of (all, any, not, leaf)")
-	} else {
-		return nil
 	}
+	if count == 0 {
+		return fmt.Errorf("condition is missing required fields; must be one of (all, any, not, leaf)")
+	}
+	return nil
 }

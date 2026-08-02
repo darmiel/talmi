@@ -59,7 +59,10 @@ func (m *Manager) Trigger(name string) error {
 	if !ok {
 		return TaskNotFoundError{Name: name}
 	}
-	task := t.(*RunnableTask)
+	task, ok := t.(*RunnableTask)
+	if !ok {
+		return TaskNotFoundError{Name: name}
+	}
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -76,7 +79,9 @@ func (m *Manager) Wait() {
 func (m *Manager) ListStatus() []TaskStatus {
 	var list []TaskStatus
 	m.tasks.Range(func(_, value any) bool {
-		list = append(list, value.(*RunnableTask).Status())
+		if rt, ok := value.(*RunnableTask); ok {
+			list = append(list, rt.Status())
+		}
 		return true
 	})
 	return list
@@ -87,5 +92,9 @@ func (m *Manager) GetLogs(name string) ([]LogEntry, error) {
 	if !ok {
 		return nil, TaskNotFoundError{Name: name}
 	}
-	return t.(*RunnableTask).GetLogs(), nil
+	rt, ok := t.(*RunnableTask)
+	if !ok {
+		return nil, TaskNotFoundError{Name: name}
+	}
+	return rt.GetLogs(), nil
 }

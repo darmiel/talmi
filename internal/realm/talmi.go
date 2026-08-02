@@ -52,7 +52,7 @@ func (Talmi) ValidateResourcePattern(pattern string) error {
 		return fmt.Errorf("pattern %q is missing body", pattern)
 	}
 	if err := validGlob(pattern); err != nil {
-		return fmt.Errorf("pattern %q is not a valid glob: %v", pattern, err)
+		return fmt.Errorf("pattern %q is not a valid glob: %w", pattern, err)
 	}
 	return nil
 }

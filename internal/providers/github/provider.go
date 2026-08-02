@@ -68,15 +68,16 @@ type ghMintPlan struct {
 // It maps a ProviderConfig to ProviderConfig struct,
 func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 	var keyBytes []byte
-	if cfg.PrivateKey != "" {
+	switch {
+	case cfg.PrivateKey != "":
 		keyBytes = []byte(cfg.PrivateKey)
-	} else if cfg.PrivateKeyFile != "" {
+	case cfg.PrivateKeyFile != "":
 		contents, err := os.ReadFile(cfg.PrivateKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read private key file for github_app provider '%s': %w", name, err)
 		}
 		keyBytes = contents
-	} else {
+	default:
 		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", name)
 	}
 	p := &Provider{

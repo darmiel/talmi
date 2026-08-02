@@ -51,7 +51,7 @@ type ExplainResponse struct {
 }
 
 func (c *Client) IssueLease(ctx context.Context, token string, body IssueRequestBody) (*IssueResponse, string, error) {
-	return postAs(c, ctx, api.IssueTokenRoute, token, body, new(IssueResponse))
+	return postAs(ctx, c, api.IssueTokenRoute, token, body, new(IssueResponse))
 }
 
 func (c *Client) RevokeLease(
@@ -59,9 +59,9 @@ func (c *Client) RevokeLease(
 	secret string,
 	tokens map[string]string,
 ) (*RevokeResponse, string, error) {
-	return postAs(c, ctx, api.RevokeTokenRoute, secret, tokens, new(RevokeResponse))
+	return postAs(ctx, c, api.RevokeTokenRoute, secret, tokens, new(RevokeResponse))
 }
 
 func (c *Client) Explain(ctx context.Context, token string, body IssueRequestBody) (*ExplainResponse, string, error) {
-	return postAs(c, ctx, api.ExplainRoute, token, body, new(ExplainResponse))
+	return postAs(ctx, c, api.ExplainRoute, token, body, new(ExplainResponse))
 }

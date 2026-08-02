@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	//nolint:gosec // G101 false positive: this is a REST API path, not a credential.
 	createTokenEndpoint = "/access/api/v1/tokens"
 	deleteTokenEndpoint = createTokenEndpoint // + token_id
 )
