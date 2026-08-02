@@ -7,8 +7,8 @@ const (
 	IssueTokenRoute  = "/v2/token/issue"
 	RevokeTokenRoute = "/v2/token/revoke"
 
-	//WebhookRoute = "/v1/webhooks/github"
-	//
+	WebhookGitHubRoute = "/v2/webhooks/github"
+
 	//AuditParent           = "/v1/audit/"
 	//ListAuditsRoute       = AuditParent + "audits"
 	//ListActiveTokensRoute = AuditParent + "tokens"

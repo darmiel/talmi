@@ -14,13 +14,29 @@ type TokenService interface {
 }
 
 type Server struct {
-	current func() TokenService
+	current             func() TokenService
+	gitHubWebhookSecret []byte
+	gitHubOnWebhook     func(ctx context.Context) error
 }
 
-func NewServer(current func() TokenService) *Server {
-	return &Server{
+type Option func(*Server)
+
+// WithGitHubWebhook enables the GitHub webhook endpoint. onReceive runs after the signature is verified.
+func WithGitHubWebhook(secret []byte, onReceive func(ctx context.Context) error) Option {
+	return func(server *Server) {
+		server.gitHubWebhookSecret = secret
+		server.gitHubOnWebhook = onReceive
+	}
+}
+
+func NewServer(current func() TokenService, opts ...Option) *Server {
+	s := &Server{
 		current: current,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Server) Routes() http.Handler {
@@ -31,6 +47,10 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("POST "+IssueTokenRoute, s.handleIssue)
 	mux.HandleFunc("POST "+RevokeTokenRoute, s.handleRevoke)
+
+	if s.gitHubOnWebhook != nil {
+		mux.HandleFunc("POST "+WebhookGitHubRoute, s.handleGitHubWebhook)
+	}
 
 	return middleware.RecoverMiddleware(
 		middleware.CorrelationIDMiddleware(
