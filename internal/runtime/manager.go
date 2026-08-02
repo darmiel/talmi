@@ -86,3 +86,8 @@ func (m *Manager) InvalidateProviders() {
 		}
 	}
 }
+
+// SessionKey returns the session signing key from the stable components.
+func (m *Manager) SessionKey() []byte {
+	return m.stable.sessionKey
+}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/darmiel/talmi/internal/api"
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/logging"
 	"github.com/darmiel/talmi/internal/runtime"
 	"github.com/darmiel/talmi/internal/secret"
@@ -79,6 +80,8 @@ var serveCmd = &cobra.Command{
 
 		var opts []api.Option
 		if cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil && cfg.ConfigSource.GitHub.WebhookSecret != "" {
+			log.Info().Msg("enabling GitHub webhook endpoint for config source")
+
 			sec, err := secret.Resolve(cfg.ConfigSource.GitHub.WebhookSecret)
 			if err != nil {
 				return fmt.Errorf("resolving GitHub webhook secret: %w", err)
@@ -89,6 +92,37 @@ var serveCmd = &cobra.Command{
 				}
 				mgr.InvalidateProviders()
 				return nil
+			}))
+		}
+
+		// admin functionality
+		if cfg.Auth != nil {
+			log.Info().Msg("enabling admin endpoints")
+
+			ttl := cfg.Auth.SessionTTL
+			if ttl == 0 {
+				ttl = 8 * time.Hour
+			}
+			opts = append(opts, api.WithAdmin(api.AdminConfig{
+				LoginIssuer: func() (core.Issuer, bool) {
+					return mgr.Current().Issuers.Get(cfg.Auth.LoginIssuer)
+				},
+				SessionIssuer: func() (core.Issuer, bool) {
+					return mgr.Current().Issuers.Get(cfg.Auth.SessionIssuer)
+				},
+				Authorize: func(principal *core.Principal, req []core.ResourceRequest) core.Decision {
+					return mgr.Current().Engine.GetEngine().Authorize(principal, req)
+				},
+				Auditor: func() core.Auditor {
+					return mgr.Current().Auditor
+				},
+				SessionKey: mgr.SessionKey(),
+				SessionTTL: ttl,
+				LoginInfo: api.LoginInfo{
+					Server:   cfg.Auth.Server,
+					ClientID: cfg.Auth.ClientID,
+					Scopes:   cfg.Auth.Scopes,
+				},
 			}))
 		}
 
