@@ -17,7 +17,7 @@ type OIDCIssuer struct {
 	verifier *oidc.IDTokenVerifier
 }
 
-func NewOIDCIssuer(ctx context.Context, cfg config.IssuerConfig) (*OIDCIssuer, error) {
+func NewOIDCIssuer(ctx context.Context, cfg config.IssuerBlock) (*OIDCIssuer, error) {
 	issuerURL, ok := cfg.Config["issuer_url"].(string)
 	if !ok {
 		return nil, fmt.Errorf("oidc issuer '%s' missing 'issuer_url'", cfg.Name)

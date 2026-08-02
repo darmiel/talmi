@@ -67,7 +67,7 @@ type Includes struct {
 // IssuerBlock is one issuer definition
 type IssuerBlock struct {
 	Name   string         `yaml:"name"`
-	Type   string         `yaml:"type"` // oidc | static | github-oauth | talmi-session | concourse-oidc // TODO
+	Type   string         `yaml:"type"` // oidc | static | github-oauth | talmi-session // TODO
 	Config map[string]any `yaml:",inline"`
 }
 
