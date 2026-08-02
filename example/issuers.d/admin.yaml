@@ -1,0 +1,6 @@
+- name: gh-human
+  type: github-oauth
+  server: https://github.com
+
+- name: talmi-admins
+  type: talmi-session

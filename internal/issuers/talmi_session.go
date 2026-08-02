@@ -45,7 +45,7 @@ func (i *TalmiSessionIssuer) Verify(_ context.Context, token string) (*core.Prin
 		return i.key, nil
 	})
 	if err != nil || !parsed.Valid {
-		return nil, fmt.Errorf("invalid talmi session token: %w", err)
+		return nil, fmt.Errorf("invalid talmi session token %q: %w", token, err)
 	}
 	if aud, _ := claims["aud"].(string); aud != TalmiSessionAudience {
 		return nil, fmt.Errorf("token is not a talmi session")

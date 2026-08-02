@@ -12,7 +12,7 @@ import (
 )
 
 // requireTalmi verifies the admin session and authorizes the principal for the given talmi resource/action.
-// On failure it writes the response and returns false.
+// On failure, it writes the response and returns false.
 func (s *Server) requireTalmi(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -31,6 +31,7 @@ func (s *Server) requireTalmi(
 	}
 	principal, err := issuer.Verify(r.Context(), token)
 	if err != nil {
+		log.Ctx(r.Context()).Error().Err(err).Msg("invalid session token")
 		presenter.Error(w, r, "invalid session token", http.StatusUnauthorized)
 		return nil, false
 	}
@@ -71,7 +72,7 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireTalmi(w, r, "talmi:task", "read"); !ok {
+	if _, ok := s.requireTalmi(w, r, "talmi:tasks", "read"); !ok {
 		return
 	}
 	presenter.JSON(w, r, s.admin.Tasks.ListStatus(), http.StatusOK)

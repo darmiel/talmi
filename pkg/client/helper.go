@@ -91,6 +91,23 @@ func (c *Client) do(req *http.Request, result any) (string, error) {
 	return correlationFromResponse(resp), nil
 }
 
+// postAs POSTs with an explicit bearer (not the client's stored session token)
+func postAs[T any](c *Client, ctx context.Context, route, bearer string, body any, out *T) (*T, string, error) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, "", fmt.Errorf("marshalling payload: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", c.url().setPath(route).build(), bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+bearer)
+
+	correlation, err := c.do(req, out)
+	return out, correlation, err
+}
+
 func correlationFromResponse(resp *http.Response) string {
 	if resp == nil {
 		return ""
