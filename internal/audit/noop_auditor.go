@@ -1,6 +1,10 @@
 package audit
 
-import "github.com/darmiel/talmi/internal/core"
+import (
+	"context"
+
+	"github.com/darmiel/talmi/internal/core"
+)
 
 var _ core.Auditor = (*NoopAuditor)(nil)
 
@@ -11,16 +15,12 @@ func NewNoopAuditor() *NoopAuditor {
 	return &NoopAuditor{}
 }
 
-func (n *NoopAuditor) Log(_ core.AuditEntry) error {
+func (n *NoopAuditor) Log(ctx context.Context, entry core.AuditEntry) error {
 	return nil
 }
 
-func (n *NoopAuditor) GetRecent(_ int) ([]core.AuditEntry, error) {
-	return []core.AuditEntry{}, nil
-}
-
-func (n *NoopAuditor) Find(_ func(entry core.AuditEntry) bool, _ int) ([]core.AuditEntry, error) {
-	return []core.AuditEntry{}, nil
+func (n *NoopAuditor) Query(ctx context.Context, filter core.AuditFilter) ([]core.AuditEntry, error) {
+	return nil, nil
 }
 
 func (n *NoopAuditor) Close() error {

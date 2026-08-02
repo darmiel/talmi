@@ -25,6 +25,10 @@ func NewMemoryLeaseStore() *MemoryLeaseStore {
 	}
 }
 
+func (s *MemoryLeaseStore) Close() error {
+	return nil
+}
+
 func (s *MemoryLeaseStore) SaveLease(_ context.Context, lease core.Lease) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

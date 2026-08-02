@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"sync"
 
 	"github.com/darmiel/talmi/internal/core"
@@ -20,7 +21,7 @@ func NewInMemoryAuditor() *InMemoryAuditor {
 	}
 }
 
-func (i *InMemoryAuditor) Log(entry core.AuditEntry) error {
+func (i *InMemoryAuditor) Log(_ context.Context, entry core.AuditEntry) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -28,36 +29,15 @@ func (i *InMemoryAuditor) Log(entry core.AuditEntry) error {
 	return nil
 }
 
-func (i *InMemoryAuditor) GetRecent(limit int) ([]core.AuditEntry, error) {
+func (i *InMemoryAuditor) Query(_ context.Context, f core.AuditFilter) (matches []core.AuditEntry, _ error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-
-	if limit > len(i.entries) {
-		limit = len(i.entries)
-	}
-	start := len(i.entries) - limit
-	entries := make([]core.AuditEntry, limit)
-	copy(entries, i.entries[start:])
-
-	return entries, nil
-}
-
-func (i *InMemoryAuditor) Find(filter func(entry core.AuditEntry) bool, limit int) ([]core.AuditEntry, error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	var matches []core.AuditEntry
-	for _, entry := range i.entries {
-		if filter(entry) {
-			matches = append(matches, entry)
+	for _, e := range i.entries {
+		if matchFilter(e, f) {
+			matches = append(matches, e)
 		}
 	}
-
-	if len(matches) > limit {
-		matches = matches[len(matches)-limit:]
-	}
-
-	return matches, nil
+	return limitTail(matches, f.Limit), nil
 }
 
 func (i *InMemoryAuditor) Close() error {

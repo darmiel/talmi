@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type AuditEntry struct {
 	// ID is the unique request ID (X-Correlation-ID)
@@ -26,16 +29,33 @@ type AuditEntry struct {
 	Success          bool   `json:"success"`
 	TokenFingerprint string `json:"token_fingerprint,omitempty"`
 
-	Error      string `json:"error,omitempty"`
+	// Revision is the policy revision that was used to make the decision
+	Revision string
+
+	// Error contains a summary of the error that occurred, if any.
+	// This is a high-level message suitable for logging and monitoring.
+	Error string `json:"error,omitempty"`
+	// Stacktrace contains the full error message.
 	Stacktrace string `json:"stacktrace,omitempty"` // more detailed error info
 
 	// Metadata contains artifact details
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// AuditFilter selects audit entries by indexed criteria.
+type AuditFilter struct {
+	CorrelationID string
+	PrincipalID   string
+	Fingerprint   string
+	Action        string
+	Success       *bool
+	Since         time.Time
+	Until         time.Time
+	Limit         int // 0 = no limit
+}
+
 type Auditor interface {
-	Log(entry AuditEntry) error
-	GetRecent(limit int) ([]AuditEntry, error)
-	Find(filter func(entry AuditEntry) bool, limit int) ([]AuditEntry, error)
+	Log(ctx context.Context, entry AuditEntry) error
+	Query(ctx context.Context, filter AuditFilter) ([]AuditEntry, error)
 	Close() error
 }

@@ -1,24 +1,14 @@
 package cmd
 
 import (
-	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
 
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/cliconfig"
-	"github.com/darmiel/talmi/internal/config"
-	"github.com/darmiel/talmi/internal/engine"
-	"github.com/darmiel/talmi/internal/issuers"
-	"github.com/darmiel/talmi/internal/providers"
-	"github.com/darmiel/talmi/internal/service"
-	"github.com/darmiel/talmi/internal/store"
 	"github.com/darmiel/talmi/pkg/client"
 )
 
@@ -69,49 +59,8 @@ func (f *Factory) GetClient() (*client.Client, error) {
 	return client.New(server, client.WithAuthToken(token)), nil
 }
 
-func (f *Factory) LoadPolicyConfig() (*config.Config, error) {
-	if f.PolicyPath == "" {
-		return nil, fmt.Errorf("policy file not specified (use --policy)")
-	}
-	return config.Load(f.PolicyPath)
-}
-
-func (f *Factory) GetLocalService(ctx context.Context) (*service.TokenService, error) {
-	cfg, err := f.LoadPolicyConfig()
-	if err != nil {
-		return nil, fmt.Errorf("loading policy file: %w", err)
-	}
-
-	issReg, err := issuers.BuildRegistry(ctx, cfg.Issuers)
-	if err != nil {
-		return nil, fmt.Errorf("building issuer registry: %w", err)
-	}
-
-	signingKey := make([]byte, 32)
-	if _, err := rand.Read(signingKey); err != nil {
-		return nil, fmt.Errorf("generating signing key: %w", err)
-	}
-	provReg, err := providers.BuildRegistry(cfg.Providers, signingKey)
-	if err != nil {
-		return nil, fmt.Errorf("building provider registry: %w", err)
-	}
-
-	return service.NewTokenService(
-		issReg,
-		provReg,
-		engine.NewManager(cfg.Rules),
-		audit.NewNoopAuditor(),        // for local CLI operations, we don't do auditing
-		store.NewInMemoryTokenStore(), // for local CLI operations, in-memory store is sufficient
-	), nil
-}
-
-func (f *Factory) bindPolicyFlag(flags *pflag.FlagSet) {
-	flags.StringVarP(&f.PolicyPath, "policy", "f", "", "The Talmi policy config file to use")
-}
-
 func unwrapAPIError(err error) string {
-	var apiErr client.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[client.APIError](err); ok {
 		return apiErr.Message
 	}
 	return err.Error()

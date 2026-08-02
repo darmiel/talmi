@@ -28,6 +28,7 @@ type TokenService struct {
 	resolver      *resolver.Resolver
 	leaseStore    core.LeaseStore
 	auditor       core.Auditor
+	revision      string
 }
 
 func NewTokenService(
@@ -36,6 +37,7 @@ func NewTokenService(
 	res *resolver.Resolver,
 	leaseStore core.LeaseStore,
 	auditor core.Auditor,
+	revision string,
 ) *TokenService {
 	return &TokenService{
 		issuers:       issuers,
@@ -43,6 +45,7 @@ func NewTokenService(
 		resolver:      res,
 		leaseStore:    leaseStore,
 		auditor:       auditor,
+		revision:      revision,
 	}
 }
 
@@ -54,12 +57,13 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	}
 
 	entry := core.AuditEntry{
-		ID:     leaseID,
-		Time:   time.Now(),
-		Action: "lease.issue",
+		ID:       leaseID,
+		Time:     time.Now(),
+		Action:   "lease.issue",
+		Revision: s.revision,
 	}
 	defer func() {
-		if err := s.auditor.Log(entry); err != nil {
+		if err := s.auditor.Log(context.WithoutCancel(ctx), entry); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for lease issuance")
 		}
 	}()
@@ -171,12 +175,13 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 	}
 
 	entry := core.AuditEntry{
-		ID:     reqID,
-		Time:   time.Now(),
-		Action: "lease.revoke",
+		ID:       reqID,
+		Time:     time.Now(),
+		Action:   "lease.revoke",
+		Revision: s.revision,
 	}
 	defer func() {
-		if err := s.auditor.Log(entry); err != nil {
+		if err := s.auditor.Log(context.WithoutCancel(ctx), entry); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for lease revocation")
 		}
 	}()
