@@ -116,6 +116,7 @@ var serveCmd = &cobra.Command{
 				Auditor: func() core.Auditor {
 					return mgr.Current().Auditor
 				},
+				Tasks:      taskMgr,
 				SessionKey: mgr.SessionKey(),
 				SessionTTL: ttl,
 				LoginInfo: api.LoginInfo{
