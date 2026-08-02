@@ -14,12 +14,12 @@ type TokenService interface {
 }
 
 type Server struct {
-	tokenService TokenService
+	current func() TokenService
 }
 
-func NewServer(tokenService TokenService) *Server {
+func NewServer(current func() TokenService) *Server {
 	return &Server{
-		tokenService: tokenService,
+		current: current,
 	}
 }
 

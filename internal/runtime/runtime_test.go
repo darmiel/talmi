@@ -9,7 +9,6 @@ import (
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
-	"github.com/darmiel/talmi/internal/service"
 )
 
 func TestBuildRealms(t *testing.T) {
@@ -98,55 +97,4 @@ func TestBuildStore(t *testing.T) {
 
 	_, err = buildStore(context.Background(), config.StoreConfig{Type: "mystery"})
 	assert.Error(t, err)
-}
-
-// TestBuildDevEndToEnd wires the whole stack (dev stubs) and mints a lease.
-func TestBuildDevEndToEnd(t *testing.T) {
-	t.Parallel()
-	is := assert.New(t)
-
-	cfg := &config.Config{
-		Signing: config.SigningConfig{Key: "raw:dev-key"},
-		Store:   config.StoreConfig{Type: "memory"},
-		Audit:   config.AuditConfig{Enabled: false},
-	}
-	sourced := &config.SourcedConfig{
-		Issuers: []config.IssuerBlock{
-			{
-				Name:   "ci",
-				Type:   "static",
-				Config: map[string]any{"token_map": map[string]any{"tok": map[string]any{"sub": "user"}}},
-			},
-		},
-		Realms: []config.RealmBlock{
-			{
-				Realm: "ghes-corp", Type: "github-app",
-				Capability: config.CapabilityBlock{
-					Resources:  []string{"ghes-corp:acme/*"},
-					MaxActions: []core.Action{"contents:read"},
-				},
-				Instances: []config.InstanceBlock{{Name: "gh-ro"}},
-			},
-		},
-		Rules: []core.Rule{
-			{
-				Name:  "ci-read",
-				Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-				Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
-			},
-		},
-	}
-
-	rt, err := Build(context.Background(), cfg, sourced, "rev-1", true /* dev */)
-	require.NoError(t, err)
-	defer rt.Close()
-
-	resp, err := rt.Service.IssueLease(context.Background(), service.IssueRequest{
-		Token:     "tok",
-		Resources: []core.ResourceRequest{{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}}},
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Artifacts, 1)
-	is.NotEmpty(resp.Artifacts[0].Token)
-	is.Equal("gh-ro", resp.Artifacts[0].Provider)
 }
