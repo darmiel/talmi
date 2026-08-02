@@ -148,8 +148,7 @@ func initConfig(cfgFile string) (string, error) {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		var notFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFoundError) {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
 			return "", err
 		}
 	} else {

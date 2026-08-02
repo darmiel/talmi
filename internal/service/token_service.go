@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -159,6 +160,82 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		entry.TokenFingerprint = minted[0].Artifact.Fingerprint // TODO
 	}
 	return resp, nil
+}
+
+func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*RevokeResponse, error) {
+	logger := log.Ctx(ctx)
+
+	reqID := correlation.From(ctx)
+	if reqID == "" {
+		reqID = xid.New().String()
+	}
+
+	entry := core.AuditEntry{
+		ID:     reqID,
+		Time:   time.Now(),
+		Action: "lease.revoke",
+	}
+	defer func() {
+		if err := s.auditor.Log(entry); err != nil {
+			logger.Error().Err(err).Msg("failed to write audit log entry for lease revocation")
+		}
+	}()
+
+	lease, err := s.leaseStore.FindByRevocationSecret(ctx, req.RevocationSecret)
+	if errors.Is(err, core.ErrLeaseNotFound) {
+		entry.Error = "invalid revocation secret"
+		entry.Stacktrace = err.Error()
+		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("invalid revocation secret"))
+	}
+	if err != nil {
+		entry.Error = "store lookup failed"
+		entry.Stacktrace = err.Error()
+		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("store lookup failed: %w", err))
+	}
+	entry.Principal = &core.Principal{ID: lease.PrincipalID, Issuer: lease.Issuer}
+	entry.Metadata = map[string]any{"lease_id": lease.ID}
+
+	var pending []core.LeasedArtifact
+	for _, a := range lease.Artifacts {
+		if a.Revocable && !a.Revoked {
+			pending = append(pending, a)
+		}
+	}
+	if len(pending) == 0 {
+		entry.Success = true
+		return &RevokeResponse{LeaseID: lease.ID}, nil
+	}
+
+	var (
+		errs    []error
+		revoked []string
+	)
+	for _, a := range pending {
+		if err := s.resolver.Revoke(ctx, a.Provider, a.RevocationID, req.Tokens[a.Fingerprint]); err != nil {
+			errs = append(errs, fmt.Errorf("provider %q artifact %s: %w", a.Provider, a.Fingerprint, err))
+			continue
+		}
+		revoked = append(revoked, a.Fingerprint)
+	}
+	if len(errs) > 0 {
+		joined := errors.Join(errs...)
+		entry.Error = "revocation failed"
+		entry.Stacktrace = joined.Error()
+		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("revoking lease: %w", joined))
+	}
+
+	if err := s.leaseStore.SetLeaseRevoked(ctx, lease.ID); err != nil {
+		entry.Error = "persisting revocation failed"
+		entry.Stacktrace = err.Error()
+		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("marking lease revoked: %w", err))
+	}
+
+	entry.Success = true
+	entry.Metadata["revoked_count"] = len(revoked)
+	return &RevokeResponse{
+		LeaseID: lease.ID,
+		Revoked: revoked,
+	}, nil
 }
 
 func (s *TokenService) selectIssuer(req IssueRequest) (core.Issuer, error) {
