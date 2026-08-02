@@ -30,22 +30,22 @@ type Runtime struct {
 	Engine     *engine.PolicyManager
 	LeaseStore core.LeaseStore
 	Auditor    core.Auditor
+	Providers  []core.ResourceProvider // for webhook cache invalidation
 	Revision   string
 }
 
-// Close releases resources owned by the runtime
-func (r *Runtime) Close() error {
-	return errors.Join(r.LeaseStore.Close(), r.Auditor.Close())
+// stable holds components that persist across reloads.
+type stable struct {
+	store      core.LeaseStore
+	auditor    core.Auditor
+	sessionKey []byte
 }
 
-// Build assembles a new Runtime.
-func Build(
-	ctx context.Context,
-	cfg *config.Config,
-	sourced *config.SourcedConfig,
-	revision string,
-	dev bool,
-) (*Runtime, error) {
+func (s stable) Close() error {
+	return errors.Join(s.store.Close(), s.auditor.Close())
+}
+
+func buildStable(ctx context.Context, cfg *config.Config) (*stable, error) {
 	var sessionKey []byte
 	if cfg.Signing.Key != "" {
 		key, err := secret.Resolve(cfg.Signing.Key)
@@ -54,54 +54,59 @@ func Build(
 		}
 		sessionKey = key
 	}
-
-	realms, err := buildRealms(sourced.Realms)
-	if err != nil {
-		return nil, err
-	}
-
-	specs, err := config.ExpandProviders(sourced.Realms)
-	if err != nil {
-		return nil, fmt.Errorf("expanding providers: %w", err)
-	}
-
-	providers, err := buildProviders(specs, dev)
-	if err != nil {
-		return nil, fmt.Errorf("building providers: %w", err)
-	}
-
-	issReg, err := issuers.BuildRegistry(ctx, sourced.Issuers, sessionKey)
-	if err != nil {
-		return nil, fmt.Errorf("building issuer registry: %w", err)
-	}
-
-	validRules, err := validation.ValidateRules(sourced.Rules, issReg.KnownIssuers(), realms)
-	if err != nil {
-		return nil, fmt.Errorf("validating rules: %w", err)
-	}
-
-	policy := engine.NewManager(validRules, realms)
-	res := resolver.New(providers, realms)
-
 	leaseStore, err := buildStore(ctx, cfg.Store)
 	if err != nil {
 		return nil, err
 	}
-
 	auditor, err := buildAuditor(ctx, cfg.Audit)
 	if err != nil {
 		_ = leaseStore.Close()
 		return nil, err
 	}
+	return &stable{
+		store:      leaseStore,
+		auditor:    auditor,
+		sessionKey: sessionKey,
+	}, nil
+}
 
-	svc := service.NewTokenService(issReg, policy, res, leaseStore, auditor, revision)
+func buildReloadable(
+	ctx context.Context,
+	sourced *config.SourcedConfig,
+	revision string,
+	dev bool,
+	stable stable,
+) (*Runtime, error) {
+	realms, err := buildRealms(sourced.Realms)
+	if err != nil {
+		return nil, err
+	}
+	specs, err := config.ExpandProviders(sourced.Realms)
+	if err != nil {
+		return nil, fmt.Errorf("expanding providers: %w", err)
+	}
+	providers, err := buildProviders(specs, dev)
+	if err != nil {
+		return nil, fmt.Errorf("building providers: %w", err)
+	}
+	issReg, err := issuers.BuildRegistry(ctx, sourced.Issuers, stable.sessionKey)
+	if err != nil {
+		return nil, fmt.Errorf("building issuer registry: %w", err)
+	}
+	validRules, err := validation.ValidateRules(sourced.Rules, issReg.KnownIssuers(), realms)
+	if err != nil {
+		return nil, fmt.Errorf("validating rules: %w", err)
+	}
+	policy := engine.NewManager(validRules, realms)
+	res := resolver.New(providers, realms)
+	svc := service.NewTokenService(issReg, policy, res, stable.store, stable.auditor, revision)
 	return &Runtime{
 		Service:    svc,
 		Issuers:    issReg,
 		Realms:     realms,
 		Engine:     policy,
-		LeaseStore: leaseStore,
-		Auditor:    auditor,
+		LeaseStore: stable.store,
+		Auditor:    stable.auditor,
 		Revision:   revision,
 	}, nil
 }

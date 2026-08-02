@@ -44,28 +44,23 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("building config source: %w", err)
 		}
 
-		log.Info().Msg("loading sourced config...")
-		sourced, revision, err := src.Load(ctx)
-		if err != nil {
-			return fmt.Errorf("loading sourced config: %w", err)
-		}
-
 		log.Info().
-			Str("revision", revision).
 			Bool("dev", serveDevMode).
-			Msg("building runtime...")
+			Msg("building runtime manager...")
 
-		rt, err := runtime.Build(ctx, cfg, sourced, revision, serveDevMode)
+		mgr, err := runtime.NewManager(ctx, cfg, src, serveDevMode)
 		if err != nil {
-			return fmt.Errorf("building runtime: %w", err)
+			return fmt.Errorf("building runtime manager: %w", err)
 		}
 		defer func() {
-			if err := rt.Close(); err != nil {
-				log.Error().Err(err).Msg("closing runtime")
+			if err := mgr.Close(); err != nil {
+				log.Error().Err(err).Msg("closing runtime manager")
 			}
 		}()
 
-		srv := api.NewServer(rt.Service)
+		srv := api.NewServer(func() api.TokenService {
+			return mgr.Current().Service
+		})
 		server := &http.Server{
 			Addr:              serveAddr,
 			Handler:           srv.Routes(),
