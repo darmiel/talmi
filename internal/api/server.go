@@ -8,6 +8,7 @@ import (
 	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/service"
+	"github.com/darmiel/talmi/internal/tasks"
 )
 
 type TokenService interface {
@@ -30,6 +31,7 @@ type AdminConfig struct {
 	SessionKey    []byte
 	SessionTTL    time.Duration
 	LoginInfo     LoginInfo
+	Tasks         *tasks.Manager
 }
 
 // LoginInfo is the public device-flow config the CLI needs to start login.
@@ -82,7 +84,12 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET "+LoginConfigRoute, s.handleLoginConfig)
 		mux.HandleFunc("POST "+LoginRoute, s.handleLogin)
 
-		// ... more admin-only routes ...
+		mux.HandleFunc("GET "+AuditQueryRoute, s.handleAuditQuery)
+		if s.admin.Tasks != nil {
+			mux.HandleFunc("GET "+ListTasksRoute, s.handleListTasks)
+			mux.HandleFunc("POST "+TriggerTaskRoute, s.handleTriggerTask)
+			mux.HandleFunc("GET "+TaskLogsRoute, s.handleTaskLogs)
+		}
 	}
 
 	return middleware.RecoverMiddleware(
