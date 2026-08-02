@@ -2,6 +2,7 @@ package cliconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -24,6 +25,24 @@ func GetConfigPath() (string, error) {
 		return "", fmt.Errorf("getting user home directory: %w", err)
 	}
 	return filepath.Join(home, ".talmi", "config.json"), nil
+}
+
+// LoadOrNew loads the config, returning an empty one if the file doesn't exist (yet).
+func LoadOrNew() (*CLIConfig, error) {
+	cfg, err := Load()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// return default config
+			return &CLIConfig{
+				Credentials: make(map[string]*Credential),
+			}, nil
+		}
+		return nil, err
+	}
+	if cfg.Credentials == nil {
+		cfg.Credentials = make(map[string]*Credential)
+	}
+	return cfg, nil
 }
 
 func Load() (*CLIConfig, error) {
@@ -75,11 +94,23 @@ func Save(cfg *CLIConfig) error {
 func (c *CLIConfig) GetCredential(server string) (*Credential, error) {
 	u, err := url.Parse(server)
 	if err != nil {
-		return nil, fmt.Errorf("parsing server URL '%s': %w", server, err)
+		return nil, fmt.Errorf("parsing server URL %q: %w", server, err)
 	}
 	cred, ok := c.Credentials[u.Host]
 	if !ok {
 		return nil, ErrCredentialNotFound
 	}
 	return cred, nil
+}
+
+func (c *CLIConfig) SetCredential(server, token string) error {
+	u, err := url.Parse(server)
+	if err != nil {
+		return fmt.Errorf("parsing server URL %q: %w", server, err)
+	}
+	if c.Credentials == nil {
+		c.Credentials = make(map[string]*Credential)
+	}
+	c.Credentials[u.Host] = &Credential{Token: token}
+	return nil
 }
