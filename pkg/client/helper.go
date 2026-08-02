@@ -74,9 +74,7 @@ func (c *Client) do(req *http.Request, result any) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("connection failed: %w", err)
 	}
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return correlationFromResponse(resp), parseErrorResponse(resp)
@@ -92,7 +90,7 @@ func (c *Client) do(req *http.Request, result any) (string, error) {
 }
 
 // postAs POSTs with an explicit bearer (not the client's stored session token)
-func postAs[T any](c *Client, ctx context.Context, route, bearer string, body any, out *T) (*T, string, error) {
+func postAs[T any](ctx context.Context, c *Client, route, bearer string, body any, out *T) (*T, string, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, "", fmt.Errorf("marshalling payload: %w", err)

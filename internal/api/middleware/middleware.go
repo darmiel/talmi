@@ -41,9 +41,10 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 func RecoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		defer func() {
 			if err := recover(); err != nil {
-				log.Ctx(r.Context()).Error().
+				log.Ctx(ctx).Error().
 					Interface("panic", err).
 					Bytes("stack", debug.Stack()).
 					Msg("panic.recovered")

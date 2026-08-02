@@ -111,58 +111,60 @@ func evaluateCondition(cond core.Condition, attributes map[string]any) core.Cond
 	}
 
 	// leaf condition
-	if cond.Key != "" {
-		val, exists := attributes[cond.Key]
-
-		createCondition := func(passed bool, reason string) core.ConditionResult {
-			return core.ConditionResult{
-				Matched:    passed,
-				Expression: fmt.Sprintf("%s %s %v", cond.Key, cond.Operator, cond.Value),
-				Reason:     reason,
-			}
+	if cond.Key == "" {
+		return core.ConditionResult{
+			Matched: true,
+			Label:   "(empty)",
 		}
-
-		if cond.Operator == core.OpExists {
-			if !exists {
-				return createCondition(false, fmt.Sprintf("attribute '%s' does not exist", cond.Key))
-			}
-			return createCondition(true, "")
-		}
-
-		if !exists {
-			return createCondition(false, fmt.Sprintf("attribute '%s' missing", cond.Key))
-		}
-
-		switch cond.Operator {
-		case core.OpEqual:
-			if !valuesEqual(val, cond.Value) {
-				return createCondition(false, fmt.Sprintf("expected '%v' to equal '%v'", val, cond.Value))
-			}
-			return createCondition(true, "")
-
-		case core.OpContains:
-			// check if {val} contains {cond.Value}
-			// e.g. "sub contains "@acme.com"
-			if !contains(val, cond.Value) {
-				return createCondition(false, fmt.Sprintf("value '%v' not in '%v'", val, cond.Value))
-			}
-			return createCondition(true, fmt.Sprintf("value '%v' contains '%v'", val, cond.Value))
-
-		case core.OpIn:
-			// check if {cond.Value} contains {val}
-			// e.g. "region IN ['us-east-1', 'us-west-2']"
-			if !contains(cond.Value, val) {
-				return createCondition(false, fmt.Sprintf("value '%v' not in list '%v'", val, cond.Value))
-			}
-			return createCondition(true, fmt.Sprintf("value '%v' found in list '%v'", val, cond.Value))
-		}
-
-		return createCondition(false, fmt.Sprintf("unknown operator '%s' in condition", cond.Operator))
 	}
 
-	return core.ConditionResult{
-		Matched: true,
-		Label:   "(empty)",
+	val, exists := attributes[cond.Key]
+
+	createCondition := func(passed bool, reason string) core.ConditionResult {
+		return core.ConditionResult{
+			Matched:    passed,
+			Expression: fmt.Sprintf("%s %s %v", cond.Key, cond.Operator, cond.Value),
+			Reason:     reason,
+		}
+	}
+
+	if cond.Operator == core.OpExists {
+		if !exists {
+			return createCondition(false, fmt.Sprintf("attribute '%s' does not exist", cond.Key))
+		}
+		return createCondition(true, "")
+	}
+
+	if !exists {
+		return createCondition(false, fmt.Sprintf("attribute '%s' missing", cond.Key))
+	}
+
+	switch cond.Operator {
+	case core.OpEqual:
+		if !valuesEqual(val, cond.Value) {
+			return createCondition(false, fmt.Sprintf("expected '%v' to equal '%v'", val, cond.Value))
+		}
+		return createCondition(true, "")
+
+	case core.OpContains:
+		// check if {val} contains {cond.Value}
+		// e.g. "sub contains "@acme.com"
+		if !contains(val, cond.Value) {
+			return createCondition(false, fmt.Sprintf("value '%v' not in '%v'", val, cond.Value))
+		}
+		return createCondition(true, fmt.Sprintf("value '%v' contains '%v'", val, cond.Value))
+
+	case core.OpIn:
+		// check if {cond.Value} contains {val}
+		// e.g. "region IN ['us-east-1', 'us-west-2']"
+		if !contains(cond.Value, val) {
+			return createCondition(false, fmt.Sprintf("value '%v' not in list '%v'", val, cond.Value))
+		}
+		return createCondition(true, fmt.Sprintf("value '%v' found in list '%v'", val, cond.Value))
+
+	default:
+		// OpExists is handled above, before the existence guard.
+		return createCondition(false, fmt.Sprintf("unknown operator '%s' in condition", cond.Operator))
 	}
 }
 

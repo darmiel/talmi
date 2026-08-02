@@ -1,0 +1,100 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    # correctness
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - typecheck
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    - nilerr
+    - contextcheck
+    - errorlint
+    - exhaustive
+    - copyloopvar
+    - makezero
+    # style / consistency
+    - gofumpt
+    - goimports
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+    - wastedassign
+    - predeclared
+    - nakedret
+    - dupword
+    # complexity / quality
+    - gocritic
+    - gocyclo
+    - nestif
+    - prealloc
+    # security
+    - gosec
+    # nolint hygiene
+    - nolintlint
+
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  nestif:
+    min-complexity: 6
+  gofumpt:
+    extra-rules: true
+  goimports:
+    local-prefixes: github.com/darmiel/talmi
+  revive:
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: indent-error-flow
+      - name: unreachable-code
+  exhaustive:
+    default-signifies-exhaustive: true
+  nolintlint:
+    require-explanation: true
+    require-specific: true
+    allow-unused: false
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    # test files may skip some strictness
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - dupword
+        - gocyclo
+        - unparam
+    # generated / migration SQL embed
+    - path: internal/store/postgres/migrations/
+      linters:
+        - gosec
+    # Go 1.26 new(expr): staticcheck/wastedassign (bundled with golangci-lint
+    # v1.64) predate the new(expr) form and cannot see that the value is used
+    # inside it. Remove once the linters understand new(expr).
+    - path: internal/store/lease_memory\.go
+      text: "SA4006:"
+      linters:
+        - staticcheck
+    - path: internal/store/lease_memory\.go
+      linters:
+        - wastedassign

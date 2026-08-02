@@ -168,7 +168,7 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, _ string) error {
 	return nil
 }
 
-// groupScope builds a JFrog "applied-permisions/groups" scope, quoting each group so names with spaces
+// groupScope builds a JFrog "applied-permission/groups" scope, quoting each group so names with spaces
 // or commas are handled correctly.
 func groupScope(groups []string) string {
 	quoted := make([]string, len(groups))

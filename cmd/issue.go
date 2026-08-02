@@ -86,7 +86,7 @@ func resolveToken(args []string) string {
 }
 
 func gatherResources(flags []string, manifestPath string) ([]client.ResourceRequest, error) {
-	var out []client.ResourceRequest
+	out := make([]client.ResourceRequest, 0, len(flags))
 	for _, f := range flags {
 		res, actions, ok := strings.Cut(f, "=")
 		if !ok || res == "" || actions == "" {

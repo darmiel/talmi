@@ -70,12 +70,12 @@ func logSuccess(format string, args ...any) {
 	log.Info().Msgf("%s %s", greenCheck, fmt.Sprintf(format, args...))
 }
 
-func logError(err error, correlation, format string, args ...any) error {
+func logError(err error, correlation, msg string) error {
 	suffix := ""
 	if correlation != "" {
 		suffix += fmt.Sprintf(" (correlation: %s)", correlation)
 	}
-	log.Error().Msgf("%s %s%s", redCross, fmt.Sprintf(format, args...), suffix)
+	log.Error().Msgf("%s %s%s", redCross, msg, suffix)
 	log.Error().Msgf("error: %v", unwrapAPIError(err))
 	return BeQuietError{}
 }
