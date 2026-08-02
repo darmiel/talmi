@@ -1,0 +1,9 @@
+- name: talmi-admins
+  match:
+    issuer: gh-human
+    condition:
+      teams: { contains: "talmi-dev-poc/admin-users" }
+  allow:
+    - { resources: [ "talmi:session" ], actions: [ "login" ] }
+    - { resources: [ "talmi:audit" ],   actions: [ "read" ] }
+    - { resources: [ "talmi:tasks", "talmi:tasks/*" ], actions: [ "read", "trigger" ] }

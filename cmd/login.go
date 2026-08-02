@@ -62,6 +62,9 @@ token you already hold, skipping the browser step.`,
 		if err := cfg.SetCredential(server, session.Token); err != nil {
 			return err
 		}
+		if err := cliconfig.Save(cfg); err != nil {
+			return fmt.Errorf("saving config: %w", err)
+		}
 
 		logSuccess("logged in to %s (session valid until %s)",
 			server, session.ExpiresAt.Local().Format(time.RFC1123))
