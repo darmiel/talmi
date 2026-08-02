@@ -47,6 +47,17 @@ type revokeResponseBody struct {
 	Revoked []string `json:"revoked"`
 }
 
+type explainPrincipal struct {
+	ID         string         `json:"ID"`
+	Issuer     string         `json:"issuer"`
+	Attributes map[string]any `json:"attributes"`
+}
+
+type explainResponseBody struct {
+	Principal explainPrincipal `json:"principal"`
+	Decision  core.Decision    `json:"decision"`
+}
+
 func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := log.Ctx(ctx)
@@ -110,6 +121,42 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	presenter.JSON(w, r, revokeResponseBody{
 		LeaseID: resp.LeaseID,
 		Revoked: resp.Revoked,
+	}, http.StatusOK)
+}
+
+func (s *Server) handleExplain(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if token == "" {
+		presenter.Error(w, r, "missing bearer token", http.StatusUnauthorized)
+		return
+	}
+	var body issueRequestBody
+	if err := DecodePayload(r, &body, false); err != nil {
+		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
+		return
+	}
+	if len(body.Resources) == 0 {
+		presenter.Error(w, r, "at least one resource is required", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := s.current().Explain(r.Context(), service.IssueRequest{
+		Token:           token,
+		RequestedIssuer: body.Issuer,
+		Resources:       toResourceRequests(body.Resources),
+	})
+	if err != nil {
+		presenter.Err(w, r, err, "explain failed")
+		return
+	}
+
+	presenter.JSON(w, r, explainResponseBody{
+		Principal: explainPrincipal{
+			ID:         resp.Principal.ID,
+			Issuer:     resp.Principal.Issuer,
+			Attributes: resp.Principal.Attributes,
+		},
+		Decision: resp.Decision,
 	}, http.StatusOK)
 }
 

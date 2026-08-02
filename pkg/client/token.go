@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/darmiel/talmi/internal/api"
+	"github.com/darmiel/talmi/internal/core"
 )
 
 type ResourceRequest struct {
@@ -38,6 +39,17 @@ type RevokeResponse struct {
 	Revoked []string `json:"revoked"`
 }
 
+type ExplainPrincipal struct {
+	ID         string         `json:"id"`
+	Issuer     string         `json:"issuer"`
+	Attributes map[string]any `json:"attributes"`
+}
+
+type ExplainResponse struct {
+	Principal ExplainPrincipal `json:"principal"`
+	Decision  core.Decision    `json:"decision"`
+}
+
 func (c *Client) IssueLease(ctx context.Context, token string, body IssueRequestBody) (*IssueResponse, string, error) {
 	return postAs(c, ctx, api.IssueTokenRoute, token, body, new(IssueResponse))
 }
@@ -48,4 +60,8 @@ func (c *Client) RevokeLease(
 	tokens map[string]string,
 ) (*RevokeResponse, string, error) {
 	return postAs(c, ctx, api.RevokeTokenRoute, secret, tokens, new(RevokeResponse))
+}
+
+func (c *Client) Explain(ctx context.Context, token string, body IssueRequestBody) (*ExplainResponse, string, error) {
+	return postAs(c, ctx, api.ExplainRoute, token, body, new(ExplainResponse))
 }

@@ -32,6 +32,9 @@ type AuditEntry struct {
 	// Revision is the policy revision that was used to make the decision
 	Revision string
 
+	// Decision contains the per-request coverage tree
+	Decision *Decision `json:"decision,omitempty"`
+
 	// Error contains a summary of the error that occurred, if any.
 	// This is a high-level message suitable for logging and monitoring.
 	Error string `json:"error,omitempty"`

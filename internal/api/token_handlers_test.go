@@ -35,6 +35,10 @@ func (f *fakeService) RevokeLease(_ context.Context, req service.RevokeRequest) 
 	return f.revokeResp, f.revokeErr
 }
 
+func (f *fakeService) Explain(_ context.Context, req service.IssueRequest) (*service.ExplainResponse, error) {
+	return &service.ExplainResponse{}, nil
+}
+
 func do(t *testing.T, srv *Server, method, path, auth, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))

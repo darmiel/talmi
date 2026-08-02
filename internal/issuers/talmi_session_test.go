@@ -40,12 +40,13 @@ func TestTalmiSessionIssuer(t *testing.T) {
 		is := assert.New(t)
 		token := signHS256(t, jwt.MapClaims{
 			"aud": TalmiSessionAudience, "sub": "alice", "exp": future,
-			"teams": []string{"acme/platform-admins"},
+			"origin_iss": "gh-human",
+			"attrs":      map[string]any{"teams": []string{"acme/platform-admins"}},
 		}, key)
 		p, err := iss.Verify(context.Background(), token)
 		require.NoError(t, err)
 		is.Equal("alice", p.ID)
-		is.Equal("talmi-admins", p.Issuer)
+		is.Equal("gh-human", p.Issuer) // restored from origin_iss
 		is.Contains(p.Attributes["teams"], "acme/platform-admins")
 	})
 
