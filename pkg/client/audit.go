@@ -11,6 +11,7 @@ import (
 type AuditFilter struct {
 	CorrelationID string
 	PrincipalID   string
+	Fingerprint   string
 	Action        string
 	Since         string // RFC3339
 	Limit         int
@@ -21,6 +22,7 @@ func (c *Client) QueryAudit(ctx context.Context, filter AuditFilter) ([]core.Aud
 		setPath(api.AuditQueryRoute).
 		addQueryParamNotEmpty("correlation_id", filter.CorrelationID).
 		addQueryParamNotEmpty("principal_id", filter.PrincipalID).
+		addQueryParamNotEmpty("fingerprint", filter.Fingerprint).
 		addQueryParamNotEmpty("action", filter.Action).
 		addQueryParamNotEmpty("since", filter.Since).
 		addQueryParamNotEmpty("limit", filter.Limit).

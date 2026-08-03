@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/providers/stub"
@@ -366,4 +368,99 @@ func TestRevokeLeasePartialFailureIsResumable(t *testing.T) {
 	_, err = svc.RevokeLease(context.Background(), RevokeRequest{RevocationSecret: issued.RevocationSecret})
 	is.Error(err)
 	is.Len(ok.Revoked(), 1, "already-revoked artifact must not be revoked again")
+}
+
+// TestIssueNestsArtifactsInAudit verifies that a lease issue writes exactly ONE
+// audit entry per request, with the minted artifacts (and their fingerprints)
+// nested inside it - never one entry per artifact.
+func TestIssueNestsArtifactsInAudit(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	reg := realm.NewRegistry()
+	reg.Register("ghes-corp", realm.GitHub{})
+	gh := stub.New("gh", "ghes-corp",
+		stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	rules := []core.Rule{{
+		Name:  "read",
+		Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
+		Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+	}}
+	pm := engine.NewManager(rules, reg)
+	res := resolver.New([]core.ResourceProvider{gh}, reg)
+	mem := store.NewMemoryLeaseStore()
+	auditor := audit.NewInMemoryAuditor()
+	svc := NewTokenService(
+		fakeIssuers{issuer: fakeIssuer{principal: principal}},
+		pm, res, mem, auditor, "rev-1",
+	)
+
+	issued, err := svc.IssueLease(context.Background(), readRequest())
+	require.NoError(t, err)
+	require.Len(t, issued.Artifacts, 1)
+	fp := issued.Artifacts[0].Fingerprint
+	require.NotEmpty(t, fp, "stub artifact should carry a fingerprint")
+
+	// Exactly one entry for the whole request, with the artifact nested inside.
+	all, err := auditor.Query(context.Background(), core.AuditFilter{})
+	require.NoError(t, err)
+	require.Len(t, all, 1, "one audit entry per request, not per artifact")
+	entry := all[0]
+	is.Equal("lease.issue", entry.Action)
+	is.Equal(issued.LeaseID, entry.ID)
+	is.True(entry.Success)
+	require.Len(t, entry.Artifacts, 1)
+	is.Equal(issued.Artifacts[0].ArtifactID, entry.Artifacts[0].ArtifactID)
+	is.Equal(fp, entry.Artifacts[0].Fingerprint)
+	is.Equal("gh", entry.Artifacts[0].Provider)
+
+	// Fingerprint filter matches the nested artifact and returns the single request entry.
+	byFP, err := auditor.Query(context.Background(), core.AuditFilter{Fingerprint: fp})
+	require.NoError(t, err)
+	require.Len(t, byFP, 1)
+	is.Equal(issued.LeaseID, byFP[0].ID)
+}
+
+// TestIssueDeniedWritesSingleAuditEntry verifies that a denied multi-resource
+// request produces ONE failure entry, not one per requested resource.
+func TestIssueDeniedWritesSingleAuditEntry(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	// principal from an issuer no rule matches -> every resource is denied
+	principal := &core.Principal{ID: "p", Issuer: "stranger"}
+	reg := realm.NewRegistry()
+	reg.Register("ghes-corp", realm.GitHub{})
+	gh := stub.New("gh", "ghes-corp",
+		stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	rules := []core.Rule{{
+		Name:  "read",
+		Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
+		Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+	}}
+	pm := engine.NewManager(rules, reg)
+	res := resolver.New([]core.ResourceProvider{gh}, reg)
+	mem := store.NewMemoryLeaseStore()
+	auditor := audit.NewInMemoryAuditor()
+	svc := NewTokenService(
+		fakeIssuers{issuer: fakeIssuer{principal: principal}},
+		pm, res, mem, auditor, "rev-1",
+	)
+
+	reqs := make([]core.ResourceRequest, 0, 10)
+	for i := range 10 {
+		reqs = append(reqs, core.ResourceRequest{
+			Resource: core.Resource(fmt.Sprintf("ghes-corp:acme/repo-%d", i)),
+			Actions:  []core.Action{"contents:read"},
+		})
+	}
+	_, err := svc.IssueLease(context.Background(), IssueRequest{Token: "tok", Resources: reqs})
+	is.Error(err)
+
+	all, err := auditor.Query(context.Background(), core.AuditFilter{})
+	require.NoError(t, err)
+	require.Len(t, all, 1, "a denied 10-resource request must write exactly one audit entry")
+	is.False(all[0].Success)
+	is.Empty(all[0].Artifacts, "nothing minted, so no nested artifacts")
 }

@@ -56,6 +56,7 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 		CorrelationID: q.Get("correlation_id"),
 		PrincipalID:   q.Get("principal_id"),
 		Action:        q.Get("action"),
+		Fingerprint:   q.Get("fingerprint"),
 		Success:       parseBoolPtr(q.Get("success")),
 		Since:         parseTime(q.Get("since")),
 		Until:         parseTime(q.Get("until")),
