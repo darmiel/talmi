@@ -138,11 +138,15 @@ func renderLease(resp *client.IssueResponse) {
 	tw := table.NewWriter()
 	applyTableFormat(tw)
 	tw.SetOutputMirror(os.Stdout)
-	tw.AppendHeader(table.Row{"Provider", "Realm", "Covers", "Expires", "Fingerprint"})
+	tw.AppendHeader(table.Row{"Artifact", "Provider", "Realm", "Covers", "Expires", "RevToken?"})
 	for _, a := range resp.Artifacts {
+		revTok := "no"
+		if a.RequiresTokenForRevocation {
+			revTok = "yes"
+		}
 		tw.AppendRow(table.Row{
-			a.Provider, a.Realm, strings.Join(a.Covers, ","),
-			a.ExpiresAt.Local().Format(time.RFC3339), a.Fingerprint,
+			a.ArtifactID, a.Provider, a.Realm, strings.Join(a.Covers, ","),
+			a.ExpiresAt.Local().Format(time.RFC3339), revTok,
 		})
 	}
 	tw.Render()

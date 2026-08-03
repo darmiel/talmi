@@ -58,16 +58,16 @@ func (s *LeaseStore) SaveLease(ctx context.Context, lease core.Lease) error {
 		return fmt.Errorf("inserting lease: %w", err)
 	}
 
-	for i, a := range lease.Artifacts {
+	for _, a := range lease.Artifacts {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO lease_artifacts
-				(lease_id, idx, provider, realm, covers, fingerprint,
-				 expires_at, revocable, revoked, revocation_id, metadata)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-			lease.ID, i, a.Provider, a.Realm, a.Covers, a.Fingerprint,
-			a.ExpiresAt, a.Revocable, a.Revoked, a.RevocationID, a.Metadata,
+				(artifact_id, lease_id, provider, realm, covers, fingerprint,
+				 expires_at, revocable, requires_token_for_revocation, revoked, revocation_id, metadata)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+			a.ArtifactID, lease.ID, a.Provider, a.Realm, a.Covers, a.Fingerprint,
+			a.ExpiresAt, a.Revocable, a.RequiresTokenForRevocation, a.Revoked, a.RevocationID, a.Metadata,
 		); err != nil {
-			return fmt.Errorf("inserting artifact %d: %w", i, err)
+			return fmt.Errorf("inserting artifact %s: %w", a.ArtifactID, err)
 		}
 	}
 
@@ -183,8 +183,9 @@ func (s *LeaseStore) scanLease(r row) (*core.Lease, error) {
 
 func (s *LeaseStore) loadArtifacts(ctx context.Context, leaseID string) ([]core.LeasedArtifact, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT provider, realm, covers, fingerprint, expires_at, revocable, revoked, revocation_id, metadata
-		FROM lease_artifacts WHERE lease_id = $1 ORDER BY idx`, leaseID)
+		SELECT artifact_id, provider, realm, covers, fingerprint, expires_at,
+    	revocable, requires_token_for_revocation, revoked, revocation_id, metadata
+		FROM lease_artifacts WHERE lease_id = $1 ORDER BY artifact_id`, leaseID)
 	if err != nil {
 		return nil, fmt.Errorf("querying artifacts: %w", err)
 	}
@@ -194,8 +195,8 @@ func (s *LeaseStore) loadArtifacts(ctx context.Context, leaseID string) ([]core.
 	for rows.Next() {
 		var a core.LeasedArtifact
 		if err := rows.Scan(
-			&a.Provider, &a.Realm, &a.Covers, &a.Fingerprint, &a.ExpiresAt,
-			&a.Revocable, &a.Revoked, &a.RevocationID, &a.Metadata,
+			&a.ArtifactID, &a.Provider, &a.Realm, &a.Covers, &a.Fingerprint, &a.ExpiresAt,
+			&a.Revocable, &a.RequiresTokenForRevocation, &a.Revoked, &a.RevocationID, &a.Metadata,
 		); err != nil {
 			return nil, fmt.Errorf("scanning artifact: %w", err)
 		}

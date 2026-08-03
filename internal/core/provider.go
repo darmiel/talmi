@@ -28,4 +28,8 @@ type TokenRevoker interface {
 	Provider
 
 	Revoke(ctx context.Context, revocationID, tokenVal string) error
+
+	// RequiresTokenForRevocation indicates that the client should send the minted token value along with the
+	// revocation request. This is used for providers that require the token value to revoke it, such as GitHub.
+	RequiresTokenForRevocation() bool
 }

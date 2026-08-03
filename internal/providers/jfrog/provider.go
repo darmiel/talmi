@@ -11,7 +11,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -141,10 +140,9 @@ func (p *Provider) Mint(
 	}
 
 	artifact := &core.TokenArtifact{
-		Value:       resp.AccessToken,
-		Fingerprint: audit.CalculateFingerprint(audit.JFrogFingerprintType, resp.AccessToken),
-		ExpiresAt:   time.Now().Add(time.Duration(responseExpiresIn) * time.Second),
-		Provider:    info,
+		Value:     resp.AccessToken,
+		ExpiresAt: time.Now().Add(time.Duration(responseExpiresIn) * time.Second),
+		Provider:  info,
 		Metadata: map[string]any{
 			"token_id":   resp.TokenID,
 			"token_type": resp.TokenType,
@@ -166,6 +164,10 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, _ string) error {
 		return fmt.Errorf("revoking jfrog artifactory token ID %s: %w", revocationID, err)
 	}
 	return nil
+}
+
+func (p *Provider) RequiresTokenForRevocation() bool {
+	return false
 }
 
 // groupScope builds a JFrog "applied-permission/groups" scope, quoting each group so names with spaces

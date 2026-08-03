@@ -25,16 +25,17 @@ var (
 )
 
 type Provider struct {
-	name       string
-	realm      string
-	resources  []string
-	maxActions []core.Action
-	ttl        time.Duration
-	mintErr    error
-	revokeErr  error
-	capError   error
-	mu         sync.Mutex
-	revoked    []string
+	name                       string
+	realm                      string
+	resources                  []string
+	maxActions                 []core.Action
+	ttl                        time.Duration
+	mintErr                    error
+	revokeErr                  error
+	capError                   error
+	mu                         sync.Mutex
+	revoked                    []string
+	requiresTokenForRevocation bool
 }
 
 type Option func(*Provider)
@@ -72,6 +73,12 @@ func WithRevokeError(err error) Option {
 func WithCapabilitiesError(err error) Option {
 	return func(provider *Provider) {
 		provider.capError = err
+	}
+}
+
+func WithRequiresTokenForRevocation(requires bool) Option {
+	return func(provider *Provider) {
+		provider.requiresTokenForRevocation = requires
 	}
 }
 
@@ -148,6 +155,10 @@ func (p *Provider) Revoke(_ context.Context, revocationID, _ string) error {
 
 	p.revoked = append(p.revoked, revocationID)
 	return nil
+}
+
+func (p *Provider) RequiresTokenForRevocation() bool {
+	return p.requiresTokenForRevocation
 }
 
 func (p *Provider) Revoked() []string {

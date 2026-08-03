@@ -294,6 +294,11 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 	return nil
 }
 
+// RequiresTokenForRevocation indicates that the GitHub provider requires the original token to revoke it.
+func (p *Provider) RequiresTokenForRevocation() bool {
+	return true
+}
+
 func (p *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
 	correlationID := correlation.From(ctx)
 

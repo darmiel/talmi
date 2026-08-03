@@ -24,10 +24,9 @@ type AuditEntry struct {
 	RequestedIssuer string `json:"issuer,omitempty"`
 
 	// Decision details
-	PolicyName       string `json:"policy_name,omitempty"`
-	Provider         string `json:"provider,omitempty"`
-	Success          bool   `json:"success"`
-	TokenFingerprint string `json:"token_fingerprint,omitempty"`
+	PolicyName string `json:"policy_name,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Success    bool   `json:"success"`
 
 	// Revision is the policy revision that was used to make the decision
 	Revision string
@@ -49,7 +48,6 @@ type AuditEntry struct {
 type AuditFilter struct {
 	CorrelationID string
 	PrincipalID   string
-	Fingerprint   string
 	Action        string
 	Success       *bool
 	Since         time.Time

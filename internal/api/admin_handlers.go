@@ -55,7 +55,6 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 	filter := core.AuditFilter{
 		CorrelationID: q.Get("correlation_id"),
 		PrincipalID:   q.Get("principal_id"),
-		Fingerprint:   q.Get("fingerprint"),
 		Action:        q.Get("action"),
 		Success:       parseBoolPtr(q.Get("success")),
 		Since:         parseTime(q.Get("since")),

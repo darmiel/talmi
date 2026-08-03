@@ -38,10 +38,10 @@ func (a *Auditor) Log(ctx context.Context, entry core.AuditEntry) error {
 	}
 	_, err := a.pool.Exec(ctx, `
 		INSERT INTO audit_log
-			(correlation_id, time, action, principal_id, fingerprint, success, revision, entry)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			(correlation_id, time, action, principal_id, success, revision, entry)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		entry.ID, entry.Time, entry.Action, principalID,
-		entry.TokenFingerprint, entry.Success, entry.Revision, entry,
+		entry.Success, entry.Revision, entry,
 	)
 	if err != nil {
 		return fmt.Errorf("writing audit entry: %w", err)
@@ -63,9 +63,6 @@ func (a *Auditor) Query(ctx context.Context, f core.AuditFilter) ([]core.AuditEn
 	}
 	if f.Action != "" {
 		add("action", f.Action)
-	}
-	if f.Fingerprint != "" {
-		add("fingerprint", f.Fingerprint)
 	}
 	if f.PrincipalID != "" {
 		add("principal_id", f.PrincipalID)

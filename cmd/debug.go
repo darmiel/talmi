@@ -132,8 +132,10 @@ func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.AddCommand(attributesCmd, fingerprintCmd)
 
-	fingerprintCmd.Flags().StringVar(&fingerprintProviderType, "type", audit.DefaultFingerprintType,
+	fingerprintCmd.Flags().StringVar(&fingerprintProviderType, "type", "",
 		fmt.Sprintf("Provider type (one of: %s)", strings.Join(audit.RegisteredFingerprinterTypes(), ", ")))
 	fingerprintCmd.Flags().BoolVarP(&fingerprintRaw, "raw", "r", false,
 		"Output only the fingerprint value without additional text")
+
+	_ = fingerprintCmd.MarkFlagRequired("type")
 }

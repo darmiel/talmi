@@ -27,12 +27,13 @@ func New(providers []core.ResourceProvider, realms *realm.Registry) *Resolver {
 
 // Minted is one successfully minted artifact and what it covers
 type Minted struct {
-	Provider     string
-	Realm        string
-	Covers       []core.ResourceRequest
-	Artifact     *core.TokenArtifact
-	Revocable    bool
-	RevocationID string
+	Provider                   string
+	Realm                      string
+	Covers                     []core.ResourceRequest
+	Artifact                   *core.TokenArtifact
+	Revocable                  bool
+	RevocationID               string
+	RequiresTokenForRevocation bool
 }
 
 type candidate struct {
@@ -95,16 +96,23 @@ func (r *Resolver) Resolve(
 				r.rollback(ctx, done)
 				return nil, fmt.Errorf("minting for provider %q: %w", p.Name(), err)
 			}
-			_, revocable := p.(core.TokenRevoker)
+
+			revoker, revocable := p.(core.TokenRevoker)
+			requiresTokenForRevocation := false
+			if revocable {
+				requiresTokenForRevocation = revoker.RequiresTokenForRevocation()
+			}
+
 			done = append(done, mintedRecord{
 				provider: p,
 				minted: Minted{
-					Provider:     p.Name(),
-					Realm:        p.Realm(),
-					Covers:       plan.Covers,
-					Artifact:     artifact,
-					Revocable:    revocable,
-					RevocationID: artifact.RevocationID(),
+					Provider:                   p.Name(),
+					Realm:                      p.Realm(),
+					Covers:                     plan.Covers,
+					Artifact:                   artifact,
+					Revocable:                  revocable,
+					RevocationID:               artifact.RevocationID(),
+					RequiresTokenForRevocation: requiresTokenForRevocation,
 				},
 			})
 		}

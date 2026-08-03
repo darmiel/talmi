@@ -16,21 +16,24 @@ CREATE INDEX idx_leases_revocation_hash
 
 CREATE TABLE lease_artifacts
 (
-    lease_id      TEXT        NOT NULL REFERENCES leases (id) ON DELETE CASCADE,
-    idx           INT         NOT NULL,
-    provider      TEXT        NOT NULL,
-    realm         TEXT        NOT NULL,
-    covers        JSONB       NOT NULL,
-    fingerprint   TEXT        NOT NULL DEFAULT '',
-    expires_at    TIMESTAMPTZ NOT NULL,
-    revocable     BOOLEAN     NOT NULL DEFAULT false,
-    revoked       BOOLEAN     NOT NULL DEFAULT false,
-    revocation_id TEXT        NOT NULL DEFAULT '',
-    metadata      JSONB       NOT NULL DEFAULT '{}',
-    PRIMARY KEY (lease_id, idx)
+    artifact_id                   TEXT PRIMARY KEY,
+    lease_id                      TEXT        NOT NULL REFERENCES leases (id) ON DELETE CASCADE,
+    provider                      TEXT        NOT NULL,
+    realm                         TEXT        NOT NULL,
+    covers                        JSONB       NOT NULL,
+    fingerprint                   TEXT        NOT NULL DEFAULT '',
+    expires_at                    TIMESTAMPTZ NOT NULL,
+    revocable                     BOOLEAN     NOT NULL DEFAULT false,
+    requires_token_for_revocation BOOLEAN     NOT NULL DEFAULT false,
+    revoked                       BOOLEAN     NOT NULL DEFAULT false,
+    revocation_id                 TEXT        NOT NULL DEFAULT '',
+    metadata                      JSONB       NOT NULL DEFAULT '{}'
 );
+
+CREATE INDEX idx_artifacts_lease ON lease_artifacts (lease_id);
 
 -- supports ListActive / DeleteExpired scans over live artifacts
 CREATE INDEX idx_artifacts_active
     ON lease_artifacts (expires_at)
     WHERE revoked = false;
+
