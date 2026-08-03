@@ -76,8 +76,19 @@ func (r *Resolver) Resolve(
 			return nil, fmt.Errorf("no provider can serve resource %q with actions %v",
 				request.Resource, request.Actions)
 		}
+		log.Ctx(ctx).Debug().
+			Str("resource", string(request.Resource)).
+			Interface("actions", request.Actions).
+			Str("realm", realmName).
+			Str("provider", chosen).
+			Msg("resolver: selected least-privileged provider")
 		assignments[chosen] = append(assignments[chosen], request)
 	}
+
+	log.Ctx(ctx).Debug().
+		Int("requests", len(requests)).
+		Int("providers", len(assignments)).
+		Msg("resolver: provider assignments computed")
 
 	var done []mintedRecord
 	for _, p := range r.providers {
@@ -90,6 +101,11 @@ func (r *Resolver) Resolve(
 			r.rollback(ctx, done)
 			return nil, fmt.Errorf("planning for provider %q: %w", p.Name(), err)
 		}
+		log.Ctx(ctx).Debug().
+			Str("provider", p.Name()).
+			Str("realm", p.Realm()).
+			Int("plans", len(plans)).
+			Msg("resolver: minting artifacts")
 		for _, plan := range plans {
 			artifact, err := p.Mint(ctx, principal, plan)
 			if err != nil {
@@ -222,6 +238,12 @@ func rankLess(score, breadth, order, bScore, bBreadth, bOrder int) bool {
 
 func (r *Resolver) rollback(ctx context.Context, records []mintedRecord) {
 	logger := log.Ctx(ctx)
+	if len(records) == 0 {
+		return
+	}
+	logger.Warn().
+		Int("artifacts", len(records)).
+		Msg("resolver: rolling back minted artifacts after failure")
 	for _, rec := range records {
 		revoker, ok := rec.provider.(core.TokenRevoker)
 		if !ok {

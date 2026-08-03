@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v80/github"
+	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/core"
 )
@@ -16,10 +17,15 @@ func (p *Provider) discoveredCapability(ctx context.Context) (*discovered, error
 	defer p.mu.Unlock()
 
 	if p.cached != nil && time.Now().Before(p.cached.expiresAt) {
-		// cache is still valid
+		log.Ctx(ctx).Debug().
+			Str("provider", p.name).
+			Msg("github: capability cache hit")
 		return p.cached.data, nil
 	}
 
+	log.Ctx(ctx).Debug().
+		Str("provider", p.name).
+		Msg("github: capability cache miss, discovering")
 	d, err := p.discover(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("discovering github capabilities for %q: %w", p.name, err)
@@ -28,6 +34,11 @@ func (p *Provider) discoveredCapability(ctx context.Context) (*discovered, error
 		data:      d,
 		expiresAt: time.Now().Add(p.capTTL),
 	}
+	log.Ctx(ctx).Info().
+		Str("provider", p.name).
+		Int("owners", len(d.installByOwner)).
+		Dur("ttl", p.capTTL).
+		Msg("github: capabilities discovered")
 	return d, nil
 }
 
