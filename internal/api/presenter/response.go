@@ -38,5 +38,21 @@ func Err(w http.ResponseWriter, r *http.Request, err error, short string) {
 	if httpError, ok := errors.AsType[service.HTTPError](err); ok {
 		status = httpError.StatusCode
 	}
+
+	logger := log.Ctx(r.Context())
+
+	if status >= http.StatusInternalServerError {
+		// Server-side failures may wrap sensitive internals (DB, provider APIs,
+		// crypto). Log the full chain, but never return it: the caller gets a
+		// generic message plus the correlation ID (body + X-Correlation-ID
+		// header) to hand to an operator for log lookup.
+		logger.Error().Err(err).Int("status", status).Str("detail", short).Msg("request.failed")
+		Error(w, r, short, status)
+		return
+	}
+
+	// Client errors (4xx) are user-actionable and safe to surface verbatim
+	// (e.g. "policy denied: ...", token verification reasons, bad input).
+	logger.Warn().Err(err).Int("status", status).Str("detail", short).Msg("request.failed")
 	Error(w, r, short+": "+err.Error(), status)
 }

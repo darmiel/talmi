@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
@@ -144,11 +146,20 @@ func buildProviders(specs []config.ProviderSpec, dev bool) ([]core.ResourceProvi
 
 func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, error) {
 	if dev {
+		log.Debug().
+			Str("provider", spec.Name).
+			Str("realm", spec.Realm).
+			Msg("runtime: building provider (dev stub)")
 		return stub.New(spec.Name, spec.Realm,
 			stub.WithResources(spec.Capability.Resources...),
 			stub.WithMaxActions(spec.Capability.MaxActions...),
 		), nil
 	}
+	log.Debug().
+		Str("provider", spec.Name).
+		Str("realm", spec.Realm).
+		Str("type", spec.Type).
+		Msg("runtime: building provider")
 	switch spec.Type {
 	case "github-app":
 		key, err := secret.ResolveString(spec.PrivateKey)
@@ -180,13 +191,23 @@ func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, e
 func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, error) {
 	switch cfg.Type {
 	case "", "memory":
+		log.Info().
+			Str("type", "memory").
+			Msg("runtime: lease store initialized")
 		return store.NewMemoryLeaseStore(), nil
 	case "postgres":
 		dsn, err := secret.ResolveString(cfg.DSN)
 		if err != nil {
 			return nil, fmt.Errorf("resolving postgres DSN: %w", err)
 		}
-		return postgres.OpenLeaseStore(ctx, dsn)
+		st, err := postgres.OpenLeaseStore(ctx, dsn)
+		if err != nil {
+			return nil, err
+		}
+		log.Info().
+			Str("type", "postgres").
+			Msg("runtime: lease store initialized")
+		return st, nil
 	default:
 		return nil, fmt.Errorf("unknown store type %q", cfg.Type)
 	}
@@ -194,6 +215,7 @@ func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, e
 
 func buildAuditor(ctx context.Context, cfg config.AuditConfig) (core.Auditor, error) {
 	if !cfg.Enabled {
+		log.Warn().Msg("runtime: auditing is disabled (noop auditor)")
 		return audit.NewNoopAuditor(), nil
 	}
 	switch cfg.Type {
@@ -202,10 +224,22 @@ func buildAuditor(ctx context.Context, cfg config.AuditConfig) (core.Auditor, er
 		if err != nil {
 			return nil, fmt.Errorf("resolving postgres DSN: %w", err)
 		}
-		return postgres.OpenAuditor(ctx, dsn)
+		a, err := postgres.OpenAuditor(ctx, dsn)
+		if err != nil {
+			return nil, err
+		}
+		log.Info().
+			Str("type", "postgres").
+			Msg("runtime: auditor initialized")
+		return a, nil
 	case "memory":
+		log.Info().
+			Str("type", "memory").
+			Msg("runtime: auditor initialized")
 		return audit.NewInMemoryAuditor(), nil
 	case "noop":
+		log.Warn().
+			Msg("runtime: auditor type is noop (audit records are discarded)")
 		return audit.NewNoopAuditor(), nil
 	default:
 		return nil, fmt.Errorf("unknown audit type %q", cfg.Type)

@@ -97,9 +97,19 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		return c.Str("sub", principal.ID)
 	})
 
+	logger.Debug().
+		Str("issuer", principal.Issuer).
+		Msg("principal verified")
+
 	// now that we have verified the principal, we can continue with authorizing the requested resources
 	decision := s.policyManager.GetEngine().Authorize(principal, req.Resources)
 	entry.Decision = &decision
+
+	logger.Debug().
+		Int("requests", len(req.Resources)).
+		Bool("authorized", decision.Authorized).
+		Strs("policies", decision.PolicyNames).
+		Msg("policy evaluated")
 
 	if !decision.Authorized {
 		// one or more of the requested resources were denied
@@ -181,6 +191,12 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	}
 
 	entry.Success = true
+	logger.Info().
+		Str("lease_id", leaseID).
+		Int("artifacts", len(lease.Artifacts)).
+		Strs("policies", decision.PolicyNames).
+		Bool("revocable", secret != "").
+		Msg("lease.issued")
 	return resp, nil
 }
 
@@ -217,6 +233,9 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 	}
 	entry.Principal = &core.Principal{ID: lease.PrincipalID, Issuer: lease.Issuer}
 	entry.Metadata = map[string]any{"lease_id": lease.ID}
+	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Str("sub", lease.PrincipalID).Str("lease_id", lease.ID)
+	})
 
 	var pending []core.LeasedArtifact
 	for _, a := range lease.Artifacts {
@@ -226,6 +245,7 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 	}
 	if len(pending) == 0 {
 		entry.Success = true
+		logger.Debug().Msg("lease.revoke: nothing to revoke (no active revocable artifacts)")
 		return &RevokeResponse{LeaseID: lease.ID}, nil
 	}
 
@@ -260,6 +280,10 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 
 	entry.Success = true
 	entry.Metadata["revoked_count"] = len(revoked)
+	logger.Info().
+		Int("revoked", len(revoked)).
+		Int("pending", len(pending)).
+		Msg("lease.revoked")
 	return &RevokeResponse{
 		LeaseID: lease.ID,
 		Revoked: revoked,

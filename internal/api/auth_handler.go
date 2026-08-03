@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/darmiel/talmi/internal/api/presenter"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/issuers"
@@ -33,6 +35,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	principal, err := issuer.Verify(r.Context(), token)
 	if err != nil {
+		log.Ctx(r.Context()).Warn().Err(err).Msg("admin.login: authentication failed")
 		presenter.Error(w, r, "authentication failed", http.StatusUnauthorized)
 		return
 	}
@@ -42,15 +45,29 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		{Resource: "talmi:session", Actions: []core.Action{"login"}},
 	})
 	if !decision.Authorized {
+		log.Ctx(r.Context()).Warn().
+			Str("sub", principal.ID).
+			Str("issuer", principal.Issuer).
+			Msg("admin.login: principal not authorized for admin access")
 		presenter.Error(w, r, "not authorized for admin access", http.StatusForbidden)
 		return
 	}
 
 	session, exp, err := issuers.IssueSession(s.admin.SessionKey, principal, s.admin.SessionTTL)
 	if err != nil {
+		log.Ctx(r.Context()).Error().Err(err).
+			Str("sub", principal.ID).
+			Msg("admin.login: failed to issue session")
 		presenter.Error(w, r, "failed to issue session", http.StatusInternalServerError)
 		return
 	}
+
+	log.Ctx(r.Context()).Info().
+		Str("sub", principal.ID).
+		Str("issuer", principal.Issuer).
+		Interface("teams", principal.Attributes["teams"]).
+		Time("expires_at", exp).
+		Msg("admin.login: session issued")
 
 	presenter.JSON(w, r, sessionResponse{
 		Token:     session,

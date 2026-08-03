@@ -7,6 +7,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/google/go-github/v80/github"
+	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
@@ -54,6 +55,13 @@ func (s *GitHubSource) Load(ctx context.Context) (*config.SourcedConfig, string,
 		return nil, "", fmt.Errorf("resolving ref %q: %w", ref, err)
 	}
 
+	log.Ctx(ctx).Debug().
+		Str("owner", s.cfg.Owner).
+		Str("repo", s.cfg.Repo).
+		Str("ref", ref).
+		Str("revision", revision).
+		Msg("source: resolved git ref")
+
 	tree, _, err := gh.Git.GetTree(ctx, s.cfg.Owner, s.cfg.Repo, revision, true)
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching tree for ref %q: %w", ref, err)
@@ -65,6 +73,7 @@ func (s *GitHubSource) Load(ctx context.Context) (*config.SourcedConfig, string,
 		prefix += "/"
 	}
 
+	files := 0
 	for _, entry := range tree.Entries {
 		if entry.GetType() != "blob" {
 			continue
@@ -85,7 +94,13 @@ func (s *GitHubSource) Load(ctx context.Context) (*config.SourcedConfig, string,
 		if err := routeFile(sourced, rel, content); err != nil {
 			return nil, "", fmt.Errorf("in %q: %w", path, err)
 		}
+		files++
 	}
+
+	log.Ctx(ctx).Debug().
+		Str("revision", revision).
+		Int("files", files).
+		Msg("source: loaded config tree from github")
 	return sourced, revision, nil
 }
 

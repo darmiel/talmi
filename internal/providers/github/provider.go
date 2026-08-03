@@ -115,6 +115,9 @@ func (p *Provider) Invalidate() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.cached = nil
+	log.Info().
+		Str("provider", p.name).
+		Msg("github: capability cache invalidated")
 }
 
 func (p *Provider) Capabilities(ctx context.Context) (core.Capability, error) {
@@ -249,6 +252,13 @@ func (p *Provider) Mint(
 		Repositories: mp.repos,
 	}
 
+	log.Ctx(ctx).Debug().
+		Str("provider", p.name).
+		Int64("installation", mp.installationID).
+		Strs("repos", mp.repos).
+		Int("permissions", len(mp.perms)).
+		Msg("github: minting installation token")
+
 	installationToken, _, err := appClient.Apps.CreateInstallationToken(ctx, mp.installationID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("creating installation token for %d: %w", mp.installationID, err)
@@ -270,12 +280,21 @@ func (p *Provider) Mint(
 	// we don't _need_ this, because we revoke tokens by the token itself, but it's useful for revocation tracking
 	artifact.SetRevocationID(fmt.Sprintf("github-installation-%d", mp.installationID))
 
+	log.Ctx(ctx).Debug().
+		Str("provider", p.name).
+		Int64("installation", mp.installationID).
+		Time("expires_at", artifact.ExpiresAt).
+		Msg("github: installation token minted")
+
 	return artifact, nil
 }
 
 func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) error {
 	logger := log.Ctx(ctx)
-	logger.Debug().Msgf("GitHubApp Revoke called for revocation ID: %s and token %s", revocationID, tokenVal)
+	logger.Debug().
+		Str("provider", p.name).
+		Str("revocation_id", revocationID).
+		Msg("github: revoking installation token")
 
 	if tokenVal == "" {
 		return fmt.Errorf("original token required for %T token revocation", Type)
@@ -291,6 +310,10 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 		return fmt.Errorf("revoking github installation token: %w", err)
 	}
 
+	logger.Debug().
+		Str("provider", p.name).
+		Str("revocation_id", revocationID).
+		Msg("github: installation token revoked")
 	return nil
 }
 

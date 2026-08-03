@@ -153,16 +153,31 @@ func (p *Provider) Mint(
 	}
 	artifact.SetRevocationID(resp.TokenID) // JFrog tokens can be revoked by their token ID
 
+	logger.Debug().
+		Str("provider", p.name).
+		Str("token_id", resp.TokenID).
+		Time("expires_at", artifact.ExpiresAt).
+		Msg("JFrog Artifactory token minted")
+
 	return artifact, nil
 }
 
 func (p *Provider) Revoke(ctx context.Context, revocationID, _ string) error {
+	logger := log.Ctx(ctx)
 	if revocationID == "" {
 		return fmt.Errorf("revoking jfrog artifactory token: revocation ID is empty")
 	}
+	logger.Debug().
+		Str("provider", p.name).
+		Str("revocation_id", revocationID).
+		Msg("jfrog: revoking token")
 	if err := p.RevokeToken(ctx, revocationID); err != nil {
 		return fmt.Errorf("revoking jfrog artifactory token ID %s: %w", revocationID, err)
 	}
+	logger.Debug().
+		Str("provider", p.name).
+		Str("revocation_id", revocationID).
+		Msg("jfrog: token revoked")
 	return nil
 }
 

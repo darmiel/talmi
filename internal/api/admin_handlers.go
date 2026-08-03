@@ -31,7 +31,7 @@ func (s *Server) requireTalmi(
 	}
 	principal, err := issuer.Verify(r.Context(), token)
 	if err != nil {
-		log.Ctx(r.Context()).Error().Err(err).Msg("invalid session token")
+		log.Ctx(r.Context()).Warn().Err(err).Msg("admin: invalid session token")
 		presenter.Error(w, r, "invalid session token", http.StatusUnauthorized)
 		return false
 	}
@@ -39,9 +39,19 @@ func (s *Server) requireTalmi(
 		{Resource: resource, Actions: []core.Action{action}},
 	})
 	if !decision.Authorized {
+		log.Ctx(r.Context()).Warn().
+			Str("sub", principal.ID).
+			Str("resource", string(resource)).
+			Str("action", string(action)).
+			Msg("admin: principal not authorized for action")
 		presenter.Error(w, r, "not authorized for this action", http.StatusForbidden)
 		return false
 	}
+	log.Ctx(r.Context()).Debug().
+		Str("sub", principal.ID).
+		Str("resource", string(resource)).
+		Str("action", string(action)).
+		Msg("admin: action authorized")
 	return true
 }
 

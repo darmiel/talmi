@@ -26,6 +26,11 @@ func InitDefault() {
 	})).With().
 		Timestamp().
 		Logger()
+
+	// Make log.Ctx(ctx) fall back to the global logger when the context carries
+	// none (background flows: runtime reload, tasks, startup) instead of a
+	// disabled logger that silently drops messages.
+	zerolog.DefaultContextLogger = &log.Logger
 }
 
 // Init sets up the global logger. If sensitive values are provided,
@@ -69,6 +74,10 @@ func Init(sensitiveValues []string) {
 	for _, msg := range queue {
 		log.Warn().Msg(msg)
 	}
+
+	// Make log.Ctx(ctx) fall back to the global logger when the context carries
+	// none (background flows) instead of a disabled logger.
+	zerolog.DefaultContextLogger = &log.Logger
 }
 
 type RedactingWriter struct {

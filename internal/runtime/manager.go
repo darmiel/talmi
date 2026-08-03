@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/source"
 )
@@ -58,15 +60,35 @@ func (m *Manager) reload(ctx context.Context, initial bool) error {
 	}
 	if !initial {
 		if cur := m.current.Load(); cur != nil && cur.Revision == revision {
+			log.Ctx(ctx).Debug().Str("revision", revision).Msg("runtime: config unchanged, keeping current")
 			return nil // unchanged, no need to reload
 		}
 	}
 
+	prevRevision := ""
+	if cur := m.current.Load(); cur != nil {
+		prevRevision = cur.Revision
+	}
+
 	rt, err := buildReloadable(ctx, sourced, revision, m.dev, m.stable)
 	if err != nil {
+		// the current runtime is left untouched: an atomic swap only happens on success.
 		return fmt.Errorf("building reloadable runtime: %w", err)
 	}
 	m.current.Store(rt)
+
+	if initial {
+		log.Ctx(ctx).Info().
+			Str("revision", revision).
+			Int("providers", len(rt.Providers)).
+			Msg("runtime: initialized")
+	} else {
+		log.Ctx(ctx).Info().
+			Str("from_revision", prevRevision).
+			Str("to_revision", revision).
+			Int("providers", len(rt.Providers)).
+			Msg("runtime: config reloaded, runtime swapped")
+	}
 	return nil
 }
 
