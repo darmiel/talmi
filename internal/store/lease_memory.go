@@ -100,6 +100,25 @@ func (s *MemoryLeaseStore) SetLeaseRevoked(_ context.Context, leaseID string) er
 	return nil
 }
 
+func (s *MemoryLeaseStore) SetArtifactRevoked(_ context.Context, leaseID, artifactID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lease, ok := s.leases[leaseID]
+	if !ok {
+		return core.ErrLeaseNotFound
+	}
+	updated := cloneLease(lease)
+	for i := range updated.Artifacts {
+		if updated.Artifacts[i].ArtifactID == artifactID {
+			updated.Artifacts[i].Revoked = true
+			s.leases[leaseID] = updated
+			return nil
+		}
+	}
+	return core.ErrLeaseNotFound
+}
+
 func (s *MemoryLeaseStore) DeleteExpired(_ context.Context) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

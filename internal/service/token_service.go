@@ -237,6 +237,11 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 			errs = append(errs, fmt.Errorf("provider %q artifact %s: %w", a.Provider, a.ArtifactID, err))
 			continue
 		}
+		if err := s.leaseStore.SetArtifactRevoked(ctx, lease.ID, a.ArtifactID); err != nil {
+			// upstream is revoked but persistence failed
+			errs = append(errs, fmt.Errorf("marking artifact %s revoked: %w", a.ArtifactID, err))
+			continue
+		}
 		revoked = append(revoked, a.ArtifactID)
 	}
 	if len(errs) > 0 {
@@ -244,12 +249,6 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 		entry.Error = "revocation failed"
 		entry.Stacktrace = joined.Error()
 		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("revoking lease: %w", joined))
-	}
-
-	if err := s.leaseStore.SetLeaseRevoked(ctx, lease.ID); err != nil {
-		entry.Error = "persisting revocation failed"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("marking lease revoked: %w", err))
 	}
 
 	entry.Success = true

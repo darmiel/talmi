@@ -86,6 +86,38 @@ func TestMemorySetLeaseRevoked(t *testing.T) {
 	is.ErrorIs(s.SetLeaseRevoked(context.Background(), "missing"), core.ErrLeaseNotFound)
 }
 
+func TestMemorySetArtifactRevoked(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	s := NewMemoryLeaseStore()
+
+	l := core.Lease{
+		ID:               "l1",
+		PrincipalID:      "p",
+		RevocationSecret: "s",
+		Artifacts: []core.LeasedArtifact{
+			{ArtifactID: "a1", Provider: "gh", Realm: "ghes-corp", ExpiresAt: time.Now().Add(time.Hour)},
+			{ArtifactID: "a2", Provider: "art", Realm: "art", ExpiresAt: time.Now().Add(time.Hour)},
+		},
+	}
+	require.NoError(t, s.SaveLease(context.Background(), l))
+
+	// revoke only a1
+	is.NoError(s.SetArtifactRevoked(context.Background(), "l1", "a1"))
+	got, err := s.GetLease(context.Background(), "l1")
+	require.NoError(t, err)
+	byID := map[string]bool{}
+	for _, a := range got.Artifacts {
+		byID[a.ArtifactID] = a.Revoked
+	}
+	is.True(byID["a1"], "a1 must be revoked")
+	is.False(byID["a2"], "a2 must remain active")
+
+	// unknown lease and unknown artifact both report not found
+	is.ErrorIs(s.SetArtifactRevoked(context.Background(), "missing", "a1"), core.ErrLeaseNotFound)
+	is.ErrorIs(s.SetArtifactRevoked(context.Background(), "l1", "nope"), core.ErrLeaseNotFound)
+}
+
 func TestMemoryListActive(t *testing.T) {
 	t.Parallel()
 	is := assert.New(t)
