@@ -9,7 +9,6 @@ CREATE TABLE leases
     revocation_secret_hash TEXT        NOT NULL DEFAULT ''
 );
 
--- lookup by revocation secret; partial so empty hashes aren't indexed
 CREATE INDEX idx_leases_revocation_hash
     ON leases (revocation_secret_hash)
     WHERE revocation_secret_hash <> '';
@@ -32,8 +31,6 @@ CREATE TABLE lease_artifacts
 
 CREATE INDEX idx_artifacts_lease ON lease_artifacts (lease_id);
 
--- supports ListActive / DeleteExpired scans over live artifacts
 CREATE INDEX idx_artifacts_active
     ON lease_artifacts (expires_at)
     WHERE revoked = false;
-

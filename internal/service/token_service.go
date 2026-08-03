@@ -140,6 +140,13 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	for _, m := range minted {
 		aid := xid.New().String()
 
+		// add to audit entry and lease record
+		entry.Artifacts = append(entry.Artifacts, core.ArtifactAudit{
+			ArtifactID:  aid,
+			Provider:    m.Provider,
+			Fingerprint: m.Artifact.Fingerprint,
+		})
+
 		lease.Artifacts = append(lease.Artifacts, core.LeasedArtifact{
 			ArtifactID:                 aid,
 			Provider:                   m.Provider,

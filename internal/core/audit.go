@@ -29,7 +29,10 @@ type AuditEntry struct {
 	Success    bool   `json:"success"`
 
 	// Revision is the policy revision that was used to make the decision
-	Revision string
+	Revision string `json:"revision"`
+
+	// Artifacts contains the list of artifacts that were involved in the request
+	Artifacts []ArtifactAudit `json:"artifacts,omitempty"`
 
 	// Decision contains the per-request coverage tree
 	Decision *Decision `json:"decision,omitempty"`
@@ -44,15 +47,22 @@ type AuditEntry struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+type ArtifactAudit struct {
+	ArtifactID  string `json:"artifact_id"`
+	Provider    string `json:"provider"`
+	Fingerprint string `json:"fingerprint,omitempty"` // only some providers fingerprint tokens, e.g. GitHub
+}
+
 // AuditFilter selects audit entries by indexed criteria.
 type AuditFilter struct {
-	CorrelationID string
-	PrincipalID   string
-	Action        string
-	Success       *bool
-	Since         time.Time
-	Until         time.Time
-	Limit         int // 0 = no limit
+	CorrelationID string    `json:"correlation_id,omitempty"`
+	PrincipalID   string    `json:"principal_id,omitempty"`
+	Fingerprint   string    `json:"fingerprint,omitempty"`
+	Action        string    `json:"action,omitempty"`
+	Success       *bool     `json:"success,omitempty"`
+	Since         time.Time `json:"since"`
+	Until         time.Time `json:"until"`
+	Limit         int       `json:"limit,omitempty"` // 0 = no limit
 }
 
 type Auditor interface {
