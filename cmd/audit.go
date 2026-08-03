@@ -12,12 +12,11 @@ import (
 )
 
 var (
-	auditLimit       int
-	auditAction      string
-	auditPrincipal   string
-	auditFingerprint string
-	auditSince       string
-	auditJSON        bool
+	auditLimit     int
+	auditAction    string
+	auditPrincipal string
+	auditSince     string
+	auditJSON      bool
 )
 
 var auditCmd = &cobra.Command{
@@ -33,7 +32,6 @@ Requires 'talmi login' with a session that has talmi:audit read.`,
 			Limit:       auditLimit,
 			Action:      auditAction,
 			PrincipalID: auditPrincipal,
-			Fingerprint: auditFingerprint,
 			Since:       auditSince,
 		})
 		if err != nil {
@@ -79,7 +77,6 @@ func init() {
 	auditCmd.Flags().IntVar(&auditLimit, "limit", 50, "Maximum number of entries")
 	auditCmd.Flags().StringVar(&auditAction, "action", "", "Filter by action (e.g. lease.issue, lease.revoke)")
 	auditCmd.Flags().StringVar(&auditPrincipal, "principal", "", "Filter by principal id")
-	auditCmd.Flags().StringVar(&auditFingerprint, "fingerprint", "", "Filter by downstream token fingerprint")
 	auditCmd.Flags().StringVar(&auditSince, "since", "", "Only entries at/after this RFC3339 time")
 	auditCmd.Flags().BoolVar(&auditJSON, "json", false, "Output raw JSON instead of a table")
 }

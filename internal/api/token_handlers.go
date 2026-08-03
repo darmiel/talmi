@@ -24,22 +24,24 @@ type resourceRequestBody struct {
 
 type issueResponseBody struct {
 	LeaseID          string               `json:"lease_id"`
-	RevocationSecret string               `json:"revocationSecret,omitempty"`
+	RevocationSecret string               `json:"revocation_secret,omitempty"`
 	Artifacts        []issuedArtifactBody `json:"artifacts"`
 }
 
 type issuedArtifactBody struct {
-	Provider    string         `json:"provider"`
-	Realm       string         `json:"realm"`
-	Covers      []string       `json:"covers"`
-	Token       string         `json:"token"`
-	Fingerprint string         `json:"fingerprint"`
-	ExpiresAt   time.Time      `json:"expiresAt"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	ArtifactID                 string         `json:"artifact_id"`
+	Provider                   string         `json:"provider"`
+	Realm                      string         `json:"realm"`
+	Covers                     []string       `json:"covers"`
+	Token                      string         `json:"token"`
+	Fingerprint                string         `json:"fingerprint,omitempty"`
+	ExpiresAt                  time.Time      `json:"expires_at"`
+	RequiresTokenForRevocation bool           `json:"requires_token_for_revocation"`
+	Metadata                   map[string]any `json:"metadata,omitempty"`
 }
 
 type revokeRequestBody struct {
-	Tokens map[string]string `json:"tokens,omitempty"` // fingerprint -> token value
+	Tokens map[string]string `json:"tokens,omitempty"` // artifact ID -> token value
 }
 
 type revokeResponseBody struct {
@@ -187,13 +189,15 @@ func toIssueResponseBody(resp *service.IssueResponse) issueResponseBody {
 			covers[j] = string(c.Resource)
 		}
 		body.Artifacts[i] = issuedArtifactBody{
-			Provider:    a.Provider,
-			Realm:       a.Realm,
-			Covers:      covers,
-			Token:       a.Token,
-			Fingerprint: a.Fingerprint,
-			ExpiresAt:   a.ExpiresAt,
-			Metadata:    a.Metadata,
+			ArtifactID:                 a.ArtifactID,
+			Provider:                   a.Provider,
+			Realm:                      a.Realm,
+			Covers:                     covers,
+			Token:                      a.Token,
+			Fingerprint:                a.Fingerprint,
+			ExpiresAt:                  a.ExpiresAt,
+			RequiresTokenForRevocation: a.RequiresTokenForRevocation,
+			Metadata:                   a.Metadata,
 		}
 	}
 	return body

@@ -19,13 +19,15 @@ type IssueRequestBody struct {
 }
 
 type IssuedArtifact struct {
-	Provider    string         `json:"provider"`
-	Realm       string         `json:"realm"`
-	Covers      []string       `json:"covers"`
-	Token       string         `json:"token"`
-	Fingerprint string         `json:"fingerprint"`
-	ExpiresAt   time.Time      `json:"expires_at"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	ArtifactID                 string         `json:"artifact_id"`
+	Provider                   string         `json:"provider"`
+	Realm                      string         `json:"realm"`
+	Covers                     []string       `json:"covers"`
+	Token                      string         `json:"token"`
+	Fingerprint                string         `json:"fingerprint,omitempty"`
+	ExpiresAt                  time.Time      `json:"expires_at"`
+	RequiresTokenForRevocation bool           `json:"requires_token_for_revocation"`
+	Metadata                   map[string]any `json:"metadata,omitempty"`
 }
 
 type IssueResponse struct {

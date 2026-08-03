@@ -8,8 +8,6 @@ func matchFilter(e core.AuditEntry, f core.AuditFilter) bool {
 		return false
 	case f.Action != "" && e.Action != f.Action:
 		return false
-	case f.Fingerprint != "" && e.TokenFingerprint != f.Fingerprint:
-		return false
 	case f.PrincipalID != "" && (e.Principal == nil || e.Principal.ID != f.PrincipalID):
 		return false
 	case f.Success != nil && e.Success != *f.Success:

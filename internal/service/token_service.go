@@ -138,24 +138,31 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		RevocationSecret: secret,
 	}
 	for _, m := range minted {
+		aid := xid.New().String()
+
 		lease.Artifacts = append(lease.Artifacts, core.LeasedArtifact{
-			Provider:     m.Provider,
-			Realm:        m.Realm,
-			Covers:       m.Covers,
-			Fingerprint:  m.Artifact.Fingerprint,
-			ExpiresAt:    m.Artifact.ExpiresAt,
-			Revocable:    m.Revocable,
-			RevocationID: m.RevocationID,
-			Metadata:     m.Artifact.Metadata,
+			ArtifactID:                 aid,
+			Provider:                   m.Provider,
+			Realm:                      m.Realm,
+			Covers:                     m.Covers,
+			Fingerprint:                m.Artifact.Fingerprint,
+			ExpiresAt:                  m.Artifact.ExpiresAt,
+			Revocable:                  m.Revocable,
+			RevocationID:               m.RevocationID,
+			Metadata:                   m.Artifact.Metadata,
+			RequiresTokenForRevocation: m.RequiresTokenForRevocation,
 		})
+
 		resp.Artifacts = append(resp.Artifacts, IssuedArtifact{
-			Provider:    m.Provider,
-			Realm:       m.Realm,
-			Covers:      m.Covers,
-			Token:       m.Artifact.Value,
-			Fingerprint: m.Artifact.Fingerprint,
-			ExpiresAt:   m.Artifact.ExpiresAt,
-			Metadata:    m.Artifact.Metadata,
+			ArtifactID:                 aid,
+			Provider:                   m.Provider,
+			Realm:                      m.Realm,
+			Covers:                     m.Covers,
+			Token:                      m.Artifact.Value,
+			Fingerprint:                m.Artifact.Fingerprint,
+			ExpiresAt:                  m.Artifact.ExpiresAt,
+			Metadata:                   m.Artifact.Metadata,
+			RequiresTokenForRevocation: m.RequiresTokenForRevocation,
 		})
 	}
 
@@ -167,9 +174,6 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	}
 
 	entry.Success = true
-	if len(minted) > 0 {
-		entry.TokenFingerprint = minted[0].Artifact.Fingerprint // TODO
-	}
 	return resp, nil
 }
 
@@ -221,11 +225,19 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 	errs := make([]error, 0, len(pending))
 	revoked := make([]string, 0, len(pending))
 	for _, a := range pending {
-		if err := s.resolver.Revoke(ctx, a.Provider, a.RevocationID, req.Tokens[a.Fingerprint]); err != nil {
-			errs = append(errs, fmt.Errorf("provider %q artifact %s: %w", a.Provider, a.Fingerprint, err))
+		var tok string
+		if a.RequiresTokenForRevocation {
+			tok = req.Tokens[a.ArtifactID]
+			if tok == "" {
+				errs = append(errs, fmt.Errorf("missing token for artifact %s (provider %q)", a.ArtifactID, a.Provider))
+				continue
+			}
+		}
+		if err := s.resolver.Revoke(ctx, a.Provider, a.RevocationID, tok); err != nil {
+			errs = append(errs, fmt.Errorf("provider %q artifact %s: %w", a.Provider, a.ArtifactID, err))
 			continue
 		}
-		revoked = append(revoked, a.Fingerprint)
+		revoked = append(revoked, a.ArtifactID)
 	}
 	if len(errs) > 0 {
 		joined := errors.Join(errs...)

@@ -32,13 +32,15 @@ type IssueResponse struct {
 
 // IssuedArtifact is one minted token as returned to the caller.
 type IssuedArtifact struct {
-	Provider    string
-	Realm       string
-	Covers      []core.ResourceRequest
-	Token       string // the secret token value (not stored)
-	Fingerprint string
-	ExpiresAt   time.Time
-	Metadata    map[string]any
+	ArtifactID                 string
+	RequiresTokenForRevocation bool
+	Provider                   string
+	Realm                      string
+	Covers                     []core.ResourceRequest
+	Token                      string // the secret token value (not stored)
+	Fingerprint                string
+	ExpiresAt                  time.Time
+	Metadata                   map[string]any
 }
 
 // IssuerResolver is the subset of the issuer registry the service consumes.
@@ -51,7 +53,7 @@ type IssuerResolver interface {
 // RevokeRequest revokes a lease.
 type RevokeRequest struct {
 	RevocationSecret string
-	Tokens           map[string]string // fingerprint -> token value
+	Tokens           map[string]string // artifact ID -> token value
 }
 
 // RevokeResponse reports which artifacts were revoked.

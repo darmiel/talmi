@@ -185,7 +185,7 @@ func issueForRevoke(t *testing.T) (*TokenService, *stub.Provider, *store.MemoryL
 func tokensFrom(resp *IssueResponse) map[string]string {
 	m := map[string]string{}
 	for _, a := range resp.Artifacts {
-		m[a.Fingerprint] = a.Token
+		m[a.ArtifactID] = a.Token
 	}
 	return m
 }
@@ -258,4 +258,45 @@ func TestRevokeLeaseIdempotent(t *testing.T) {
 	is.NoError(err)
 	is.Empty(resp.Revoked, "second revoke is a no-op")
 	is.Len(gh.Revoked(), 1, "provider revoked exactly once")
+}
+
+// TestRevokeLeaseByValueRequiresToken covers by-value providers (e.g. GitHub):
+// the client must return the token value, keyed by ArtifactID, to revoke.
+func TestRevokeLeaseByValueRequiresToken(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh", "ghes-corp",
+		stub.WithResources("ghes-corp:acme/*"),
+		stub.WithMaxActions("contents:read"),
+		stub.WithRequiresTokenForRevocation(true))
+	mem := store.NewMemoryLeaseStore()
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, mem)
+
+	issued, err := svc.IssueLease(context.Background(), readRequest())
+	require.NoError(t, err)
+	require.Len(t, issued.Artifacts, 1)
+	is.True(issued.Artifacts[0].RequiresTokenForRevocation)
+	is.NotEmpty(issued.Artifacts[0].ArtifactID)
+
+	// Without the token, revocation must fail and leave the lease active.
+	_, err = svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+	})
+	is.ErrorContains(err, "missing token for artifact")
+	is.Empty(gh.Revoked(), "provider must not be called without the token")
+
+	active, err := mem.ListActive(context.Background())
+	require.NoError(t, err)
+	is.Len(active, 1, "failed revocation must leave the lease active")
+
+	// With the token (keyed by ArtifactID), revocation succeeds.
+	resp, err := svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+		Tokens:           tokensFrom(issued),
+	})
+	is.NoError(err)
+	is.Equal([]string{issued.Artifacts[0].ArtifactID}, resp.Revoked)
+	is.Len(gh.Revoked(), 1)
 }

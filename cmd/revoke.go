@@ -22,9 +22,9 @@ var revokeCmd = &cobra.Command{
 	Short: "Revoke a previously issued lease",
 	Long: `Revokes a lease. Provide --from-lease pointing at a lease.json written by
 'talmi issue --out' (it carries the secret and token values), or pass --secret
-and --token fingerprint=value flags directly.`,
+and --token artifactID=value flags directly.`,
 	Example: `  talmi revoke --from-lease ./.talmi/out/lease.json
-  talmi revoke --secret <secret> --token <fingerprint>=<token>`,
+  talmi revoke --secret <secret> --token <artifactID>=<token>`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		server, err := f.GetRemoteAddr()
 		if err != nil {
@@ -64,17 +64,23 @@ func gatherRevoke() (string, map[string]string, error) {
 			secret = lease.RevocationSecret
 		}
 		for _, a := range lease.Artifacts {
-			if a.Token != "" {
-				tokens[a.Fingerprint] = a.Token
+			if !a.RequiresTokenForRevocation {
+				continue
 			}
+			if a.Token == "" {
+				return "", nil, fmt.Errorf(
+					"lease file is missing the token for artifact %s (provider %q), which is required to revoke it",
+					a.ArtifactID, a.Provider)
+			}
+			tokens[a.ArtifactID] = a.Token
 		}
 	}
 	for _, tf := range revokeTokens {
-		fp, tok, ok := strings.Cut(tf, "=")
+		aid, tok, ok := strings.Cut(tf, "=")
 		if !ok {
-			return "", nil, fmt.Errorf("bad --token %q (want fingerprint=value)", tf)
+			return "", nil, fmt.Errorf("bad --token %q (want artifactID=value)", tf)
 		}
-		tokens[fp] = tok
+		tokens[aid] = tok
 	}
 	return secret, tokens, nil
 }
@@ -84,5 +90,5 @@ func init() {
 
 	revokeCmd.Flags().StringVar(&revokeFromLease, "from-lease", "", "Path to a lease.json from 'talmi issue --out'")
 	revokeCmd.Flags().StringVar(&revokeSecret, "secret", "", "Revocation secret")
-	revokeCmd.Flags().StringArrayVar(&revokeTokens, "token", nil, "fingerprint=value (repeatable; for by-value providers)")
+	revokeCmd.Flags().StringArrayVar(&revokeTokens, "token", nil, "artifactID=value (repeatable; for by-value providers)")
 }

@@ -34,6 +34,9 @@ type Lease struct {
 
 // LeasedArtifact is the per-token record within a Lease.
 type LeasedArtifact struct {
+	// ArtifactID is the ID of the artifact within the lease.
+	ArtifactID string `json:"artifact_id"`
+
 	// Provider is the instance that minted this artifact.
 	Provider string `json:"provider"`
 
@@ -44,13 +47,17 @@ type LeasedArtifact struct {
 	Covers []ResourceRequest `json:"covers"`
 
 	// Fingerprint is the provider-specific identifier for downstream tracing.
-	Fingerprint string `json:"fingerprint"`
+	// (optional): only a few providers support this.
+	Fingerprint string `json:"fingerprint,omitempty"`
 
 	// ExpiresAt is when this specific token expires.
 	ExpiresAt time.Time `json:"expires_at"`
 
 	// Revocable indicates the provider supports revoking this token early.
 	Revocable bool `json:"revocable"`
+
+	// RequiresTokenForRevocation indicates the provider requires the token value to revoke it.
+	RequiresTokenForRevocation bool `json:"requires_token_for_revocation"`
 
 	// Revoked is set once the token has been revoked.
 	Revoked bool `json:"revoked"`

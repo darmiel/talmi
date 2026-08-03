@@ -7,7 +7,7 @@ import (
 // Principal represents the authenticated identity of the caller.
 // It is produced by an Issuer after verifying an upstream token.
 type Principal struct {
-	// ID is the unique subject identifier (e.g., email, sub claim).
+	// ID is the unique subject identifier (e.g., email, subclaim).
 	ID string
 	// Issuer is the name of the trusted issuer that verified this principal.
 	Issuer string
