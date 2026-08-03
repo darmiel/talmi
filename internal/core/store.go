@@ -24,6 +24,9 @@ type LeaseStore interface {
 	// SetLeaseRevoked marks the lease and all its artifacts as revoked.
 	SetLeaseRevoked(ctx context.Context, leaseID string) error
 
+	// SetArtifactRevoked marks a single artifact within a lease as revoked.
+	SetArtifactRevoked(ctx context.Context, leaseID, artifactID string) error
+
 	// DeleteExpired removes leases where every artifact is expired or revoked.
 	DeleteExpired(ctx context.Context) (int64, error)
 

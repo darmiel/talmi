@@ -152,6 +152,19 @@ func (s *LeaseStore) SetLeaseRevoked(ctx context.Context, leaseID string) error 
 	return nil
 }
 
+func (s *LeaseStore) SetArtifactRevoked(ctx context.Context, leaseID, artifactID string) error {
+	tag, err := s.pool.Exec(ctx, `
+	UPDATE lease_artifacts SET revoked = true
+	WHERE lease_id = $1 AND artifact_id = $2`, leaseID, artifactID)
+	if err != nil {
+		return fmt.Errorf("revoking artifact %q in lease %q: %w", artifactID, leaseID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return core.ErrLeaseNotFound
+	}
+	return nil
+}
+
 func (s *LeaseStore) DeleteExpired(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
 		DELETE FROM leases l

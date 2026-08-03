@@ -300,3 +300,70 @@ func TestRevokeLeaseByValueRequiresToken(t *testing.T) {
 	is.Equal([]string{issued.Artifacts[0].ArtifactID}, resp.Revoked)
 	is.Len(gh.Revoked(), 1)
 }
+
+// TestRevokeLeasePartialFailureIsResumable verifies that when one artifact's
+// provider revoke fails, the artifacts that DID revoke are persisted as revoked,
+// so a retry skips them (resumable / idempotent revocation).
+func TestRevokeLeasePartialFailureIsResumable(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+
+	reg := realm.NewRegistry()
+	reg.Register("ra", realm.GitHub{})
+	reg.Register("rb", realm.GitHub{})
+
+	ok := stub.New("ok", "ra",
+		stub.WithResources("ra:acme/*"), stub.WithMaxActions("contents:read"))
+	bad := stub.New("bad", "rb",
+		stub.WithResources("rb:acme/*"), stub.WithMaxActions("contents:read"),
+		stub.WithRevokeError(errors.New("boom")))
+
+	rules := []core.Rule{{
+		Name:  "read",
+		Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
+		Allow: []core.Allow{
+			{Resources: []string{"ra:acme/*"}, Actions: []core.Action{"contents:read"}},
+			{Resources: []string{"rb:acme/*"}, Actions: []core.Action{"contents:read"}},
+		},
+	}}
+	pm := engine.NewManager(rules, reg)
+	res := resolver.New([]core.ResourceProvider{ok, bad}, reg)
+	mem := store.NewMemoryLeaseStore()
+	svc := NewTokenService(
+		fakeIssuers{issuer: fakeIssuer{principal: principal}},
+		pm, res, mem, &fakeAuditor{}, "rev-1",
+	)
+
+	issued, err := svc.IssueLease(context.Background(), IssueRequest{
+		Token: "tok",
+		Resources: []core.ResourceRequest{
+			{Resource: "ra:acme/x", Actions: []core.Action{"contents:read"}},
+			{Resource: "rb:acme/y", Actions: []core.Action{"contents:read"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, issued.Artifacts, 2)
+
+	// First revoke: "bad" fails, so the overall revoke errors.
+	_, err = svc.RevokeLease(context.Background(), RevokeRequest{RevocationSecret: issued.RevocationSecret})
+	is.Error(err)
+	is.Len(ok.Revoked(), 1, "the good provider was revoked once")
+	is.Empty(bad.Revoked(), "the failing provider recorded nothing")
+
+	// The good artifact must be persisted as revoked; the bad one still active.
+	lease, err := mem.GetLease(context.Background(), issued.LeaseID)
+	require.NoError(t, err)
+	revoked := map[string]bool{}
+	for _, a := range lease.Artifacts {
+		revoked[a.Provider] = a.Revoked
+	}
+	is.True(revoked["ok"], "successfully revoked artifact must be persisted as revoked")
+	is.False(revoked["bad"], "failed artifact must remain active for retry")
+
+	// Second revoke: the good artifact is skipped (not revoked again); bad is retried.
+	_, err = svc.RevokeLease(context.Background(), RevokeRequest{RevocationSecret: issued.RevocationSecret})
+	is.Error(err)
+	is.Len(ok.Revoked(), 1, "already-revoked artifact must not be revoked again")
+}
