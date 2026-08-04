@@ -17,9 +17,9 @@ func TestOIDCIssuerVerify(t *testing.T) {
 	issuerURL, sign := newMockOIDCProvider(t)
 	const clientID = "talmi-prod"
 
-	iss, err := NewOIDCIssuer(context.Background(), config.IssuerBlock{
-		Name:   "concourse",
-		Config: map[string]any{"issuer_url": issuerURL, "client_id": clientID},
+	iss, err := NewOIDCIssuer(context.Background(), "concourse", config.OIDCConfig{
+		IssuerURL: issuerURL,
+		ClientID:  clientID,
 	})
 	require.NoError(t, err)
 
@@ -71,16 +71,10 @@ func TestNewOIDCIssuerValidation(t *testing.T) {
 	t.Parallel()
 	issuerURL, _ := newMockOIDCProvider(t)
 
-	_, err := NewOIDCIssuer(context.Background(), config.IssuerBlock{
-		Name:   "x",
-		Config: map[string]any{"client_id": "c"},
-	})
+	_, err := NewOIDCIssuer(context.Background(), "x", config.OIDCConfig{ClientID: "c"})
 	assert.Error(t, err, "missing issuer_url")
 
-	_, err = NewOIDCIssuer(context.Background(), config.IssuerBlock{
-		Name:   "x",
-		Config: map[string]any{"issuer_url": issuerURL},
-	})
+	_, err = NewOIDCIssuer(context.Background(), "x", config.OIDCConfig{IssuerURL: issuerURL})
 	assert.Error(t, err, "missing client_id")
 }
 

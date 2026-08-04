@@ -20,11 +20,13 @@ type GitHubOAuthIssuer struct {
 	serverURL string // empty = github.com
 }
 
-func NewGitHubOAuthIssuer(cfg config.IssuerBlock) (*GitHubOAuthIssuer, error) {
-	server, _ := cfg.Config["server"].(string)
+func NewGitHubOAuthIssuer(name string, cfg config.GitHubOAuthConfig) (*GitHubOAuthIssuer, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("github-oauth issuer %q: %w", name, err)
+	}
 	return &GitHubOAuthIssuer{
-		name:      cfg.Name,
-		serverURL: server,
+		name:      name,
+		serverURL: cfg.Server,
 	}, nil
 }
 

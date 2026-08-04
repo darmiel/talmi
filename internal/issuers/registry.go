@@ -70,21 +70,22 @@ func BuildRegistry(ctx context.Context, blocks []config.IssuerBlock, signer *Ses
 			err       error
 		)
 
-		switch block.Type {
-		case "static":
-			iss, err = NewStatic(block)
-			// static does not have an issuer URL
-		case "oidc":
-			iss, err = NewOIDCIssuer(ctx, block)
-			if err == nil {
-				issuerURL, _ = block.Config["issuer_url"].(string)
-			}
-		case "github-oauth":
-			iss, err = NewGitHubOAuthIssuer(block)
-		case "talmi-session":
-			iss, err = NewTalmiSessionIssuer(block, signer)
+		typed, err := config.DecodeIssuerConfig(block)
+		if err != nil {
+			return nil, fmt.Errorf("building issuer %q: %w", block.Name, err)
+		}
+		switch c := typed.(type) {
+		case *config.OIDCConfig:
+			iss, err = NewOIDCIssuer(ctx, block.Name, *c)
+			issuerURL = c.IssuerURL
+		case *config.StaticConfig:
+			iss, err = NewStatic(block.Name, *c)
+		case *config.GitHubOAuthConfig:
+			iss, err = NewGitHubOAuthIssuer(block.Name, *c)
+		case *config.TalmiSessionConfig:
+			iss, err = NewTalmiSessionIssuer(block.Name, *c, signer)
 		default:
-			return nil, fmt.Errorf("unknown issuer type %q for issuer %q", block.Type, block.Name)
+			return nil, fmt.Errorf("unknown issuer config type for issuer %q", block.Name)
 		}
 
 		if err != nil {

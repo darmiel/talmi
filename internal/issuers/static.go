@@ -8,30 +8,20 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
+var _ core.Issuer = (*StaticIssuer)(nil)
+
 type StaticIssuer struct {
 	name     string
 	tokenMap map[string]map[string]any // token -> attributes
 }
 
-func NewStatic(cfg config.IssuerBlock) (*StaticIssuer, error) {
-	rawMap, ok := cfg.Config["token_map"].(map[string]any)
-	if !ok {
-		// if no map provided, just create an empty one, which always fails verification
-		return &StaticIssuer{}, nil
+func NewStatic(name string, cfg config.StaticConfig) (*StaticIssuer, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("static issuer %q: %w", name, err)
 	}
-
-	tokenMap := make(map[string]map[string]any)
-	for token, attrsRaw := range rawMap {
-		attrsInterfaceMap, ok := attrsRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		tokenMap[token] = attrsInterfaceMap
-	}
-
 	return &StaticIssuer{
-		name:     cfg.Name,
-		tokenMap: tokenMap,
+		name:     name,
+		tokenMap: cfg.TokenMap,
 	}, nil
 }
 

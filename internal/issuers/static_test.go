@@ -12,13 +12,9 @@ import (
 
 func TestStaticIssuer(t *testing.T) {
 	t.Parallel()
-	iss, err := NewStatic(config.IssuerBlock{
-		Name: "ci-tokens",
-		Config: map[string]any{
-			"token_map": map[string]any{
-				"secret-tok": map[string]any{"pipeline": "deploy", "team": "platform"},
-				"bad-entry":  "not-a-map", // skipped
-			},
+	iss, err := NewStatic("ci-tokens", config.StaticConfig{
+		TokenMap: map[string]map[string]any{
+			"secret-tok": {"pipeline": "deploy", "team": "platform"},
 		},
 	})
 	require.NoError(t, err)
@@ -38,17 +34,11 @@ func TestStaticIssuer(t *testing.T) {
 		_, err := iss.Verify(context.Background(), "nope")
 		assert.Error(t, err)
 	})
-
-	t.Run("malformed entry was skipped", func(t *testing.T) {
-		t.Parallel()
-		_, err := iss.Verify(context.Background(), "bad-entry")
-		assert.Error(t, err)
-	})
 }
 
 func TestStaticIssuerNoTokenMap(t *testing.T) {
 	t.Parallel()
-	iss, err := NewStatic(config.IssuerBlock{Name: "empty"})
+	iss, err := NewStatic("empty", config.StaticConfig{})
 	require.NoError(t, err)
 	_, err = iss.Verify(context.Background(), "anything")
 	assert.Error(t, err) // empty map always fails

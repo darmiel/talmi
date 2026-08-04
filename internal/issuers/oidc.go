@@ -11,35 +11,25 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
+var _ core.Issuer = (*OIDCIssuer)(nil)
+
 type OIDCIssuer struct {
 	name     string
 	provider *oidc.Provider
 	verifier *oidc.IDTokenVerifier
 }
 
-func NewOIDCIssuer(ctx context.Context, cfg config.IssuerBlock) (*OIDCIssuer, error) {
-	issuerURL, ok := cfg.Config["issuer_url"].(string)
-	if !ok {
-		return nil, fmt.Errorf("oidc issuer '%s' missing 'issuer_url'", cfg.Name)
+func NewOIDCIssuer(ctx context.Context, name string, cfg config.OIDCConfig) (*OIDCIssuer, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("oidc issuer %q: %w", name, err)
 	}
-	// expected audience, currently required // TODO: for future maybe allow empty audience
-	clientID, ok := cfg.Config["client_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("oidc issuer '%s' missing 'client_id'", cfg.Name)
-	}
-
-	provider, err := oidc.NewProvider(ctx, issuerURL)
+	provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
 	if err != nil {
-		return nil, fmt.Errorf("creating oidc provider for issuer '%s': %w", cfg.Name, err)
+		return nil, fmt.Errorf("creating oidc provider for issuer '%s': %w", name, err)
 	}
-
-	verifierConfig := &oidc.Config{
-		ClientID: clientID,
-	}
-	verifier := provider.Verifier(verifierConfig)
-
+	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.ClientID})
 	return &OIDCIssuer{
-		name:     cfg.Name,
+		name:     name,
 		provider: provider,
 		verifier: verifier,
 	}, nil
