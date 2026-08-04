@@ -3,7 +3,9 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -307,6 +309,16 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 
 	_, err = client.Apps.RevokeInstallationToken(ctx)
 	if err != nil {
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr); ghErr.Response != nil &&
+			(ghErr.Response.StatusCode == http.StatusUnauthorized || ghErr.Response.StatusCode == http.StatusNotFound) {
+			logger.Debug().
+				Str("provider", p.name).
+				Str("revocation_id", revocationID).
+				Int("status", ghErr.Response.StatusCode).
+				Msg("github: token already invalid, treating revoke as success")
+			return nil
+		}
 		return fmt.Errorf("revoking github installation token: %w", err)
 	}
 
