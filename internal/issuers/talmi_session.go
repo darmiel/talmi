@@ -18,17 +18,17 @@ const TalmiSessionAudience = "talmi-session"
 
 // TalmiSessionIssuer verifies Talmi-signed admin session JWTs.
 type TalmiSessionIssuer struct {
-	name string
-	key  []byte
+	name   string
+	signer *SessionSigner
 }
 
-func NewTalmiSessionIssuer(cfg config.IssuerBlock, key []byte) (*TalmiSessionIssuer, error) {
-	if len(key) == 0 {
+func NewTalmiSessionIssuer(cfg config.IssuerBlock, signer *SessionSigner) (*TalmiSessionIssuer, error) {
+	if signer == nil {
 		return nil, fmt.Errorf("talmi-session issuer %q requires a signing key", cfg.Name)
 	}
 	return &TalmiSessionIssuer{
-		name: cfg.Name,
-		key:  key,
+		name:   cfg.Name,
+		signer: signer,
 	}, nil
 }
 
@@ -38,14 +38,9 @@ func (i *TalmiSessionIssuer) Name() string {
 
 func (i *TalmiSessionIssuer) Verify(_ context.Context, token string) (*core.Principal, error) {
 	claims := jwt.MapClaims{}
-	parsed, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method %v", token.Header["alg"])
-		}
-		return i.key, nil
-	})
+	parsed, err := jwt.ParseWithClaims(token, claims, i.signer.keyfunc)
 	if err != nil || !parsed.Valid {
-		return nil, fmt.Errorf("invalid talmi session token %q: %w", token, err)
+		return nil, fmt.Errorf("invalid talmi session token: %w", err)
 	}
 	if aud, _ := claims["aud"].(string); aud != TalmiSessionAudience {
 		return nil, fmt.Errorf("token is not a talmi session")
@@ -68,7 +63,7 @@ func (i *TalmiSessionIssuer) Verify(_ context.Context, token string) (*core.Prin
 }
 
 // IssueSession mints a Talmi admin session JWT for the given principal.
-func IssueSession(key []byte, principal *core.Principal, ttl time.Duration) (string, time.Time, error) {
+func IssueSession(signer *SessionSigner, principal *core.Principal, ttl time.Duration) (string, time.Time, error) {
 	now := time.Now()
 	exp := now.Add(ttl)
 	claims := jwt.MapClaims{
@@ -80,7 +75,7 @@ func IssueSession(key []byte, principal *core.Principal, ttl time.Duration) (str
 		"iat":        now.Unix(),
 		"exp":        exp.Unix(),
 	}
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(key)
+	signed, err := signer.Sign(claims)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("signing talmi session token: %w", err)
 	}

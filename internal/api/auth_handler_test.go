@@ -10,7 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/issuers"
 )
+
+func mustHS256Signer() *issuers.SessionSigner {
+	s, err := issuers.NewSessionSigner("HS256", []byte("session-key"))
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
 
 type fakeIssuer struct {
 	principal *core.Principal
@@ -24,9 +33,9 @@ func (f fakeIssuer) Verify(context.Context, string) (*core.Principal, error) {
 
 func adminServer(principal *core.Principal, verifyErr error, authorized bool) *Server {
 	admin := AdminConfig{
-		LoginIssuer: func() (core.Issuer, bool) { return fakeIssuer{principal: principal, err: verifyErr}, true },
-		SessionKey:  []byte("session-key"),
-		SessionTTL:  time.Hour,
+		LoginIssuer:   func() (core.Issuer, bool) { return fakeIssuer{principal: principal, err: verifyErr}, true },
+		SessionSigner: mustHS256Signer(),
+		SessionTTL:    time.Hour,
 		Authorize: func(*core.Principal, []core.ResourceRequest) core.Decision {
 			return core.Decision{Authorized: authorized}
 		},

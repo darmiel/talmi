@@ -55,7 +55,7 @@ func (r *Registry) KnownIssuers() map[string]struct{} {
 	return known
 }
 
-func BuildRegistry(ctx context.Context, blocks []config.IssuerBlock, sessionKey []byte) (*Registry, error) {
+func BuildRegistry(ctx context.Context, blocks []config.IssuerBlock, signer *SessionSigner) (*Registry, error) {
 	issuers := make(map[string]core.Issuer)
 	urlMap := make(map[string]string)
 
@@ -82,7 +82,7 @@ func BuildRegistry(ctx context.Context, blocks []config.IssuerBlock, sessionKey 
 		case "github-oauth":
 			iss, err = NewGitHubOAuthIssuer(block)
 		case "talmi-session":
-			iss, err = NewTalmiSessionIssuer(block, sessionKey)
+			iss, err = NewTalmiSessionIssuer(block, signer)
 		default:
 			return nil, fmt.Errorf("unknown issuer type %q for issuer %q", block.Type, block.Name)
 		}

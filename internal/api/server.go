@@ -7,6 +7,7 @@ import (
 
 	"github.com/darmiel/talmi/internal/api/middleware"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/service"
 	"github.com/darmiel/talmi/internal/tasks"
 )
@@ -29,7 +30,7 @@ type AdminConfig struct {
 	SessionIssuer func() (core.Issuer, bool)
 	Authorize     func(principal *core.Principal, req []core.ResourceRequest) core.Decision
 	Auditor       func() core.Auditor
-	SessionKey    []byte
+	SessionSigner *issuers.SessionSigner
 	SessionTTL    time.Duration
 	LoginInfo     LoginInfo
 	Tasks         *tasks.Manager

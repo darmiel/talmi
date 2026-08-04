@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/source"
 )
 
@@ -23,10 +24,16 @@ type Manager struct {
 }
 
 func NewManager(ctx context.Context, cfg *config.Config, src source.Source, dev bool) (*Manager, error) {
-	st, err := buildStable(ctx, cfg)
+	st, err := buildStable(ctx, cfg, dev)
 	if err != nil {
 		return nil, err
 	}
+	success := false
+	defer func() {
+		if !success {
+			_ = st.Close()
+		}
+	}()
 	m := &Manager{
 		cfg:    cfg,
 		source: src,
@@ -34,9 +41,9 @@ func NewManager(ctx context.Context, cfg *config.Config, src source.Source, dev 
 		stable: *st,
 	}
 	if err := m.reload(ctx, true); err != nil {
-		_ = st.Close()
 		return nil, err
 	}
+	success = true
 	return m, nil
 }
 
@@ -109,7 +116,7 @@ func (m *Manager) InvalidateProviders() {
 	}
 }
 
-// SessionKey returns the session signing key from the stable components.
-func (m *Manager) SessionKey() []byte {
-	return m.stable.sessionKey
+// SessionSigner returns the session signer.
+func (m *Manager) SessionSigner() *issuers.SessionSigner {
+	return m.stable.signer
 }

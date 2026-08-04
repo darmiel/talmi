@@ -25,7 +25,7 @@ func (f *fakeSource) Load(context.Context) (*config.SourcedConfig, string, error
 
 func devConfig() *config.Config {
 	return &config.Config{
-		Signing: config.SigningConfig{Key: "raw:dev-key"},
+		Signing: config.SigningConfig{Algorithm: "HS256", Key: "raw:dev-key"},
 		Store:   config.StoreConfig{Type: "memory"},
 		Audit:   config.AuditConfig{Enabled: false},
 	}
@@ -72,7 +72,9 @@ func TestManagerInitialAndCurrent(t *testing.T) {
 	src := &fakeSource{sourced: sourcedWith([]string{"ghes-corp:acme/*"}), revision: "r1"}
 	mgr, err := NewManager(context.Background(), devConfig(), src, true)
 	require.NoError(t, err)
-	defer mgr.Close()
+	defer func(mgr *Manager) {
+		_ = mgr.Close()
+	}(mgr)
 
 	_, err = mgr.Current().Service.IssueLease(context.Background(), readReq())
 	assert.NoError(t, err)
@@ -84,7 +86,9 @@ func TestManagerReloadSwapsBehavior(t *testing.T) {
 	src := &fakeSource{sourced: sourcedWith([]string{"ghes-corp:acme/*"}), revision: "r1"}
 	mgr, err := NewManager(context.Background(), devConfig(), src, true)
 	require.NoError(t, err)
-	defer mgr.Close()
+	defer func(mgr *Manager) {
+		_ = mgr.Close()
+	}(mgr)
 
 	// point the rule at a different repo namespace; acme/x is no longer covered
 	src.sourced = sourcedWith([]string{"ghes-corp:locked/*"})
@@ -101,7 +105,9 @@ func TestManagerReloadSameRevisionIsNoop(t *testing.T) {
 	src := &fakeSource{sourced: sourcedWith([]string{"ghes-corp:acme/*"}), revision: "r1"}
 	mgr, err := NewManager(context.Background(), devConfig(), src, true)
 	require.NoError(t, err)
-	defer mgr.Close()
+	defer func(mgr *Manager) {
+		_ = mgr.Close()
+	}(mgr)
 
 	before := mgr.Current()
 	require.NoError(t, mgr.Reload(context.Background()))
@@ -113,7 +119,9 @@ func TestManagerReloadKeepsCurrentOnFailure(t *testing.T) {
 	src := &fakeSource{sourced: sourcedWith([]string{"ghes-corp:acme/*"}), revision: "r1"}
 	mgr, err := NewManager(context.Background(), devConfig(), src, true)
 	require.NoError(t, err)
-	defer mgr.Close()
+	defer func(mgr *Manager) {
+		_ = mgr.Close()
+	}(mgr)
 	before := mgr.Current()
 
 	t.Run("source error", func(t *testing.T) {

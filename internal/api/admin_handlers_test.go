@@ -42,7 +42,6 @@ func adminHandlerServer(
 		},
 		Auditor:    func() core.Auditor { return auditor },
 		Tasks:      tm,
-		SessionKey: []byte("k"),
 		SessionTTL: time.Hour,
 	}))
 }

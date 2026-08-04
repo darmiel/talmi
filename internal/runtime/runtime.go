@@ -38,23 +38,19 @@ type Runtime struct {
 
 // stable holds components that persist across reloads.
 type stable struct {
-	store      core.LeaseStore
-	auditor    core.Auditor
-	sessionKey []byte
+	store   core.LeaseStore
+	auditor core.Auditor
+	signer  *issuers.SessionSigner
 }
 
 func (s stable) Close() error {
 	return errors.Join(s.store.Close(), s.auditor.Close())
 }
 
-func buildStable(ctx context.Context, cfg *config.Config) (*stable, error) {
-	var sessionKey []byte
-	if cfg.Signing.Key != "" {
-		key, err := secret.Resolve(cfg.Signing.Key)
-		if err != nil {
-			return nil, fmt.Errorf("resolving signing key: %w", err)
-		}
-		sessionKey = key
+func buildStable(ctx context.Context, cfg *config.Config, dev bool) (*stable, error) {
+	signer, err := buildSigner(cfg.Signing, dev)
+	if err != nil {
+		return nil, err
 	}
 	leaseStore, err := buildStore(ctx, cfg.Store)
 	if err != nil {
@@ -66,9 +62,9 @@ func buildStable(ctx context.Context, cfg *config.Config) (*stable, error) {
 		return nil, err
 	}
 	return &stable{
-		store:      leaseStore,
-		auditor:    auditor,
-		sessionKey: sessionKey,
+		store:   leaseStore,
+		auditor: auditor,
+		signer:  signer,
 	}, nil
 }
 
@@ -91,7 +87,7 @@ func buildReloadable(
 	if err != nil {
 		return nil, fmt.Errorf("building providers: %w", err)
 	}
-	issReg, err := issuers.BuildRegistry(ctx, sourced.Issuers, stable.sessionKey)
+	issReg, err := issuers.BuildRegistry(ctx, sourced.Issuers, stable.signer)
 	if err != nil {
 		return nil, fmt.Errorf("building issuer registry: %w", err)
 	}
@@ -130,6 +126,30 @@ func buildRealms(realms []config.RealmBlock) (*realm.Registry, error) {
 		reg.Register(rb.Realm, sem)
 	}
 	return reg, nil
+}
+
+func buildSigner(cfg config.SigningConfig, dev bool) (*issuers.SessionSigner, error) {
+	if cfg.Key == "" {
+		if dev {
+			log.Warn().Msg("runtime: --dev generated an ephemeral ES256 session signing key (sessions won't survive restart)")
+			return issuers.NewEphemeralSigner()
+		}
+		return nil, nil // talmi issuer will error
+	}
+	key, err := secret.ResolveString(cfg.Key)
+	if err != nil {
+		return nil, fmt.Errorf("resolving signing key: %w", err)
+	}
+	signer, err := issuers.NewSessionSigner(cfg.Algorithm, []byte(key))
+	if err != nil {
+		return nil, fmt.Errorf("building session signer: %w", err)
+	}
+	alg := cfg.Algorithm
+	if alg == "" {
+		alg = "ES256"
+	}
+	log.Info().Str("algorithm", alg).Msg("runtime: session signer initialized")
+	return signer, nil
 }
 
 func buildProviders(specs []config.ProviderSpec, dev bool) ([]core.ResourceProvider, error) {

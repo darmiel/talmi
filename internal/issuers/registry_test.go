@@ -25,7 +25,9 @@ func TestBuildRegistryTypes(t *testing.T) {
 		{Name: "gh-human", Type: "github-oauth", Config: map[string]any{"server": "https://ghes/api/v3"}},
 		{Name: "talmi-admins", Type: "talmi-session"},
 	}
-	reg, err := BuildRegistry(context.Background(), blocks, []byte("key"))
+	signer, err := NewSessionSigner("HS256", []byte("key"))
+	require.NoError(t, err)
+	reg, err := BuildRegistry(context.Background(), blocks, signer)
 	require.NoError(t, err)
 
 	for _, name := range []string{"s", "gh-human", "talmi-admins"} {

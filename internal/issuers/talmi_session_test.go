@@ -29,7 +29,9 @@ func signHS256(t *testing.T, claims jwt.MapClaims, key []byte) string {
 func TestTalmiSessionIssuer(t *testing.T) {
 	t.Parallel()
 	key := []byte("session-signing-key")
-	iss, err := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, key)
+	signer, err := NewSessionSigner("HS256", key)
+	require.NoError(t, err)
+	iss, err := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, signer)
 	require.NoError(t, err)
 	assert.Equal(t, "talmi-admins", iss.Name())
 
@@ -106,10 +108,13 @@ func TestTalmiSessionIssuer(t *testing.T) {
 func TestIssueAndVerifySession(t *testing.T) {
 	t.Parallel()
 	key := []byte("k")
-	iss, _ := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, key)
+	signer, err := NewSessionSigner("HS256", key)
+	require.NoError(t, err)
+	iss, err := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, signer)
+	require.NoError(t, err)
 
 	p := &core.Principal{ID: "alice", Issuer: "gh-human", Attributes: map[string]any{"teams": []any{"acme/admins"}}}
-	tok, exp, err := IssueSession(key, p, time.Hour)
+	tok, exp, err := IssueSession(signer, p, time.Hour)
 	require.NoError(t, err)
 	assert.True(t, exp.After(time.Now()))
 

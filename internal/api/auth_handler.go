@@ -53,7 +53,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, exp, err := issuers.IssueSession(s.admin.SessionKey, principal, s.admin.SessionTTL)
+	session, exp, err := issuers.IssueSession(s.admin.SessionSigner, principal, s.admin.SessionTTL)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).
 			Str("sub", principal.ID).
