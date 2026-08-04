@@ -82,13 +82,25 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 	default:
 		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", name)
 	}
+
+	capTTL := cfg.RefreshInterval
+	if capTTL <= 0 {
+		capTTL = 15 * time.Minute
+	}
+	if capTTL < 1*time.Minute {
+		log.Warn().
+			Str("provider", name).
+			Dur("refresh_interval", capTTL).
+			Msg("github: capability cache refresh interval is very low, consider increasing it to avoid rate limiting")
+	}
+
 	p := &Provider{
 		name:          name,
 		realm:         realm,
 		appID:         cfg.AppID,
 		privateKey:    keyBytes,
 		serverBaseURL: cfg.ServerBaseURL,
-		capTTL:        15 * time.Minute,
+		capTTL:        capTTL,
 	}
 	p.discover = p.discoverViaAPI
 
@@ -96,12 +108,15 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 }
 
 type ProviderConfig struct {
-	AppID          int64  `mapstructure:"app_id"`
-	PrivateKey     string `mapstructure:"private_key"`
-	PrivateKeyFile string `mapstructure:"private_key_path"`
+	AppID          int64
+	PrivateKey     string
+	PrivateKeyFile string
 
 	// Optional: GitHub Enterprise server URL. Defaults to https://api.github.com
-	ServerBaseURL string `mapstructure:"server"`
+	ServerBaseURL string
+
+	// RefreshInterval is the capability cache TTL.
+	RefreshInterval time.Duration
 }
 
 func (p *Provider) Name() string {

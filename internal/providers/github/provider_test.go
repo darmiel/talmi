@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v80/github"
 	"github.com/stretchr/testify/assert"
@@ -331,4 +332,19 @@ func TestRevokeIsIdempotentOnAlreadyRevoked(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewRefreshIntervalSetsCapTTL(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	custom, err := New("gh", "ghes-corp", ProviderConfig{
+		PrivateKey: "k", AppID: 1, RefreshInterval: 2 * time.Minute,
+	})
+	require.NoError(t, err)
+	is.Equal(2*time.Minute, custom.capTTL, "configured refresh_interval must set capTTL")
+
+	def, err := New("gh", "ghes-corp", ProviderConfig{PrivateKey: "k", AppID: 1})
+	require.NoError(t, err)
+	is.Equal(15*time.Minute, def.capTTL, "unset refresh_interval falls back to the default")
 }

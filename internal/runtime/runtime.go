@@ -187,9 +187,10 @@ func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, e
 			return nil, err
 		}
 		return githubprovider.New(spec.Name, spec.Realm, githubprovider.ProviderConfig{
-			AppID:         spec.AppID,
-			PrivateKey:    key,
-			ServerBaseURL: spec.Server,
+			AppID:           spec.AppID,
+			PrivateKey:      key,
+			ServerBaseURL:   spec.Server,
+			RefreshInterval: spec.Capability.Refresh,
 		})
 	case "artifactory":
 		tok, err := secret.ResolveString(spec.AdminToken)
