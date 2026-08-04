@@ -133,9 +133,11 @@ func (p *Provider) RevokeToken(
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent { // ignore already revoked
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusNoContent, http.StatusNotFound:
+		// 404 => the token no longer exists (already revoked/expired)
+		return nil
+	default:
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-
-	return nil
 }

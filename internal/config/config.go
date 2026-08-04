@@ -13,7 +13,7 @@ type Config struct {
 	Signing      SigningConfig `yaml:"signing"`
 	Store        StoreConfig   `yaml:"store"`
 	Audit        AuditConfig   `yaml:"audit"`
-	ConfigSource *SourceConfig `yaml:"configSource"`
+	ConfigSource *SourceConfig `yaml:"source"`
 	Auth         *AuthConfig   `yaml:"auth,omitempty"`
 
 	// Local sourced sections

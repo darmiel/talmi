@@ -3,6 +3,8 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-github/v80/github"
@@ -296,4 +298,37 @@ func TestPlanErrors(t *testing.T) {
 		is.Error(err)
 		is.Contains(err.Error(), "no installation found")
 	})
+}
+
+func TestRevokeIsIdempotentOnAlreadyRevoked(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		status  int
+		wantErr bool
+	}{
+		{"401 unauthorized (token already invalid)", http.StatusUnauthorized, false},
+		{"404 not found", http.StatusNotFound, false},
+		{"500 server error still fails", http.StatusInternalServerError, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer ts.Close()
+
+			p, _ := newTestProvider(t, &discovered{})
+			p.serverBaseURL = ts.URL
+
+			err := p.Revoke(context.Background(), "github-installation-1", "dead-token")
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err, "an already-gone token must make revoke a no-op success")
+			}
+		})
+	}
 }

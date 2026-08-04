@@ -1,6 +1,9 @@
 package jfrog
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -85,4 +88,40 @@ func TestPlanAndCapabilities(t *testing.T) {
 	is.NoError(err)
 	is.Len(plans, 1)
 	is.Equal(reqs, plans[0].Covers)
+}
+
+func TestRevokeIsIdempotentOnNotFound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("404 is treated as success (already revoked)", func(t *testing.T) {
+		t.Parallel()
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		p, err := New("art", "artifactory", ProviderConfig{
+			Server: ts.URL, Token: "tok", Groups: []string{"g"},
+		})
+		require.NoError(t, err)
+
+		err = p.Revoke(context.Background(), "token-id", "")
+		assert.NoError(t, err, "revoking an already-gone token must be a no-op success")
+	})
+
+	t.Run("other errors still fail", func(t *testing.T) {
+		t.Parallel()
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer ts.Close()
+
+		p, err := New("art", "artifactory", ProviderConfig{
+			Server: ts.URL, Token: "tok", Groups: []string{"g"},
+		})
+		require.NoError(t, err)
+
+		err = p.Revoke(context.Background(), "token-id", "")
+		assert.Error(t, err, "a 500 from JFrog must surface as an error")
+	})
 }
