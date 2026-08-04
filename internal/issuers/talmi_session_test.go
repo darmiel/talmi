@@ -15,7 +15,7 @@ import (
 
 func TestNewTalmiSessionRequiresKey(t *testing.T) {
 	t.Parallel()
-	_, err := NewTalmiSessionIssuer(config.IssuerBlock{Name: "x"}, nil)
+	_, err := NewTalmiSessionIssuer("x", config.TalmiSessionConfig{}, nil)
 	assert.Error(t, err)
 }
 
@@ -31,7 +31,7 @@ func TestTalmiSessionIssuer(t *testing.T) {
 	key := []byte("session-signing-key")
 	signer, err := NewSessionSigner("HS256", key)
 	require.NoError(t, err)
-	iss, err := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, signer)
+	iss, err := NewTalmiSessionIssuer("talmi-admins", config.TalmiSessionConfig{}, signer)
 	require.NoError(t, err)
 	assert.Equal(t, "talmi-admins", iss.Name())
 
@@ -110,7 +110,7 @@ func TestIssueAndVerifySession(t *testing.T) {
 	key := []byte("k")
 	signer, err := NewSessionSigner("HS256", key)
 	require.NoError(t, err)
-	iss, err := NewTalmiSessionIssuer(config.IssuerBlock{Name: "talmi-admins"}, signer)
+	iss, err := NewTalmiSessionIssuer("talmi-admins", config.TalmiSessionConfig{}, signer)
 	require.NoError(t, err)
 
 	p := &core.Principal{ID: "alice", Issuer: "gh-human", Attributes: map[string]any{"teams": []any{"acme/admins"}}}

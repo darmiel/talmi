@@ -22,12 +22,19 @@ type TalmiSessionIssuer struct {
 	signer *SessionSigner
 }
 
-func NewTalmiSessionIssuer(cfg config.IssuerBlock, signer *SessionSigner) (*TalmiSessionIssuer, error) {
+func NewTalmiSessionIssuer(
+	name string,
+	cfg config.TalmiSessionConfig,
+	signer *SessionSigner,
+) (*TalmiSessionIssuer, error) {
 	if signer == nil {
-		return nil, fmt.Errorf("talmi-session issuer %q requires a signing key", cfg.Name)
+		return nil, fmt.Errorf("talmi-session issuer %q requires a signing key", name)
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("talmi-session issuer %q: %w", name, err)
 	}
 	return &TalmiSessionIssuer{
-		name:   cfg.Name,
+		name:   name,
 		signer: signer,
 	}, nil
 }

@@ -15,7 +15,7 @@ func TestGitHubOAuthIssuerVerify(t *testing.T) {
 	is := assert.New(t)
 
 	server := newMockGitHubServer(t, false)
-	iss, err := NewGitHubOAuthIssuer(config.IssuerBlock{Name: "gh-human", Config: map[string]any{"server": server}})
+	iss, err := NewGitHubOAuthIssuer("gh-human", config.GitHubOAuthConfig{Server: server})
 	require.NoError(t, err)
 
 	p, err := iss.Verify(context.Background(), "gho_testtoken")
@@ -31,7 +31,7 @@ func TestGitHubOAuthIssuerVerify(t *testing.T) {
 func TestGitHubOAuthIssuerAPIError(t *testing.T) {
 	t.Parallel()
 	server := newMockGitHubServer(t, true) // /user returns 500
-	iss, err := NewGitHubOAuthIssuer(config.IssuerBlock{Name: "gh-human", Config: map[string]any{"server": server}})
+	iss, err := NewGitHubOAuthIssuer("gh-human", config.GitHubOAuthConfig{Server: server})
 	require.NoError(t, err)
 
 	_, err = iss.Verify(context.Background(), "tok")
