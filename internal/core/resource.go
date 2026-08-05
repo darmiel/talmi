@@ -39,6 +39,6 @@ type ResourceRequest struct {
 // Allow is one policy allowance block used inside a Rule.
 // Resources are patterns matched by the realm semantics.
 type Allow struct {
-	Resources []string `json:"resources"` // note that it's a string, because it may contain matchers
-	Actions   []Action
+	Resources []string `yaml:"resources" json:"resources"` // note that it's a string, because it may contain matchers
+	Actions   []Action `yaml:"actions" json:"actions"`
 }

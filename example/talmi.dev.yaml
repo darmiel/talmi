@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=../docs/schema/config.schema.json
+
 grade: dev
 store: { type: memory }
 audit: { enabled: false }

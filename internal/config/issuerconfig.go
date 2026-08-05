@@ -35,8 +35,8 @@ type IssuerConfig interface {
 }
 
 type OIDCConfig struct {
-	IssuerURL string `mapstructure:"issuer_url" json:"issuer_url" jsonschema:"required"`
-	ClientID  string `mapstructure:"client_id" json:"client_id" jsonschema:"required"`
+	IssuerURL string `mapstructure:"issuer_url" yaml:"issuer_url" json:"issuer_url" jsonschema:"required"`
+	ClientID  string `mapstructure:"client_id" yaml:"client_id" json:"client_id" jsonschema:"required"`
 }
 
 func (c OIDCConfig) Validate() error {
@@ -50,7 +50,7 @@ func (c OIDCConfig) Validate() error {
 }
 
 type StaticConfig struct {
-	TokenMap map[string]map[string]any `mapstructure:"token_map" json:"token_map,omitempty"`
+	TokenMap map[string]map[string]any `mapstructure:"token_map" yaml:"token_map" json:"token_map,omitempty"`
 }
 
 func (StaticConfig) Validate() error {
@@ -58,7 +58,7 @@ func (StaticConfig) Validate() error {
 }
 
 type GitHubOAuthConfig struct {
-	Server string `mapstructure:"server" json:"server,omitempty"`
+	Server string `mapstructure:"server" yaml:"server,omitempty" json:"server,omitempty"`
 }
 
 func (GitHubOAuthConfig) Validate() error {
