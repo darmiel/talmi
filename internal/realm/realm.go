@@ -44,3 +44,22 @@ func (r *Registry) Get(realmName string) (Semantics, bool) {
 	semantics, ok := r.byRealm[realmName]
 	return semantics, ok
 }
+
+// Kinds returns the list of known realm kinds.
+func Kinds() []string {
+	return []string{KindGitHub, KindArtifactory, KindTalmi}
+}
+
+// SemanticsFor returns the semantics for a given realm kind, if known.
+func SemanticsFor(kind string) (Semantics, bool) {
+	switch kind {
+	case KindGitHub:
+		return GitHub{}, true
+	case KindArtifactory:
+		return Artifactory{}, true
+	case KindTalmi:
+		return Talmi{}, true
+	default:
+		return nil, false
+	}
+}

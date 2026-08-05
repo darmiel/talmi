@@ -32,7 +32,7 @@ func baseline() StaticInput {
 					Resources: []string{"ghes-corp:acme/*"}, MaxActions: []core.Action{"contents:read"},
 				},
 				Instances: []config.InstanceBlock{
-					{Name: "gh-1", AppID: 1, PrivateKey: "raw:pem"},
+					{Name: "gh-1", Config: map[string]any{"app_id": 1, "private_key": "raw:pem"}},
 				},
 			},
 		},
@@ -118,7 +118,7 @@ func TestStaticChecks(t *testing.T) {
 		{
 			name: "github-app instance missing private key",
 			mutate: func(in *StaticInput) {
-				in.Sourced.Realms[0].Instances[0].PrivateKey = ""
+				in.Sourced.Realms[0].Instances[0].Config = map[string]any{"app_id": 1} // no private_key
 			},
 			wantCode: "CFG-INSTANCE-CONFIG",
 			wantSev:  SeverityError,
@@ -193,4 +193,18 @@ func TestStaticNoRulesWarns(t *testing.T) {
 	require.NotNil(t, f, "got: %+v", r.Findings)
 	assert.Equal(t, SeverityWarn, f.Severity)
 	assert.False(t, r.HasErrors(), "no rules is a warning, not an error")
+}
+
+// TestStaticAcceptsTalmiRealmType guards against flagging "talmi" as an unknown
+// realm type: it is valid (authz-vocabulary realm) and handled by buildRealms /
+// RealmRegistry, so checkRealms must accept it too.
+func TestStaticAcceptsTalmiRealmType(t *testing.T) {
+	t.Parallel()
+	in := baseline()
+	in.Sourced.Realms = append(in.Sourced.Realms, config.RealmBlock{Realm: "talmi", Type: "talmi"})
+	in.Realms.Register("talmi", realm.Talmi{})
+
+	r := Static(in)
+	assert.Nil(t, findByCode(r, "CFG-REALM-TYPE"),
+		"talmi is a valid realm type; findings: %+v", r.Findings)
 }

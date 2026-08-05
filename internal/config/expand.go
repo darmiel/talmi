@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-
-	"github.com/darmiel/talmi/internal/secret"
 )
 
 // ProviderSpec is one fully-resolved provider instance.
@@ -11,13 +9,8 @@ type ProviderSpec struct {
 	Name       string
 	Realm      string
 	Type       string
-	Server     string
-	BaseURL    string
 	Capability CapabilityBlock
-	AppID      int64
-	PrivateKey secret.Ref
-	AdminToken secret.Ref
-	Groups     []string
+	Config     InstanceConfig
 }
 
 // ExpandProviders flattens realm blocks into per-instance provider specs,
@@ -47,17 +40,17 @@ func ExpandProviders(realms []RealmBlock) ([]ProviderSpec, error) {
 				capability = inst.Capability
 			}
 
+			cfg, err := decodeInstance(rb.Type, inst.Config)
+			if err != nil {
+				return nil, fmt.Errorf("realm %q instance %q: %w", rb.Realm, inst.Name, err)
+			}
+
 			specs = append(specs, ProviderSpec{
 				Name:       inst.Name,
 				Realm:      rb.Realm,
 				Type:       rb.Type,
-				Server:     rb.Server,
-				BaseURL:    rb.BaseURL,
 				Capability: capability,
-				AppID:      inst.AppID,
-				PrivateKey: inst.PrivateKey,
-				AdminToken: inst.AdminToken,
-				Groups:     inst.Groups,
+				Config:     cfg,
 			})
 		}
 	}

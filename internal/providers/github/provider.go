@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -69,18 +68,8 @@ type ghMintPlan struct {
 // New creates a new Provider from the given config.
 // It maps a ProviderConfig to ProviderConfig struct,
 func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
-	var keyBytes []byte
-	switch {
-	case cfg.PrivateKey != "":
-		keyBytes = []byte(cfg.PrivateKey)
-	case cfg.PrivateKeyFile != "":
-		contents, err := os.ReadFile(cfg.PrivateKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read private key file for github_app provider '%s': %w", name, err)
-		}
-		keyBytes = contents
-	default:
-		return nil, fmt.Errorf("github_app provider '%s' missing 'private_key' or 'private_key_path'", name)
+	if len(cfg.PrivateKey) == 0 {
+		return nil, fmt.Errorf("github-app provider %q missing 'private_key'", name)
 	}
 
 	capTTL := cfg.RefreshInterval
@@ -98,7 +87,7 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 		name:          name,
 		realm:         realm,
 		appID:         cfg.AppID,
-		privateKey:    keyBytes,
+		privateKey:    cfg.PrivateKey,
 		serverBaseURL: cfg.ServerBaseURL,
 		capTTL:        capTTL,
 	}
@@ -108,9 +97,8 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 }
 
 type ProviderConfig struct {
-	AppID          int64
-	PrivateKey     string
-	PrivateKeyFile string
+	AppID      int64
+	PrivateKey []byte
 
 	// Optional: GitHub Enterprise server URL. Defaults to https://api.github.com
 	ServerBaseURL string

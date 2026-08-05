@@ -11,18 +11,9 @@ import (
 func RealmRegistry(realms []config.RealmBlock) *realm.Registry {
 	reg := realm.NewRegistry()
 	for _, rb := range realms {
-		var sem realm.Semantics
-		switch rb.Type {
-		case "github-app":
-			sem = realm.GitHub{}
-		case "artifactory":
-			sem = realm.Artifactory{}
-		case "talmi":
-			sem = realm.Talmi{}
-		default:
-			continue
+		if sem, ok := realm.SemanticsFor(rb.Type); ok {
+			reg.Register(rb.Realm, sem)
 		}
-		reg.Register(rb.Realm, sem)
 	}
 	return reg
 }

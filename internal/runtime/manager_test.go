@@ -141,3 +141,74 @@ func TestManagerReloadKeepsCurrentOnFailure(t *testing.T) {
 		assert.Same(t, before, mgr.Current(), "bad candidate must not replace a good runtime")
 	})
 }
+
+// TestManagerRejectsInvalidConfigOnReload verifies configvet.Static is wired
+// into (non-dev) reload: an invalid revision is rejected and the current
+// runtime is kept.
+func TestManagerRejectsInvalidConfigOnReload(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	good := validNonDevSourced()
+	src := &fakeSource{sourced: good, revision: "v1"}
+	mgr, err := NewManager(context.Background(), devConfig(), src, false) // non-dev -> configvet.Static runs
+	require.NoError(t, err)
+	is.Equal("v1", mgr.Current().Revision)
+
+	// reload with a rule referencing an unknown issuer -> Static rejects
+	bad := *good
+	bad.Rules = []core.Rule{
+		{Name: "r", Match: core.Match{Issuer: "nope", AllowEmptyCondition: true}, Allow: good.Rules[0].Allow},
+	}
+	src.sourced = &bad
+	src.revision = "v2"
+
+	err = mgr.Reload(context.Background())
+	is.Error(err)
+	is.Equal("v1", mgr.Current().Revision, "rejected reload must keep the current runtime")
+}
+
+// TestManagerRejectsInvalidAuthAtStartup drives the configvet.Static wiring
+// specifically: a bad auth block (login/session issuer of the wrong type) is
+// caught only by Static, not by ValidateRules.
+func TestManagerRejectsInvalidAuthAtStartup(t *testing.T) {
+	t.Parallel()
+	cfg := devConfig()
+	cfg.Auth = &config.AuthConfig{LoginIssuer: "ci", SessionIssuer: "ci"} // "ci" is a static issuer, wrong types
+	src := &fakeSource{sourced: validNonDevSourced(), revision: "v1"}
+
+	_, err := NewManager(context.Background(), cfg, src, false)
+	assert.Error(t, err, "bad auth issuer types must be rejected by configvet.Static")
+}
+
+// validNonDevSourced is a config that builds and validates cleanly in non-dev
+// mode (github-app instance carries creds so the real provider constructs).
+func validNonDevSourced() *config.SourcedConfig {
+	return &config.SourcedConfig{
+		Issuers: []config.IssuerBlock{
+			{
+				Name:   "ci",
+				Type:   "static",
+				Config: map[string]any{"token_map": map[string]any{"tok": map[string]any{"sub": "u"}}},
+			},
+		},
+		Realms: []config.RealmBlock{
+			{
+				Realm: "ghes-corp", Type: "github-app",
+				Capability: config.CapabilityBlock{
+					Resources:  []string{"ghes-corp:*/*"},
+					MaxActions: []core.Action{"contents:read"},
+				},
+				Instances: []config.InstanceBlock{
+					{Name: "gh-1", Config: map[string]any{"app_id": 1, "private_key": "raw:pem"}},
+				},
+			},
+		},
+		Rules: []core.Rule{
+			{
+				Name: "r", Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+				Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+			},
+		},
+	}
+}

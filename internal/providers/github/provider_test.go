@@ -25,7 +25,7 @@ func fakeDiscover(d *discovered, calls *int) func(ctx context.Context) (*discove
 func newTestProvider(t *testing.T, d *discovered) (*Provider, *int) {
 	t.Helper()
 	p, err := New("gh-corp", "ghes-corp", ProviderConfig{
-		PrivateKey: "test-key",
+		PrivateKey: []byte("test-key"),
 		AppID:      1,
 	})
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestNewDefaults(t *testing.T) {
 	is := assert.New(t)
 
 	p, err := New("gh-corp", "ghes-corp", ProviderConfig{
-		PrivateKey: "k",
+		PrivateKey: []byte("k"),
 		AppID:      1,
 	})
 	is.NoError(err)
@@ -339,12 +339,12 @@ func TestNewRefreshIntervalSetsCapTTL(t *testing.T) {
 	is := assert.New(t)
 
 	custom, err := New("gh", "ghes-corp", ProviderConfig{
-		PrivateKey: "k", AppID: 1, RefreshInterval: 2 * time.Minute,
+		PrivateKey: []byte("k"), AppID: 1, RefreshInterval: 2 * time.Minute,
 	})
 	require.NoError(t, err)
 	is.Equal(2*time.Minute, custom.capTTL, "configured refresh_interval must set capTTL")
 
-	def, err := New("gh", "ghes-corp", ProviderConfig{PrivateKey: "k", AppID: 1})
+	def, err := New("gh", "ghes-corp", ProviderConfig{PrivateKey: []byte("k"), AppID: 1})
 	require.NoError(t, err)
 	is.Equal(15*time.Minute, def.capTTL, "unset refresh_interval falls back to the default")
 }

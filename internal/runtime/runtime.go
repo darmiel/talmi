@@ -8,12 +8,12 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/audit"
+	"github.com/darmiel/talmi/internal/backend"
 	"github.com/darmiel/talmi/internal/config"
+	"github.com/darmiel/talmi/internal/configvet"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
-	githubprovider "github.com/darmiel/talmi/internal/providers/github"
-	"github.com/darmiel/talmi/internal/providers/jfrog"
 	"github.com/darmiel/talmi/internal/providers/stub"
 	"github.com/darmiel/talmi/internal/realm"
 	"github.com/darmiel/talmi/internal/resolver"
@@ -70,6 +70,7 @@ func buildStable(ctx context.Context, cfg *config.Config, dev bool) (*stable, er
 
 func buildReloadable(
 	ctx context.Context,
+	cfg *config.Config,
 	sourced *config.SourcedConfig,
 	revision string,
 	dev bool,
@@ -91,6 +92,32 @@ func buildReloadable(
 	if err != nil {
 		return nil, fmt.Errorf("building issuer registry: %w", err)
 	}
+
+	// full config validation
+	if !dev {
+		report := configvet.Static(configvet.StaticInput{
+			Config:  cfg,
+			Sourced: sourced,
+			Realms:  realms,
+		})
+		for _, f := range report.Findings {
+			ev := log.Ctx(ctx).Warn()
+			if f.Severity == configvet.SeverityError {
+				ev = log.Ctx(ctx).Error()
+			}
+			ev.
+				Str("code", f.Code).
+				Str("location", f.Location).
+				Msgf("config: %s", f.Message)
+		}
+		if report.HasErrors() {
+			return nil,
+				fmt.Errorf("configuration is invalid: %d error(s) found (run 'talmi config vet' for details)",
+					len(report.Errors()))
+		}
+	}
+
+	// validate rules compiles expr as well, so we need to "re-verify" the rules.
 	validRules, err := validation.ValidateRules(sourced.Rules, issReg.KnownIssuers(), realms)
 	if err != nil {
 		return nil, fmt.Errorf("validating rules: %w", err)
@@ -112,15 +139,8 @@ func buildReloadable(
 func buildRealms(realms []config.RealmBlock) (*realm.Registry, error) {
 	reg := realm.NewRegistry()
 	for _, rb := range realms {
-		var sem realm.Semantics
-		switch rb.Type {
-		case "github-app":
-			sem = realm.GitHub{}
-		case "artifactory":
-			sem = realm.Artifactory{}
-		case "talmi":
-			sem = realm.Talmi{}
-		default:
+		sem, ok := realm.SemanticsFor(rb.Type)
+		if !ok {
 			return nil, fmt.Errorf("realm %q: unknown type: %s", rb.Realm, rb.Type)
 		}
 		reg.Register(rb.Realm, sem)
@@ -175,38 +195,18 @@ func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, e
 			stub.WithMaxActions(spec.Capability.MaxActions...),
 		), nil
 	}
+	b, ok := backend.Lookup(spec.Type)
+	if !ok {
+		return nil, fmt.Errorf("unknown provider type %q", spec.Type)
+	}
 	log.Debug().
 		Str("provider", spec.Name).
 		Str("realm", spec.Realm).
 		Str("type", spec.Type).
 		Msg("runtime: building provider")
-	switch spec.Type {
-	case "github-app":
-		key, err := secret.ResolveString(spec.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		return githubprovider.New(spec.Name, spec.Realm, githubprovider.ProviderConfig{
-			AppID:           spec.AppID,
-			PrivateKey:      key,
-			ServerBaseURL:   spec.Server,
-			RefreshInterval: spec.Capability.Refresh,
-		})
-	case "artifactory":
-		tok, err := secret.ResolveString(spec.AdminToken)
-		if err != nil {
-			return nil, err
-		}
-		return jfrog.New(spec.Name, spec.Realm, jfrog.ProviderConfig{
-			Server:     spec.BaseURL,
-			Token:      tok,
-			Groups:     spec.Groups,
-			Resources:  spec.Capability.Resources,
-			MaxActions: spec.Capability.MaxActions,
-		})
-	default:
-		return nil, fmt.Errorf("unknown provider type %q", spec.Type)
-	}
+	return b.Build(backend.BuildInput{
+		Spec: spec,
+	})
 }
 
 func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, error) {

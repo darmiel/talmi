@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/darmiel/talmi/internal/secret"
 )
 
 func TestExpandProviders(t *testing.T) {
@@ -15,18 +17,15 @@ func TestExpandProviders(t *testing.T) {
 		{
 			Realm:      "ghes-corp",
 			Type:       "github-app",
-			Server:     "https://ghes/api/v3",
 			Capability: CapabilityBlock{Discovery: "api"},
 			Instances: []InstanceBlock{
 				{
-					Name:       "gh-ro",
-					AppID:      1,
-					PrivateKey: "file:/ro.pem",
+					Name:   "gh-ro",
+					Config: map[string]any{"app_id": 1, "private_key": "file:/ro.pem"},
 				},
 				{
 					Name:       "gh-rw",
-					AppID:      2,
-					PrivateKey: "file:/rw.pem",
+					Config:     map[string]any{"app_id": 2, "private_key": "file:/rw.pem"},
 					Capability: CapabilityBlock{Discovery: "static", Resources: []string{"ghes-corp:acme/svc-*"}},
 				},
 			},
@@ -39,8 +38,11 @@ func TestExpandProviders(t *testing.T) {
 
 	is.Equal("gh-ro", specs[0].Name)
 	is.Equal("ghes-corp", specs[0].Realm)
-	is.Equal("https://ghes/api/v3", specs[0].Server) // inherited
-	is.Equal("api", specs[0].Capability.Discovery)   // inherited realm capability
+	is.Equal("api", specs[0].Capability.Discovery) // inherited realm capability
+	gh, ok := specs[0].Config.(*GitHubAppConfig)
+	require.True(t, ok, "expected *GitHubAppConfig, got %T", specs[0].Config)
+	is.Equal(int64(1), gh.AppID)
+	is.Equal(secret.Ref("file:/ro.pem"), gh.PrivateKey)
 
 	is.Equal("static", specs[1].Capability.Discovery) // instance override
 	is.Equal([]string{"ghes-corp:acme/svc-*"}, specs[1].Capability.Resources)
@@ -48,17 +50,24 @@ func TestExpandProviders(t *testing.T) {
 
 func TestExpandProvidersErrors(t *testing.T) {
 	t.Parallel()
+	ghCfg := map[string]any{"app_id": 1, "private_key": "raw:pem"}
+
 	tests := []struct {
 		name   string
 		realms []RealmBlock
 	}{
-		{"missing realm name", []RealmBlock{{Type: "github-app", Instances: []InstanceBlock{{Name: "a"}}}}},
-		{"missing type", []RealmBlock{{Realm: "r", Instances: []InstanceBlock{{Name: "a"}}}}},
+		{"missing realm name", []RealmBlock{{Type: "github-app", Instances: []InstanceBlock{{Name: "a", Config: ghCfg}}}}},
+		{"missing type", []RealmBlock{{Realm: "r", Instances: []InstanceBlock{{Name: "a", Config: ghCfg}}}}},
 		{"instance without name", []RealmBlock{{Realm: "r", Type: "github-app", Instances: []InstanceBlock{{}}}}},
 		{
 			"duplicate instance name", []RealmBlock{
-				{Realm: "r1", Type: "github-app", Instances: []InstanceBlock{{Name: "dup"}}},
-				{Realm: "r2", Type: "github-app", Instances: []InstanceBlock{{Name: "dup"}}},
+				{Realm: "r1", Type: "github-app", Instances: []InstanceBlock{{Name: "dup", Config: ghCfg}}},
+				{Realm: "r2", Type: "github-app", Instances: []InstanceBlock{{Name: "dup", Config: ghCfg}}},
+			},
+		},
+		{
+			"invalid instance config", []RealmBlock{
+				{Realm: "r", Type: "github-app", Instances: []InstanceBlock{{Name: "a", Config: map[string]any{"appid": 1, "private_key": "raw:k"}}}},
 			},
 		},
 	}

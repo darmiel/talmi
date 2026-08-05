@@ -104,3 +104,13 @@ func TestRegistryIdentifyIssuer(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+// TestIssuerKindsCoverAllConfigTypes guards against drift: every issuer type
+// that has a config struct must also have a Build entry in issuerKinds.
+func TestIssuerKindsCoverAllConfigTypes(t *testing.T) {
+	t.Parallel()
+	for _, typ := range config.IssuerTypes() {
+		_, ok := issuerKinds[typ]
+		assert.Truef(t, ok, "issuerKinds is missing a Build for issuer type %q", typ)
+	}
+}

@@ -34,14 +34,13 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("real providers construct", func(t *testing.T) {
 		t.Parallel()
 		specs := []config.ProviderSpec{
-			{Name: "gh", Realm: "ghes-corp", Type: "github-app", AppID: 1, PrivateKey: "raw:dummy-pem"},
 			{
-				Name:       "art",
-				Realm:      "art",
-				Type:       "artifactory",
-				BaseURL:    "https://art",
-				AdminToken: "raw:tok",
-				Groups:     []string{"g"},
+				Name: "gh", Realm: "ghes-corp", Type: "github-app",
+				Config: &config.GitHubAppConfig{AppID: 1, PrivateKey: "raw:dummy-pem"},
+			},
+			{
+				Name: "art", Realm: "art", Type: "artifactory",
+				Config: &config.ArtifactoryConfig{AdminToken: "raw:tok", Groups: []string{"g"}, BaseURL: "https://art"},
 			},
 		}
 		ps, err := buildProviders(specs, false)
@@ -80,9 +79,8 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		_, err := buildProviders([]config.ProviderSpec{
 			{
-				Name:       "gh",
-				Type:       "github-app",
-				PrivateKey: "no-scheme",
+				Name: "gh", Realm: "ghes-corp", Type: "github-app",
+				Config: &config.GitHubAppConfig{AppID: 1, PrivateKey: "no-scheme"},
 			},
 		}, false)
 		assert.Error(t, err)

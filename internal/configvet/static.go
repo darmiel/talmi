@@ -2,6 +2,7 @@ package configvet
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/expr-lang/expr"
 
@@ -83,9 +84,9 @@ func checkRealms(in StaticInput, r *Report) {
 	instances := make(map[string]struct{})
 	for _, rb := range in.Sourced.Realms {
 		rloc := "realms[" + rb.Realm + "]"
-		if rb.Type != "github-app" && rb.Type != "artifactory" {
+		if _, ok := realm.SemanticsFor(rb.Type); !ok {
 			r.errorf("CFG-REALM-TYPE", "realms", rloc,
-				"unknown realm type %q, (want github-app or artifactory)", rb.Type)
+				"unknown realm type %q (want one of %s)", rb.Type, strings.Join(realm.Kinds(), ", "))
 		}
 		for _, inst := range rb.Instances {
 			iloc := rloc + ".instances[" + inst.Name + "]"
@@ -94,26 +95,8 @@ func checkRealms(in StaticInput, r *Report) {
 					"duplicate provider instance name %q", inst.Name)
 			}
 			instances[inst.Name] = struct{}{}
-
-			switch rb.Type {
-			case "github-app":
-				if inst.AppID <= 0 {
-					r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc,
-						"github-app instance %q requires app_id", inst.Name)
-				}
-				if inst.PrivateKey == "" {
-					r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc,
-						"github-app instance %q requires private_key", inst.Name)
-				}
-			case "artifactory":
-				if inst.AdminToken == "" {
-					r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc,
-						"artifactory instance %q requires admin_token", inst.Name)
-				}
-				if len(inst.Groups) == 0 {
-					r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc,
-						"artifactory instance %q requires at least one group", inst.Name)
-				}
+			if _, err := config.DecodeInstanceConfig(rb.Type, inst.Config); err != nil {
+				r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc, "%v", err)
 			}
 		}
 	}
@@ -283,9 +266,17 @@ func checkSecrets(in StaticInput, r *Report) {
 	}
 	for _, rb := range in.Sourced.Realms {
 		for _, inst := range rb.Instances {
+			cfg, err := config.DecodeInstanceConfig(rb.Type, inst.Config)
+			if err != nil || cfg == nil {
+				continue // already reported in checkRealms
+			}
 			iloc := "realms[" + rb.Realm + "].instances[" + inst.Name + "]"
-			check(inst.PrivateKey, "realms", iloc+".private_key")
-			check(inst.AdminToken, "realms", iloc+".admin_token")
+			switch c := cfg.(type) {
+			case *config.GitHubAppConfig:
+				check(c.PrivateKey, "realms", iloc+".private_key")
+			case *config.ArtifactoryConfig:
+				check(c.AdminToken, "realms", iloc+".admin_token")
+			}
 		}
 	}
 }
