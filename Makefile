@@ -22,3 +22,10 @@ schema:
 	@echo "Generating schema"
 	@for t in config issuers realms rules; do go run . config schema $$t -o docs/schema/$$t.schema.json; done
 	@echo "Generated schema"
+
+.PHONY: schema-check
+schema-check:
+	@for t in config issuers realms rules; do \
+		go run . config schema $$t | diff -u docs/schema/$$t.schema.json - \
+		  || { echo "schema drift for $$t: run 'make schema'"; exit 1; }; \
+	done
