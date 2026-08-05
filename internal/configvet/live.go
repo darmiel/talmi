@@ -3,6 +3,7 @@ package configvet
 import (
 	"context"
 
+	"github.com/darmiel/talmi/internal/backend"
 	"github.com/darmiel/talmi/internal/core"
 )
 
@@ -26,6 +27,11 @@ func Live(ctx context.Context, input LiveInput) Report {
 		realmResources[caps.Realm] += len(caps.Resources)
 	}
 
+	realmType := make(map[string]string, len(input.Static.Sourced.Realms))
+	for _, rb := range input.Static.Sourced.Realms {
+		realmType[rb.Realm] = rb.Type
+	}
+
 	seen := make(map[string]struct{})
 	for _, rule := range input.Static.Sourced.Rules {
 		for _, allow := range rule.Allow {
@@ -39,6 +45,12 @@ func Live(ctx context.Context, input LiveInput) Report {
 					continue // already reported for this rule and realm
 				}
 				seen[key] = struct{}{}
+
+				// skip provider-less realms (e.g. talmi)
+				if _, ok := backend.Lookup(realmType[rn]); !ok {
+					continue
+				}
+
 				if realmResources[rn] == 0 {
 					r.errorf("CFG-COVERAGE", "capabilities", "rules["+rule.Name+"].allow",
 						"rule %q targets realm %q, but no working provider serves it", rule.Name, rn)
