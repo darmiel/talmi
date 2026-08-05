@@ -9,8 +9,11 @@ const (
 	SeverityWarn
 )
 
-func (s Severity) String() string {
-	switch s {
+func (s *Severity) String() string {
+	if s == nil {
+		return ""
+	}
+	switch *s {
 	case SeverityError:
 		return "error"
 	case SeverityWarn:
@@ -18,6 +21,24 @@ func (s Severity) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// MarshalJSON renders the severity as "error"/"warn" for readable JSON output.
+func (s *Severity) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + s.String() + `"`), nil
+}
+
+// UnmarshalJSON parses "error"/"warn" back into a Severity (lossless round-trip).
+func (s *Severity) UnmarshalJSON(data []byte) error {
+	switch string(data) {
+	case `"warn"`:
+		*s = SeverityWarn
+	case `"error"`:
+		*s = SeverityError
+	default:
+		return fmt.Errorf("unknown severity %s", data)
+	}
+	return nil
 }
 
 // Position is a best-effort source location for a finding.
