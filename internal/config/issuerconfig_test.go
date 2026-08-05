@@ -1,11 +1,40 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestDecodeIssuerConfigFromParsedYAML exercises the real path: goccy's inline
+// map captures the block's own name/type keys, which must not break strict decode.
+func TestDecodeIssuerConfigFromParsedYAML(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "issuers.d"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "issuers.d", "ci.yaml"),
+		[]byte("- name: cc\n  type: oidc\n  issuer_url: https://idp\n  client_id: c\n"), 0o600))
+
+	blocks, err := LoadSection[IssuerBlock](dir, []string{"issuers.d/*.yaml"})
+	require.NoError(t, err)
+	require.Len(t, blocks, 1)
+
+	got, err := DecodeIssuerConfig(blocks[0])
+	require.NoError(t, err, "inline name/type must not break strict decode")
+	require.Equal(t, "https://idp", got.(*OIDCConfig).IssuerURL)
+
+	// a real typo still fails, naming only the offending key
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "issuers.d", "bad.yaml"),
+		[]byte("- name: bad\n  type: oidc\n  issuerurl: https://idp\n  client_id: c\n"), 0o600))
+	bad, err := LoadSection[IssuerBlock](dir, []string{"issuers.d/bad.yaml"})
+	require.NoError(t, err)
+	_, err = DecodeIssuerConfig(bad[0])
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "issuerurl")
+}
 
 func TestDecodeIssuerConfig(t *testing.T) {
 	t.Parallel()

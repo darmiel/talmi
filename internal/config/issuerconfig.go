@@ -67,6 +67,16 @@ func DecodeIssuerConfig(block IssuerBlock) (IssuerConfig, error) {
 	}
 	target := newCfg()
 
+	// The inline Config map also captures the block's own "name"/"type" keys;
+	// drop them so strict decoding doesn't report them as unknown fields.
+	raw := make(map[string]any, len(block.Config))
+	for k, v := range block.Config {
+		if k == "name" || k == "type" {
+			continue
+		}
+		raw[k] = v
+	}
+
 	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result:      target,
 		ErrorUnused: true,
@@ -75,7 +85,7 @@ func DecodeIssuerConfig(block IssuerBlock) (IssuerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("issuer decoder: %w", err)
 	}
-	if err := dec.Decode(block.Config); err != nil {
+	if err := dec.Decode(raw); err != nil {
 		return nil, fmt.Errorf("issuer %q (type %q): %w; valid keys: %s",
 			block.Name, block.Type, err, strings.Join(knownIssuerKeys(target), ", "))
 	}
