@@ -28,6 +28,8 @@ var (
 	serveConfigPath string
 	serveAddr       string
 	serveDevMode    bool
+	serveLocal      bool
+	serveRef        string
 )
 
 // serveCmd represents the serve command
@@ -42,10 +44,16 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
+		if err := validateVetSourceFlags(serveLocal, serveRef); err != nil {
+			return fmt.Errorf("invalid source flags: %w", err)
+		}
 
-		src, err := buildSource(cfg, filepath.Dir(serveConfigPath))
+		src, err := source.Resolve(cfg, filepath.Dir(serveConfigPath), source.Options{
+			ForceLocal: serveLocal,
+			Ref:        serveRef,
+		})
 		if err != nil {
-			return fmt.Errorf("building config source: %w", err)
+			return fmt.Errorf("resolving config source: %w", err)
 		}
 
 		log.Info().
@@ -178,17 +186,6 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-func buildSource(cfg *config.Config, baseDir string) (source.Source, error) {
-	if cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil {
-		key, err := secret.Resolve(cfg.ConfigSource.GitHub.PrivateKey)
-		if err != nil {
-			return nil, fmt.Errorf("resolving config source key: %w", err)
-		}
-		return source.NewGitHubSource(*cfg.ConfigSource.GitHub, key)
-	}
-	return source.NewLocalSource(baseDir, cfg), nil
-}
-
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
@@ -196,4 +193,6 @@ func init() {
 	serveCmd.Flags().StringVarP(&serveConfigPath, "config", "c", "talmi.yaml", "Bootstrap config file")
 	serveCmd.Flags().StringVar(&serveAddr, "addr", ":8080", "Address to listen on")
 	serveCmd.Flags().BoolVar(&serveDevMode, "dev", false, "Dev mode: real providers replaced with in-memory stubs")
+	serveCmd.Flags().BoolVar(&serveLocal, "local", false, "Force local config source (ignores remote)")
+	serveCmd.Flags().StringVar(&serveRef, "ref", "", "Override git ref for remote config source")
 }

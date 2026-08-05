@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +25,8 @@ var (
 	vetOnline bool
 	vetStrict bool
 	vetFormat string
+	vetLocal  bool
+	vetRef    string
 )
 
 var configVetCmd = &cobra.Command{
@@ -42,9 +43,24 @@ var configVetCmd = &cobra.Command{
 		if err != nil {
 			return logError(err, "", "could not load config")
 		}
-		sourced, _, err := source.NewLocalSource(filepath.Dir(path), cfg).Load(context.Background())
+		if err := validateVetSourceFlags(vetLocal, vetRef); err != nil {
+			return logError(err, "", "invalid source flags")
+		}
+
+		src, err := source.Resolve(cfg, filepath.Dir(path), source.Options{
+			ForceLocal: vetLocal,
+			Ref:        vetRef,
+		})
+		if err != nil {
+			return logError(err, "", "could not resolve config source")
+		}
+
+		sourced, revision, err := src.Load(cmd.Context())
 		if err != nil {
 			return logError(err, "", "could not load sourced config tree")
+		}
+		if revision != "" && revision != "local" && cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil {
+			logSuccess("vetting %s/%s@%s", cfg.ConfigSource.GitHub.Owner, cfg.ConfigSource.GitHub.Repo, revision)
 		}
 
 		staticIn := configvet.StaticInput{
@@ -83,9 +99,7 @@ var configVetCmd = &cobra.Command{
 	},
 }
 
-var (
-	schemaOut string
-)
+var schemaOut string
 
 var configSchemaCmd = &cobra.Command{
 	Use:   "schema [target]",
@@ -106,7 +120,7 @@ var configSchemaCmd = &cobra.Command{
 			_, err = os.Stdout.Write(data)
 			return err
 		}
-		if err := os.WriteFile(schemaOut, data, 0o644); err != nil {
+		if err := os.WriteFile(schemaOut, data, 0o600); err != nil {
 			return fmt.Errorf("writing schema: %w", err)
 		}
 		logSuccess("wrote %s schema to %s", target, schemaOut)
@@ -152,6 +166,13 @@ func buildProvidersForVet(sourced *config.SourcedConfig) ([]core.ResourceProvide
 	return provs, findings
 }
 
+func validateVetSourceFlags(local bool, ref string) error {
+	if local && ref != "" {
+		return fmt.Errorf("--local and --ref cannot be used together")
+	}
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configVetCmd, configSchemaCmd)
@@ -159,6 +180,8 @@ func init() {
 	configVetCmd.Flags().BoolVar(&vetOnline, "online", false, "perform network-based checks (may be slow)")
 	configVetCmd.Flags().BoolVar(&vetStrict, "strict", false, "treat warnings as errors")
 	configVetCmd.Flags().StringVar(&vetFormat, "format", "text", "output format: text or json")
+	configVetCmd.Flags().BoolVar(&vetLocal, "local", false, "force local config source (ignore remote)")
+	configVetCmd.Flags().StringVar(&vetRef, "ref", "", "override git ref for remote config source")
 
 	configSchemaCmd.Flags().StringVarP(&schemaOut, "out", "o", "", "output file for schema (default stdout)")
 }
