@@ -77,7 +77,7 @@ func (m *Manager) reload(ctx context.Context, initial bool) error {
 		prevRevision = cur.Revision
 	}
 
-	rt, err := buildReloadable(ctx, sourced, revision, m.dev, m.stable)
+	rt, err := buildReloadable(ctx, m.cfg, sourced, revision, m.dev, m.stable)
 	if err != nil {
 		// the current runtime is left untouched: an atomic swap only happens on success.
 		return fmt.Errorf("building reloadable runtime: %w", err)

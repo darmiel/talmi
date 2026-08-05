@@ -1,11 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/secret"
 )
+
+var ErrInvalidConfigType = fmt.Errorf("invalid config type")
 
 // Config is the local bootstrap.
 type Config struct {
@@ -75,19 +78,14 @@ type IssuerBlock struct {
 type RealmBlock struct {
 	Realm      string          `yaml:"realm"`
 	Type       string          `yaml:"type"` // github-app | artifactory | talmi
-	Server     string          `yaml:"server,omitempty"`
-	BaseURL    string          `yaml:"base_url,omitempty"`
 	Capability CapabilityBlock `yaml:"capability,omitempty"`
 	Instances  []InstanceBlock `yaml:"instances"`
 }
 
 type InstanceBlock struct {
 	Name       string          `yaml:"name"`
-	AppID      int64           `yaml:"app_id,omitempty"`
-	PrivateKey secret.Ref      `yaml:"private_key,omitempty"`
-	AdminToken secret.Ref      `yaml:"admin_token,omitempty"`
-	Groups     []string        `yaml:"groups,omitempty"`     // artifactory
 	Capability CapabilityBlock `yaml:"capability,omitempty"` // overrides realm-level
+	Config     map[string]any  `yaml:",inline"`
 }
 
 type CapabilityBlock struct {

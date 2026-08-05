@@ -3,12 +3,30 @@ package config
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 )
 
 const mapstructureTag = "mapstructure"
+
+var issuerConfigTypes = map[string]func() IssuerConfig{
+	IssuerTypeOIDC:         func() IssuerConfig { return &OIDCConfig{} },
+	IssuerTypeStatic:       func() IssuerConfig { return &StaticConfig{} },
+	IssuerTypeGitHubOAuth:  func() IssuerConfig { return &GitHubOAuthConfig{} },
+	IssuerTypeTalmiSession: func() IssuerConfig { return &TalmiSessionConfig{} },
+}
+
+// IssuerTypes returns the known issuer types (sorted).
+func IssuerTypes() []string {
+	out := make([]string, 0, len(issuerConfigTypes))
+	for t := range issuerConfigTypes {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
 
 // IssuerConfig is the decoded, typed configuration for one issuer.
 type IssuerConfig interface {
@@ -53,41 +71,15 @@ func (TalmiSessionConfig) Validate() error {
 	return nil
 }
 
-var issuerConfigTypes = map[string]func() IssuerConfig{
-	"oidc":          func() IssuerConfig { return &OIDCConfig{} },
-	"static":        func() IssuerConfig { return &StaticConfig{} },
-	"github-oauth":  func() IssuerConfig { return &GitHubOAuthConfig{} },
-	"talmi-session": func() IssuerConfig { return &TalmiSessionConfig{} },
-}
-
 func DecodeIssuerConfig(block IssuerBlock) (IssuerConfig, error) {
 	newCfg, ok := issuerConfigTypes[block.Type]
 	if !ok {
 		return nil, fmt.Errorf("unknown issuer type: %q", block.Type)
 	}
 	target := newCfg()
-
-	// The inline Config map also captures the block's own "name"/"type" keys;
-	// drop them so strict decoding doesn't report them as unknown fields.
-	raw := make(map[string]any, len(block.Config))
-	for k, v := range block.Config {
-		if k == "name" || k == "type" {
-			continue
-		}
-		raw[k] = v
-	}
-
-	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Result:      target,
-		ErrorUnused: true,
-		TagName:     mapstructureTag,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("issuer decoder: %w", err)
-	}
-	if err := dec.Decode(raw); err != nil {
+	if err := strictDecode(block.Config, target); err != nil {
 		return nil, fmt.Errorf("issuer %q (type %q): %w; valid keys: %s",
-			block.Name, block.Type, err, strings.Join(knownIssuerKeys(target), ", "))
+			block.Name, block.Type, err, strings.Join(knownMapstructureTags(target), ", "))
 	}
 	if err := target.Validate(); err != nil {
 		return nil, err
@@ -95,7 +87,27 @@ func DecodeIssuerConfig(block IssuerBlock) (IssuerConfig, error) {
 	return target, nil
 }
 
-func knownIssuerKeys(cfg IssuerConfig) []string {
+// strictDecode decodes raw into target, rejecting unknown keys.
+func strictDecode(raw map[string]any, target any) error {
+	clean := make(map[string]any, len(raw))
+	for k, v := range raw {
+		if k == "name" || k == "type" {
+			continue
+		}
+		clean[k] = v
+	}
+	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:      target,
+		ErrorUnused: true,
+		TagName:     mapstructureTag,
+	})
+	if err != nil {
+		return fmt.Errorf("building decoder: %w", err)
+	}
+	return dec.Decode(clean)
+}
+
+func knownMapstructureTags(cfg any) []string {
 	var keys []string
 	rt := reflect.TypeOf(cfg)
 	if rt.Kind() != reflect.Pointer {

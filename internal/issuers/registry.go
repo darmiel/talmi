@@ -74,22 +74,18 @@ func BuildRegistry(ctx context.Context, blocks []config.IssuerBlock, signer *Ses
 		if err != nil {
 			return nil, fmt.Errorf("building issuer %q: %w", block.Name, err)
 		}
-		switch c := typed.(type) {
-		case *config.OIDCConfig:
-			iss, err = NewOIDCIssuer(ctx, block.Name, *c)
-			issuerURL = c.IssuerURL
-		case *config.StaticConfig:
-			iss, err = NewStatic(block.Name, *c)
-		case *config.GitHubOAuthConfig:
-			iss, err = NewGitHubOAuthIssuer(block.Name, *c)
-		case *config.TalmiSessionConfig:
-			iss, err = NewTalmiSessionIssuer(block.Name, *c, signer)
-		default:
-			return nil, fmt.Errorf("unknown issuer config type for issuer %q", block.Name)
+		kind, ok := issuerKinds[block.Type]
+		if !ok {
+			return nil, fmt.Errorf("unknown issuer type: %q", block.Type)
 		}
-
+		iss, err = kind.Build(ctx, block.Name, typed, IssuerDeps{Signer: signer})
 		if err != nil {
 			return nil, fmt.Errorf("building issuer %q: %w", block.Name, err)
+		}
+
+		// some specific per-provider overrides
+		if c, ok := typed.(*config.OIDCConfig); ok {
+			issuerURL = c.IssuerURL
 		}
 
 		issuers[block.Name] = iss
