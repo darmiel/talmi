@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "IssuerBlock": {
+      "oneOf": [
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "github-oauth"
+            },
+            "server": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "name",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "oidc"
+            },
+            "issuer_url": {
+              "type": "string"
+            },
+            "client_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "name",
+            "type",
+            "issuer_url",
+            "client_id"
+          ]
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "static"
+            },
+            "token_map": {
+              "additionalProperties": {
+                "type": "object"
+              },
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "name",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "talmi-session"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "name",
+            "type"
+          ]
+        }
+      ],
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/IssuerBlock"
+  },
+  "type": "array"
+}

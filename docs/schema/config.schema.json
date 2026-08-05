@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/darmiel/talmi/internal/config/config",
+  "$ref": "#/$defs/Config",
+  "$defs": {
+    "AuditConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "string"
+        },
+        "dsn": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "AuthConfig": {
+      "properties": {
+        "login_issuer": {
+          "type": "string"
+        },
+        "session_issuer": {
+          "type": "string"
+        },
+        "session_ttl": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Config": {
+      "properties": {
+        "grade": {
+          "type": "string"
+        },
+        "signing": {
+          "$ref": "#/$defs/SigningConfig"
+        },
+        "store": {
+          "$ref": "#/$defs/StoreConfig"
+        },
+        "audit": {
+          "$ref": "#/$defs/AuditConfig"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceConfig"
+        },
+        "auth": {
+          "$ref": "#/$defs/AuthConfig"
+        },
+        "issuers": {
+          "$ref": "#/$defs/Includes"
+        },
+        "realms": {
+          "$ref": "#/$defs/Includes"
+        },
+        "rules": {
+          "$ref": "#/$defs/Includes"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GitHubSource": {
+      "properties": {
+        "server": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "app_id": {
+          "type": "integer"
+        },
+        "installation_id": {
+          "type": "integer"
+        },
+        "private_key": {
+          "type": "string"
+        },
+        "webhook_secret": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Includes": {
+      "properties": {
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SigningConfig": {
+      "properties": {
+        "algorithm": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SourceConfig": {
+      "properties": {
+        "github": {
+          "$ref": "#/$defs/GitHubSource"
+        },
+        "sync": {
+          "$ref": "#/$defs/SyncConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "StoreConfig": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "dsn": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SyncConfig": {
+      "properties": {
+        "interval": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

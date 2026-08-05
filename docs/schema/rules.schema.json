@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Allow": {
+      "properties": {
+        "resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Match": {
+      "not": {
+        "required": [
+          "condition",
+          "expr"
+        ]
+      },
+      "properties": {
+        "issuer": {
+          "type": "string"
+        },
+        "condition": {
+          "type": "object"
+        },
+        "allow_empty": {
+          "type": "boolean"
+        },
+        "expr": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Rule": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "match": {
+          "$ref": "#/$defs/Match"
+        },
+        "allow": {
+          "items": {
+            "$ref": "#/$defs/Allow"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/Rule"
+  },
+  "type": "array"
+}

@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "CapabilityBlock": {
+      "properties": {
+        "discovery": {
+          "type": "string"
+        },
+        "refresh_interval": {
+          "type": "string"
+        },
+        "resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "max_actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "InstanceBlock": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityBlock"
+        },
+        "Config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RealmBlock": {
+      "oneOf": [
+        {
+          "properties": {
+            "realm": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "artifactory"
+            },
+            "capability": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "$id": "https://github.com/darmiel/talmi/internal/config/capability-block",
+              "properties": {
+                "discovery": {
+                  "type": "string"
+                },
+                "refresh_interval": {
+                  "type": "string"
+                },
+                "resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "max_actions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false,
+              "type": "object"
+            },
+            "instances": {
+              "items": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "capability": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$id": "https://github.com/darmiel/talmi/internal/config/capability-block",
+                    "properties": {
+                      "discovery": {
+                        "type": "string"
+                      },
+                      "refresh_interval": {
+                        "type": "string"
+                      },
+                      "resources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "max_actions": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object"
+                  },
+                  "admin_token": {
+                    "type": "string"
+                  },
+                  "groups": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "base_url": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "name",
+                  "admin_token",
+                  "groups"
+                ]
+              },
+              "type": "array"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "realm",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "realm": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "github-app"
+            },
+            "capability": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "$id": "https://github.com/darmiel/talmi/internal/config/capability-block",
+              "properties": {
+                "discovery": {
+                  "type": "string"
+                },
+                "refresh_interval": {
+                  "type": "string"
+                },
+                "resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "max_actions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false,
+              "type": "object"
+            },
+            "instances": {
+              "items": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "capability": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$id": "https://github.com/darmiel/talmi/internal/config/capability-block",
+                    "properties": {
+                      "discovery": {
+                        "type": "string"
+                      },
+                      "refresh_interval": {
+                        "type": "string"
+                      },
+                      "resources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "max_actions": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object"
+                  },
+                  "app_id": {
+                    "type": "integer"
+                  },
+                  "private_key": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "name",
+                  "app_id",
+                  "private_key"
+                ]
+              },
+              "type": "array"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "realm",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "realm": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "talmi"
+            },
+            "capability": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "$id": "https://github.com/darmiel/talmi/internal/config/capability-block",
+              "properties": {
+                "discovery": {
+                  "type": "string"
+                },
+                "refresh_interval": {
+                  "type": "string"
+                },
+                "resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "max_actions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false,
+              "type": "object"
+            },
+            "instances": {
+              "items": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "capability": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$id": "https://github.com/darmiel/talmi/internal/config/capability-block",
+                    "properties": {
+                      "discovery": {
+                        "type": "string"
+                      },
+                      "refresh_interval": {
+                        "type": "string"
+                      },
+                      "resources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "max_actions": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "name"
+                ]
+              },
+              "type": "array"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "realm",
+            "type"
+          ]
+        }
+      ],
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/RealmBlock"
+  },
+  "type": "array"
+}

@@ -36,9 +36,9 @@ type InstanceConfig interface {
 var _ InstanceConfig = (*GitHubAppConfig)(nil)
 
 type GitHubAppConfig struct {
-	AppID      int64      `mapstructure:"app_id" json:"app_id" jsonschema:"required"`
-	PrivateKey secret.Ref `mapstructure:"private_key" json:"private_key" jsonschema:"required"`
-	Server     string     `mapstructure:"server" json:"server,omitempty"`
+	AppID      int64      `mapstructure:"app_id" yaml:"app_id" json:"app_id" jsonschema:"required"`
+	PrivateKey secret.Ref `mapstructure:"private_key" yaml:"private_key" json:"private_key" jsonschema:"required"`
+	Server     string     `mapstructure:"server" yaml:"server,omitempty" json:"server,omitempty"`
 }
 
 func (c GitHubAppConfig) Validate() error {
@@ -54,9 +54,9 @@ func (c GitHubAppConfig) Validate() error {
 var _ InstanceConfig = (*ArtifactoryConfig)(nil)
 
 type ArtifactoryConfig struct {
-	AdminToken secret.Ref `mapstructure:"admin_token" json:"admin_token" jsonschema:"required"`
-	Groups     []string   `mapstructure:"groups" json:"groups" jsonschema:"required"`
-	BaseURL    string     `mapstructure:"base_url,omitempty" json:"base_url,omitempty"`
+	AdminToken secret.Ref `mapstructure:"admin_token" yaml:"admin_token" json:"admin_token" jsonschema:"required"`
+	Groups     []string   `mapstructure:"groups" yaml:"groups" json:"groups" jsonschema:"required"`
+	BaseURL    string     `mapstructure:"base_url,omitempty" yaml:"base_url,omitempty" json:"base_url,omitempty"`
 }
 
 func (c ArtifactoryConfig) Validate() error {
