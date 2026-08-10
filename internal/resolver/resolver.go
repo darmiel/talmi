@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -90,6 +91,9 @@ func (r *Resolver) Resolve(
 		Int("providers", len(assignments)).
 		Msg("resolver: provider assignments computed")
 
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+
 	var done []mintedRecord
 	for _, p := range r.providers {
 		assigned := assignments[p.Name()]
@@ -98,7 +102,7 @@ func (r *Resolver) Resolve(
 		}
 		plans, err := p.Plan(ctx, assigned)
 		if err != nil {
-			r.rollback(ctx, done)
+			r.rollback(cleanupCtx, done)
 			return nil, fmt.Errorf("planning for provider %q: %w", p.Name(), err)
 		}
 		log.Ctx(ctx).Debug().
@@ -109,7 +113,7 @@ func (r *Resolver) Resolve(
 		for _, plan := range plans {
 			artifact, err := p.Mint(ctx, principal, plan)
 			if err != nil {
-				r.rollback(ctx, done)
+				r.rollback(cleanupCtx, done)
 				return nil, fmt.Errorf("minting for provider %q: %w", p.Name(), err)
 			}
 
