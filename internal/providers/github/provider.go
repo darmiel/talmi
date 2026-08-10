@@ -313,9 +313,10 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 
 	_, err = client.Apps.RevokeInstallationToken(ctx)
 	if err != nil {
-		var ghErr *github.ErrorResponse
-		if errors.As(err, &ghErr); ghErr.Response != nil &&
-			(ghErr.Response.StatusCode == http.StatusUnauthorized || ghErr.Response.StatusCode == http.StatusNotFound) {
+		if ghErr, ok := errors.AsType[*github.ErrorResponse](err); ok &&
+			ghErr.Response != nil && (ghErr.Response.StatusCode == http.StatusUnauthorized ||
+			ghErr.Response.StatusCode == http.StatusNotFound) {
+
 			logger.Debug().
 				Str("provider", p.name).
 				Str("revocation_id", revocationID).
