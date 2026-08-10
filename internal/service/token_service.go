@@ -15,7 +15,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/core"
-	"github.com/darmiel/talmi/internal/correlation"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/resolver"
 )
@@ -56,10 +55,7 @@ func NewTokenService(
 
 func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*IssueResponse, error) {
 	logger := log.Ctx(ctx)
-	leaseID := correlation.From(ctx)
-	if leaseID == "" {
-		leaseID = xid.New().String()
-	}
+	leaseID := xid.New().String()
 
 	entry := core.AuditEntry{
 		ID:       leaseID,
@@ -203,13 +199,8 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*RevokeResponse, error) {
 	logger := log.Ctx(ctx)
 
-	reqID := correlation.From(ctx)
-	if reqID == "" {
-		reqID = xid.New().String()
-	}
-
 	entry := core.AuditEntry{
-		ID:       reqID,
+		ID:       xid.New().String(),
 		Time:     time.Now(),
 		Action:   "lease.revoke",
 		Revision: s.revision,
@@ -326,12 +317,15 @@ func (s *TokenService) selectIssuer(req IssueRequest) (core.Issuer, error) {
 }
 
 func (s *TokenService) rollback(ctx context.Context, minted []resolver.Minted) {
-	logger := log.Ctx(ctx)
+	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+
+	logger := log.Ctx(cancelCtx)
 	for _, m := range minted {
 		if !m.Revocable {
 			continue
 		}
-		if err := s.resolver.Revoke(ctx, m.Provider, m.RevocationID, m.Artifact.Value); err != nil {
+		if err := s.resolver.Revoke(cancelCtx, m.Provider, m.RevocationID, m.Artifact.Value); err != nil {
 			logger.Error().Err(err).
 				Str("provider", m.Provider).
 				Msg("rollback revoke failed")
