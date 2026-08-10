@@ -32,6 +32,8 @@ func (e *Engine) Authorize(principal *core.Principal, requests []core.ResourceRe
 			semantics, ok := e.realms.Get(realmName)
 			if !ok {
 				rd.Reason = fmt.Sprintf("unknown realm %q for resource %q", realmName, request.Resource)
+			} else if len(request.Actions) == 0 {
+				rd.Reason = fmt.Sprintf("no actions requested for %q", request.Resource)
 			} else if covered, reason := semantics.Covers(union, request); covered {
 				rd.Covered = true
 			} else {

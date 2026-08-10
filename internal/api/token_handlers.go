@@ -80,6 +80,12 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, "at least one resource is required", http.StatusBadRequest)
 		return
 	}
+	for _, rr := range body.Resources {
+		if len(rr.Actions) == 0 {
+			presenter.Error(w, r, "each resource requires at least one action", http.StatusBadRequest)
+			return
+		}
+	}
 
 	resp, err := s.current().IssueLease(ctx, service.IssueRequest{
 		Token:           token,
@@ -140,6 +146,12 @@ func (s *Server) handleExplain(w http.ResponseWriter, r *http.Request) {
 	if len(body.Resources) == 0 {
 		presenter.Error(w, r, "at least one resource is required", http.StatusBadRequest)
 		return
+	}
+	for _, rr := range body.Resources {
+		if len(rr.Actions) == 0 {
+			presenter.Error(w, r, "each resource requires at least one action", http.StatusBadRequest)
+			return
+		}
 	}
 
 	resp, err := s.current().Explain(r.Context(), service.IssueRequest{
