@@ -133,6 +133,7 @@ func buildReloadable(
 		LeaseStore: stable.store,
 		Auditor:    stable.auditor,
 		Revision:   revision,
+		Providers:  providers,
 	}, nil
 }
 
