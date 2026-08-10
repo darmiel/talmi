@@ -1,7 +1,6 @@
 package logging
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +34,7 @@ func InitDefault() {
 
 // Init sets up the global logger. If sensitive values are provided,
 // it wraps the standard output with a redacting writer to mask those values in logs.
-func Init(sensitiveValues []string) {
+func Init() {
 	var queue []string
 
 	levelStr := strings.ToLower(viper.GetString(LogLevelKey))
@@ -48,10 +47,6 @@ func Init(sensitiveValues []string) {
 
 	var output io.Writer = os.Stderr
 	logFormat := strings.ToLower(viper.GetString(LogFormatKey))
-
-	if len(sensitiveValues) > 0 {
-		output = NewRedactingWriter(output, sensitiveValues)
-	}
 
 	if logFormat == "json" {
 		log.Logger = zerolog.New(output).With().
@@ -78,28 +73,4 @@ func Init(sensitiveValues []string) {
 	// Make log.Ctx(ctx) fall back to the global logger when the context carries
 	// none (background flows) instead of a disabled logger.
 	zerolog.DefaultContextLogger = &log.Logger
-}
-
-type RedactingWriter struct {
-	underlying io.Writer
-	sensitive  []string
-}
-
-func NewRedactingWriter(underlying io.Writer, sensitive []string) *RedactingWriter {
-	return &RedactingWriter{
-		underlying: underlying,
-		sensitive:  sensitive,
-	}
-}
-
-func (rw *RedactingWriter) Write(p []byte) (n int, err error) {
-	messageBytes := p
-
-	for _, secret := range rw.sensitive {
-		if bytes.Contains(messageBytes, []byte(secret)) {
-			messageBytes = bytes.ReplaceAll(messageBytes, []byte(secret), []byte("********"))
-		}
-	}
-
-	return rw.underlying.Write(messageBytes)
 }
