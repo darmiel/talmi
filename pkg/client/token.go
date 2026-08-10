@@ -56,12 +56,18 @@ func (c *Client) IssueLease(ctx context.Context, token string, body IssueRequest
 	return postAs(ctx, c, api.IssueTokenRoute, token, body, new(IssueResponse))
 }
 
+type revokeRequestBody struct {
+	Tokens map[string]string `json:"tokens,omitempty"`
+}
+
 func (c *Client) RevokeLease(
 	ctx context.Context,
 	secret string,
 	tokens map[string]string,
 ) (*RevokeResponse, string, error) {
-	return postAs(ctx, c, api.RevokeTokenRoute, secret, tokens, new(RevokeResponse))
+	return postAs(ctx, c, api.RevokeTokenRoute, secret, revokeRequestBody{
+		Tokens: tokens,
+	}, new(RevokeResponse))
 }
 
 func (c *Client) Explain(ctx context.Context, token string, body IssueRequestBody) (*ExplainResponse, string, error) {
