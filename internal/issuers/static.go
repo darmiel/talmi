@@ -32,7 +32,7 @@ func (s *StaticIssuer) Name() string {
 func (s *StaticIssuer) Verify(_ context.Context, token string) (*core.Principal, error) {
 	attrs, ok := s.tokenMap[token]
 	if !ok {
-		return nil, fmt.Errorf("invalid token: %s", token)
+		return nil, fmt.Errorf("invalid static token")
 	}
 	return &core.Principal{
 		ID:         "static-user",
