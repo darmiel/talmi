@@ -416,3 +416,52 @@ func TestEvaluateConditionRemainingBranches(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthorizeEmptyActionsDenied(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	rules := []core.Rule{
+		{
+			Name:  "read",
+			Match: core.Match{Issuer: "cc", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	}
+	e := newTestEngine(rules)
+
+	dec := e.Authorize(&core.Principal{Issuer: "cc"}, []core.ResourceRequest{
+		{Resource: "ghes-corp:acme/x", Actions: nil}, // no actions requested
+	})
+
+	is.False(dec.Authorized, "a request with no actions must not be authorized (TALMI-C1)")
+	if len(dec.PerRequest) == 1 {
+		is.False(dec.PerRequest[0].Covered, "empty-action request must not be marked covered")
+		is.NotEmpty(dec.PerRequest[0].Reason, "a denial must carry a reason")
+	}
+}
+
+func TestEmptyConditionDoesNotMatchEveryone(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	rules := []core.Rule{
+		{
+			Name: "empty-cond",
+			Match: core.Match{
+				Issuer:              "cc",
+				Condition:           &core.Condition{}, // non-nil but empty
+				AllowEmptyCondition: false,             // author did NOT opt into match-all
+			},
+			Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	}
+	e := newTestEngine(rules)
+
+	dec := e.Authorize(&core.Principal{Issuer: "cc"}, []core.ResourceRequest{
+		{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}},
+	})
+
+	is.NotContains(dec.PolicyNames, "empty-cond", "an empty condition must not match without allow_empty")
+	is.False(dec.Authorized, "with no matching rule the request must be denied")
+}

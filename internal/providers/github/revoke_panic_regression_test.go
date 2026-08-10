@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRevokeDoesNotPanicOnTransportError_TALMI_H3(t *testing.T) {
+func TestRevokeDoesNotPanicOnTransportError(t *testing.T) {
 	t.Parallel()
 
 	// A reachable server so client construction succeeds; the request itself
@@ -29,6 +29,6 @@ func TestRevokeDoesNotPanicOnTransportError_TALMI_H3(t *testing.T) {
 
 	require.NotPanics(t, func() {
 		err := p.Revoke(ctx, "github-installation-1", "some-token")
-		assert.Error(t, err, "a cancelled/transport error must be returned, not treated as success (TALMI-H3)")
-	}, "revoke must not panic when the error is not a *github.ErrorResponse (TALMI-H3)")
+		assert.Error(t, err, "a cancelled/transport error must be returned, not treated as success")
+	}, "revoke must not panic when the error is not a *github.ErrorResponse")
 }
