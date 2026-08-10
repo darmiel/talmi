@@ -6,7 +6,7 @@ import (
 )
 
 type AuditEntry struct {
-	// ID is the unique request ID (X-Correlation-ID)
+	// ID is the unique audit ID
 	ID string `json:"id"`
 
 	// Time is the timestamp of the event
