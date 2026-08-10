@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -48,6 +49,15 @@ func (t *RunnableTask) Run(parent context.Context) {
 
 	ctx, cancel := context.WithTimeout(parent, 5*time.Minute) // TODO: make this configurable?
 	defer cancel()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.mu.Lock()
+			t.LastResult = fmt.Sprintf("panicked: %v", r)
+			t.mu.Unlock()
+			l.Error().Interface("panic", r).Bytes("stack", debug.Stack()).Msg("task panicked")
+		}
+	}()
 
 	start := time.Now()
 	err := t.Handler(ctx, taskLogger)
