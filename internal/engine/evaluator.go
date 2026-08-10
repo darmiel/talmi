@@ -54,7 +54,7 @@ func (e *Engine) ruleMatches(rule core.Rule, principal *core.Principal) bool {
 		return false
 	}
 	switch {
-	case rule.Match.Condition != nil:
+	case rule.Match.Condition != nil && !rule.Match.Condition.IsEmpty():
 		return evaluateCondition(*rule.Match.Condition, principal.EvaluationContext()).Matched
 	case rule.Match.CompiledExpr != nil:
 		out, err := expr.Run(rule.Match.CompiledExpr, map[string]any{
