@@ -7,11 +7,11 @@ import (
 	"net/http"
 )
 
-func DecodePayload(r *http.Request, dest any, allowEmpty bool) error {
+func DecodePayload(w http.ResponseWriter, r *http.Request, dest any, allowEmpty bool) error {
 	switch r.Header.Get("Content-Type") {
 	case "application/json", "":
 		// strict encoding for JSON
-		dec := json.NewDecoder(r.Body)
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(dest); err != nil {
 			if !errors.Is(err, io.EOF) || !allowEmpty {

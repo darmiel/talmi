@@ -71,7 +71,7 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body issueRequestBody
-	if err := DecodePayload(r, &body, false); err != nil {
+	if err := DecodePayload(w, r, &body, false); err != nil {
 		logger.Warn().Err(err).Msg("invalid issue payload")
 		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
 		return
@@ -111,7 +111,7 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body revokeRequestBody
-	if err := DecodePayload(r, &body, false); err != nil {
+	if err := DecodePayload(w, r, &body, false); err != nil {
 		logger.Warn().Err(err).Msg("invalid revoke payload")
 		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
 		return
@@ -139,7 +139,7 @@ func (s *Server) handleExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body issueRequestBody
-	if err := DecodePayload(r, &body, false); err != nil {
+	if err := DecodePayload(w, r, &body, false); err != nil {
 		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
 		return
 	}
