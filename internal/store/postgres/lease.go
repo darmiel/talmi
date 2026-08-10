@@ -19,15 +19,19 @@ type LeaseStore struct {
 	pool *pgxpool.Pool
 }
 
+func New(pool *pgxpool.Pool) *LeaseStore {
+	return &LeaseStore{
+		pool: pool,
+	}
+}
+
 // OpenLeaseStore opens a PostgreSQL-backed lease store.
 func OpenLeaseStore(ctx context.Context, dsn string) (*LeaseStore, error) {
 	pool, err := Connect(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
-	return &LeaseStore{
-		pool: pool,
-	}, nil
+	return New(pool), nil
 }
 
 // Close closes the lease store and releases its resources.
