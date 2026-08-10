@@ -243,14 +243,15 @@ func (p *Provider) Mint(
 	}
 
 	var perms github.InstallationPermissions
-	if len(mp.perms) > 0 {
-		b, err := json.Marshal(mp.perms)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling permissions: %w", err)
-		}
-		if err := json.Unmarshal(b, &perms); err != nil {
-			return nil, fmt.Errorf("unmarshaling permissions: %w", err)
-		}
+	if len(mp.perms) == 0 {
+		return nil, fmt.Errorf("github mint: refusing to mint installation token with no explicit permissions")
+	}
+	b, err := json.Marshal(mp.perms)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling permissions: %w", err)
+	}
+	if err := json.Unmarshal(b, &perms); err != nil {
+		return nil, fmt.Errorf("unmarshaling permissions: %w", err)
 	}
 	opts := &github.InstallationTokenOptions{
 		Permissions:  &perms,
