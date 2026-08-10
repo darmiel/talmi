@@ -66,6 +66,9 @@ func (s *GitHubSource) Load(ctx context.Context) (*config.SourcedConfig, string,
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching tree for ref %q: %w", ref, err)
 	}
+	if tree.GetTruncated() {
+		return nil, "", fmt.Errorf("config tree is truncated, too many files in repo")
+	}
 
 	sourced := &config.SourcedConfig{}
 	prefix := strings.TrimSuffix(s.cfg.Path, "/")
