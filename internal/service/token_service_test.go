@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/correlation"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/providers/stub"
 	"github.com/darmiel/talmi/internal/realm"
@@ -322,14 +324,16 @@ func TestRevokeLeasePartialFailureIsResumable(t *testing.T) {
 		stub.WithResources("rb:acme/*"), stub.WithMaxActions("contents:read"),
 		stub.WithRevokeError(errors.New("boom")))
 
-	rules := []core.Rule{{
-		Name:  "read",
-		Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
-		Allow: []core.Allow{
-			{Resources: []string{"ra:acme/*"}, Actions: []core.Action{"contents:read"}},
-			{Resources: []string{"rb:acme/*"}, Actions: []core.Action{"contents:read"}},
+	rules := []core.Rule{
+		{
+			Name:  "read",
+			Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
+			Allow: []core.Allow{
+				{Resources: []string{"ra:acme/*"}, Actions: []core.Action{"contents:read"}},
+				{Resources: []string{"rb:acme/*"}, Actions: []core.Action{"contents:read"}},
+			},
 		},
-	}}
+	}
 	pm := engine.NewManager(rules, reg)
 	res := resolver.New([]core.ResourceProvider{ok, bad}, reg)
 	mem := store.NewMemoryLeaseStore()
@@ -382,11 +386,13 @@ func TestIssueNestsArtifactsInAudit(t *testing.T) {
 	reg.Register("ghes-corp", realm.GitHub{})
 	gh := stub.New("gh", "ghes-corp",
 		stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
-	rules := []core.Rule{{
-		Name:  "read",
-		Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
-		Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
-	}}
+	rules := []core.Rule{
+		{
+			Name:  "read",
+			Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	}
 	pm := engine.NewManager(rules, reg)
 	res := resolver.New([]core.ResourceProvider{gh}, reg)
 	mem := store.NewMemoryLeaseStore()
@@ -434,11 +440,13 @@ func TestIssueDeniedWritesSingleAuditEntry(t *testing.T) {
 	reg.Register("ghes-corp", realm.GitHub{})
 	gh := stub.New("gh", "ghes-corp",
 		stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
-	rules := []core.Rule{{
-		Name:  "read",
-		Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
-		Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
-	}}
+	rules := []core.Rule{
+		{
+			Name:  "read",
+			Match: core.Match{Issuer: "fake", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"ghes-corp:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	}
 	pm := engine.NewManager(rules, reg)
 	res := resolver.New([]core.ResourceProvider{gh}, reg)
 	mem := store.NewMemoryLeaseStore()
@@ -463,4 +471,114 @@ func TestIssueDeniedWritesSingleAuditEntry(t *testing.T) {
 	require.Len(t, all, 1, "a denied 10-resource request must write exactly one audit entry")
 	is.False(all[0].Success)
 	is.Empty(all[0].Artifacts, "nothing minted, so no nested artifacts")
+}
+
+func TestIssueLeaseEmptyActionsDenied(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh-ro", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore())
+
+	req := readRequest()
+	req.Resources[0].Actions = nil // no actions requested
+
+	_, err := svc.IssueLease(context.Background(), req)
+	is.Error(err, "a request with no actions must be denied, not minted")
+}
+
+func TestRollbackUsesLiveContext_TALMI_H8(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	fake := &ctxRecordingProvider{name: "fake", realm: "ghes-corp", onMint: cancel}
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{fake}, failingStore{store.NewMemoryLeaseStore()})
+
+	_, err := svc.IssueLease(ctx, readRequest())
+	must.Error(err, "store failure must fail the issue")
+	must.True(fake.revokeCalled, "the minted artifact must be rolled back")
+
+	is.NoError(fake.revokeCtxErr,
+		"rollback must revoke with a non-cancelled context (use context.WithoutCancel)")
+}
+
+type ctxRecordingProvider struct {
+	name, realm  string
+	onMint       func()
+	revokeCalled bool
+	revokeCtxErr error
+}
+
+func (p *ctxRecordingProvider) Name() string  { return p.name }
+func (p *ctxRecordingProvider) Realm() string { return p.realm }
+
+func (p *ctxRecordingProvider) Capabilities(context.Context) (core.Capability, error) {
+	return core.Capability{
+		Realm:      p.realm,
+		Resources:  []string{"ghes-corp:acme/*"},
+		MaxActions: []core.Action{"contents:read"},
+	}, nil
+}
+
+func (p *ctxRecordingProvider) Plan(_ context.Context, reqs []core.ResourceRequest) ([]core.MintPlan, error) {
+	if len(reqs) == 0 {
+		return nil, nil
+	}
+	return []core.MintPlan{{Provider: p.name, Realm: p.realm, Covers: reqs}}, nil
+}
+
+func (p *ctxRecordingProvider) Mint(_ context.Context, _ *core.Principal, _ core.MintPlan) (
+	*core.TokenArtifact,
+	error,
+) {
+	a := &core.TokenArtifact{
+		Value:       "tok-" + p.name,
+		Fingerprint: "fp-" + p.name,
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}
+	a.SetRevocationID("rev-" + p.name)
+	if p.onMint != nil {
+		p.onMint()
+	}
+	return a, nil
+}
+
+func (p *ctxRecordingProvider) Revoke(ctx context.Context, _, _ string) error {
+	p.revokeCalled = true
+	p.revokeCtxErr = ctx.Err()
+	return nil
+}
+
+func (p *ctxRecordingProvider) RequiresTokenForRevocation() bool { return false }
+
+func TestIssueLeaseCorrelationIDNotUsedAsLeaseID_TALMI_H1(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh-ro", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	mem := store.NewMemoryLeaseStore()
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, mem)
+
+	ctx := correlation.With(context.Background(), "client-chosen-id")
+
+	r1, err := svc.IssueLease(ctx, readRequest())
+	must.NoError(err)
+	r2, err := svc.IssueLease(ctx, readRequest())
+	must.NoError(err)
+
+	is.NotEqual(r1.LeaseID, r2.LeaseID,
+		"lease IDs must be server-generated and unique, not derived from the client correlation id")
+
+	// Neither lease may be lost to an overwrite.
+	active, err := mem.ListActive(context.Background())
+	must.NoError(err)
+	is.Len(active, 2, "both issued leases must be tracked; none overwritten")
 }
