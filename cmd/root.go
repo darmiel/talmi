@@ -52,7 +52,7 @@ based on verified identities from upstream IdPs (like OIDC).`,
 	Version: fmt.Sprintf("%s (commit: %s)", buildinfo.Version, buildinfo.CommitHash),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		configPath, configErr := initConfig(f.CLIConfigPath)
-		logging.Init(nil)
+		logging.Init()
 		if configErr != nil { // handle error after logging is initialized
 			return configErr
 		}
@@ -71,8 +71,7 @@ func Execute() {
 			log.Error().Msg("session token is invalid or expired, please use 'talmi login' to authenticate")
 			os.Exit(403)
 		default:
-			var bqe BeQuietError
-			if errors.As(err, &bqe) {
+			if bqe, ok := errors.AsType[BeQuietError](err); ok {
 				if bqe.ExitCode == 0 {
 					bqe.ExitCode = 1
 				}
