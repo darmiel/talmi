@@ -51,6 +51,10 @@ type Condition struct {
 	Value    any      `json:"value,omitempty"`
 }
 
+func (c *Condition) IsEmpty() bool {
+	return c == nil || (c.Key == "" && len(c.All) == 0 && len(c.Any) == 0 && c.Not == nil)
+}
+
 func (c *Condition) UnmarshalYAML(unmarshal func(any) error) error {
 	var raw map[string]any
 	if err := unmarshal(&raw); err != nil {
