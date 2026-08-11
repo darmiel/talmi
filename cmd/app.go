@@ -29,6 +29,8 @@ func registerMigrated(root *cobra.Command, deps Deps) {
 	root.AddCommand(
 		newVersionCmd(deps),
 		newTokenCmd(deps),
+		newSessionCmd(deps),
+		newAuditCmd(deps),
 	)
 }
 
