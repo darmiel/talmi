@@ -241,7 +241,7 @@ func runDeviceFlow(ctx context.Context, deps Deps, info *client.LoginInfo) (stri
 			Cause:   err,
 		}
 	}
-	sp.Stop("authorization complete")
+	sp.Stop("authorization completed." + strings.Repeat(" ", 10)) // TODO: remove the extra spaces when spinner stops, this is a hack to avoid the spinner overwriting the last line
 	return token, nil
 }
 

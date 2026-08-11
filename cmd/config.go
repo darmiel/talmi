@@ -102,7 +102,7 @@ var configVetCmd = &cobra.Command{
 var schemaOut string
 
 var configSchemaCmd = &cobra.Command{
-	Use:   "schema [target]",
+	Use:   "schema [TARGET]",
 	Short: "Generate JSON Schema for Talmi configuration",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
