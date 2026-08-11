@@ -114,3 +114,18 @@ func (c *CLIConfig) SetCredential(server, token string) error {
 	c.Credentials[u.Host] = &Credential{Token: token}
 	return nil
 }
+
+func (c *CLIConfig) DeleteCredential(server string) (bool, error) {
+	u, err := url.Parse(server)
+	if err != nil {
+		return false, fmt.Errorf("parsing server URL %q: %w", server, err)
+	}
+	if c.Credentials == nil {
+		return false, nil
+	}
+	if _, ok := c.Credentials[u.Host]; !ok {
+		return false, nil
+	}
+	delete(c.Credentials, u.Host)
+	return true, nil
+}
