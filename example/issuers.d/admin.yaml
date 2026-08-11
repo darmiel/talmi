@@ -1,6 +1,14 @@
-- name: gh-human
+# Admin identity issuers (for `talmi login` and the admin API).
+
+# github-oauth: verifies a GitHub/GHES OAuth access token by calling the API.
+# Principal id = login; attributes include `login`, `orgs`, and `teams`
+# (each as "org/slug"). This backs interactive human login.
+- name: gh-login
   type: github-oauth
   server: https://github.com
 
-- name: talmi-admins
+# talmi-session: verifies session JWTs that Talmi itself signed after login.
+# A verified session restores the original login issuer + attributes, so admin
+# rules are written against the login issuer (see rules.d/admin.yaml), not this.
+- name: talmi-session
   type: talmi-session

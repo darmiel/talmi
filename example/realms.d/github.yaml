@@ -1,0 +1,22 @@
+# GitHub App realm.
+#   resources: "<realm>:<owner>/<repo>"     e.g. ghes-corp:acme/web
+#   actions:   "<permission>:<level>"        levels: none < read < write < admin
+#
+# Running several apps of the same kind keeps privilege tight: register a
+# read-capable app for general CI and a separate write-capable app, then let
+# rules decide who reaches the writer (see rules.d/ci.yaml). The realm
+# capability is the ceiling; rules narrow it per principal.
+- realm: ghes-corp
+  type: github-app
+  capability:
+    resources:    [ "ghes-corp:acme/*" ]
+    max_actions:  [ "contents:write", "actions:write", "pull_requests:write" ]
+    refresh_interval: 15m        # capability discovery cache TTL
+  instances:
+    - name: gh-reader
+      app_id: 111111
+      private_key: raw:dev-dummy-reader-key
+    - name: gh-writer
+      app_id: 222222
+      private_key: raw:dev-dummy-writer-key
+      # server: https://github.example.com/   # set for GitHub Enterprise

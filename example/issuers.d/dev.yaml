@@ -1,6 +1,0 @@
-- name: dev-ci
-  type: static
-  token_map:
-    dev-token-123:
-      sub: dev-pipeline
-      team: platform
