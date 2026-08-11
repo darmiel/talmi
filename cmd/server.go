@@ -96,53 +96,9 @@ func newServerRunCmd(_ Deps) *cobra.Command {
 				return err
 			})
 
-		var opts []api.Option
-		if cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil && cfg.ConfigSource.GitHub.WebhookSecret != "" {
-			log.Info().Msg("enabling GitHub webhook endpoint for config source")
-
-			sec, err := secret.Resolve(cfg.ConfigSource.GitHub.WebhookSecret)
-			if err != nil {
-				return fmt.Errorf("resolving GitHub webhook secret: %w", err)
-			}
-			opts = append(opts, api.WithGitHubWebhook(sec, func(ctx context.Context) error {
-				if err := mgr.Reload(ctx); err != nil {
-					return err
-				}
-				mgr.InvalidateProviders()
-				return nil
-			}))
-		}
-
-		// admin functionality
-		if cfg.Auth != nil {
-			log.Info().Msg("enabling admin endpoints")
-
-			ttl := cfg.Auth.SessionTTL
-			if ttl == 0 {
-				ttl = 8 * time.Hour
-			}
-			opts = append(opts, api.WithAdmin(api.AdminConfig{
-				LoginIssuer: func() (core.Issuer, bool) {
-					return mgr.Current().Issuers.Get(cfg.Auth.LoginIssuer)
-				},
-				SessionIssuer: func() (core.Issuer, bool) {
-					return mgr.Current().Issuers.Get(cfg.Auth.SessionIssuer)
-				},
-				Authorize: func(principal *core.Principal, req []core.ResourceRequest) core.Decision {
-					return mgr.Current().Engine.GetEngine().Authorize(principal, req)
-				},
-				Auditor: func() core.Auditor {
-					return mgr.Current().Auditor
-				},
-				Tasks:         taskMgr,
-				SessionSigner: mgr.SessionSigner(),
-				SessionTTL:    ttl,
-				LoginInfo: api.LoginInfo{
-					Server:   cfg.Auth.Server,
-					ClientID: cfg.Auth.ClientID,
-					Scopes:   cfg.Auth.Scopes,
-				},
-			}))
+		opts, err := buildServerOptions(cfg, mgr, taskMgr)
+		if err != nil {
+			return err
 		}
 
 		srv := api.NewServer(func() api.TokenService {
@@ -200,4 +156,57 @@ func newServerRunCmd(_ Deps) *cobra.Command {
 	cmd.Flags().BoolVar(&local, "local", false, "Force local config source (ignores remote)")
 	cmd.Flags().StringVar(&ref, "ref", "", "Override git ref for remote config source")
 	return cmd
+}
+
+func buildServerOptions(cfg *config.Config, mgr *runtime.Manager, taskMgr *tasks.Manager) ([]api.Option, error) {
+	var opts []api.Option
+
+	if cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil && cfg.ConfigSource.GitHub.WebhookSecret != "" {
+		log.Info().Msg("enabling GitHub webhook endpoint for config source")
+
+		sec, err := secret.Resolve(cfg.ConfigSource.GitHub.WebhookSecret)
+		if err != nil {
+			return nil, fmt.Errorf("resolving GitHub webhook secret: %w", err)
+		}
+		opts = append(opts, api.WithGitHubWebhook(sec, func(ctx context.Context) error {
+			if err := mgr.Reload(ctx); err != nil {
+				return err
+			}
+			mgr.InvalidateProviders()
+			return nil
+		}))
+	}
+
+	if cfg.Auth != nil {
+		log.Info().Msg("enabling admin endpoints")
+
+		ttl := cfg.Auth.SessionTTL
+		if ttl == 0 {
+			ttl = 8 * time.Hour
+		}
+		opts = append(opts, api.WithAdmin(api.AdminConfig{
+			LoginIssuer: func() (core.Issuer, bool) {
+				return mgr.Current().Issuers.Get(cfg.Auth.LoginIssuer)
+			},
+			SessionIssuer: func() (core.Issuer, bool) {
+				return mgr.Current().Issuers.Get(cfg.Auth.SessionIssuer)
+			},
+			Authorize: func(principal *core.Principal, req []core.ResourceRequest) core.Decision {
+				return mgr.Current().Engine.GetEngine().Authorize(principal, req)
+			},
+			Auditor: func() core.Auditor {
+				return mgr.Current().Auditor
+			},
+			Tasks:         taskMgr,
+			SessionSigner: mgr.SessionSigner(),
+			SessionTTL:    ttl,
+			LoginInfo: api.LoginInfo{
+				Server:   cfg.Auth.Server,
+				ClientID: cfg.Auth.ClientID,
+				Scopes:   cfg.Auth.Scopes,
+			},
+		}))
+	}
+
+	return opts, nil
 }
