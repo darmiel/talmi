@@ -60,7 +60,7 @@ func newTaskListCmd(deps Deps) *cobra.Command {
 
 func newTaskTriggerCmd(deps Deps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "trigger NAME",
+		Use:   "trigger [NAME]",
 		Short: "Manually trigger a background task now",
 		Args:  cobra.ExactArgs(1),
 	}
@@ -81,7 +81,7 @@ func newTaskTriggerCmd(deps Deps) *cobra.Command {
 
 func newTaskLogsCmd(deps Deps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "logs NAME",
+		Use:   "logs [NAME]",
 		Short: "Show the most recent logs of a background task",
 		Args:  cobra.ExactArgs(1),
 	}

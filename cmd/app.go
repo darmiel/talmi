@@ -49,6 +49,7 @@ func registerMigrated(root *cobra.Command, deps Deps) {
 		newSessionCmd(deps),
 		newAuditCmd(deps),
 		newTasksCmd(deps),
+		newLeaseCmd(deps),
 	)
 }
 

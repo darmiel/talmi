@@ -29,7 +29,7 @@ func newTokenCmd(deps Deps) *cobra.Command {
 
 func newTokenInspectCmd(deps Deps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "inspect JWT",
+		Use:     "inspect [JWT]",
 		Short:   "Decode a JWT's claims without verifying it",
 		Args:    cobra.ExactArgs(1),
 		Example: "  talmi token inspect <JWT>",
@@ -91,7 +91,7 @@ func newTokenFingerprintCmd(deps Deps) *cobra.Command {
 		raw          bool
 	)
 	cmd := &cobra.Command{
-		Use:     "fingerprint TOKEN",
+		Use:     "fingerprint [TOKEN]",
 		Aliases: []string{"fp"},
 		Short:   "Compute a token fingerprint",
 		Args:    cobra.ExactArgs(1),
