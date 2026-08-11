@@ -1,0 +1,52 @@
+# CI authorization rules.
+#
+# Every rule whose `match` accepts the principal contributes its `allow` entries;
+# a requested resource+action is granted only if the UNION of those allows covers
+# it. Rule order does not matter.
+
+# Any dev-ci token may READ acme repos and the docker-local registry.
+# `allow_empty: true` matches every principal from the issuer (no condition).
+- name: ci-read
+  match:
+    issuer: dev-ci
+    allow_empty: true
+  allow:
+    - { resources: [ "ghes-corp:acme/*" ],           actions: [ "contents:read" ] }
+    - { resources: [ "artifactory:docker-local/*" ], actions: [ "read" ] }
+
+# Only the platform team may WRITE service repos and annotate artifactory.
+# Shorthand equality condition (team == platform). Because a write grant also
+# covers a read request, platform CI can do both with just these entries.
+- name: ci-platform-write
+  match:
+    issuer: dev-ci
+    condition:
+      team: platform
+  allow:
+    - resources: [ "ghes-corp:acme/svc-*" ]
+      actions:   [ "contents:write", "actions:write" ]
+    - resources: [ "artifactory:docker-local/*" ]
+      actions:   [ "annotate" ]
+
+# OIDC workloads, matched on claims with logical + operator forms.
+# Grants read on one repo only for main-branch workflows that are NOT in the
+# sandbox environment. `all`/`any`/`not` compose; `contains` is substring/member.
+- name: oidc-prod-ci
+  match:
+    issuer: corp-oidc
+    condition:
+      all:
+        - sub: { contains: "repo:my-org/" }
+        - ref: "refs/heads/main"
+        - not: { environment: "sandbox" }
+  allow:
+    - { resources: [ "ghes-corp:acme/deploy" ], actions: [ "contents:read" ] }
+
+# Same issuer, expression form. Use `expr` OR `condition`.
+# Only push events from repos owned by my-org may read acme/lib.
+- name: oidc-expr
+  match:
+    issuer: corp-oidc
+    expr: 'ctx.repository_owner == "my-org" && ctx.event_name == "push"'
+  allow:
+    - { resources: [ "ghes-corp:acme/lib" ], actions: [ "contents:read" ] }

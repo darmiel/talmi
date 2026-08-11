@@ -1,0 +1,12 @@
+# JFrog Artifactory realm.
+#   actions are bare levels: read < annotate < write
+- realm: artifactory
+  type: artifactory
+  capability:
+    resources:   [ "artifactory:docker-local/*", "artifactory:npm-local/*" ]
+    max_actions: [ "write" ]
+  instances:
+    - name: af-main
+      admin_token: raw:dev-dummy-admin-token
+      groups: [ "ci-writers" ]           # minted tokens are scoped to these groups
+      base_url: https://artifactory.example.com

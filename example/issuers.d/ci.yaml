@@ -1,0 +1,23 @@
+# CI identity issuers.
+
+# static: maps fixed token strings to attributes.
+# the "token" the client sends is just the map key.
+# note: SHOULD ONLY BE USED FOR TESTING!
+- name: dev-ci
+  type: static
+  token_map:
+    dev-token-123:
+      sub: dev-pipeline
+      team: platform
+      env: dev
+    ci-readonly-token:
+      sub: readonly-pipeline
+      team: readers
+
+# oidc: verifies an upstream OIDC ID token against the issuer's discovery keys.
+# Principal id = the `sub` claim; attributes = all claims.
+# note: Needs network access to <issuer_url>/.well-known/openid-configuration when the issuers are re-fetched.
+- name: corp-oidc
+  type: oidc
+  issuer_url: https://token.actions.githubusercontent.com
+  client_id: https://github.com/my-org

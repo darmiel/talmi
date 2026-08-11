@@ -1,21 +1,69 @@
 # yaml-language-server: $schema=../docs/schema/config.schema.json
+#
+# Comprehensive Talmi bootstrap example (dev).
+#
+# It is self-contained and passes offline validation:
+#     talmi config vet example/talmi.dev.yaml --local
+#
+# Run it against in-memory stub providers (no real GitHub/Artifactory creds):
+#     talmi serve -c example/talmi.dev.yaml --dev --addr :8080
+#
+# Secrets here use the `raw:` scheme so the tree is runnable as-is. In production
+# never inline secrets - use `file:/run/secrets/...` or `env:VAR_NAME`.
 
-grade: dev
-store: { type: memory }
-audit: { enabled: false }
-
+# --- Admin session signing -------------------------------------------------
+# Talmi signs its own admin session JWTs (issued by `talmi login`).
+# ES256 (recommended) expects an EC private key PEM via a secret ref:
+#     signing: { algorithm: ES256, key: file:/run/secrets/session.pem }
+# HS256 takes a raw shared secret and is fine for local dev.
 signing:
   algorithm: HS256
-  key: raw:thisissomesecretkeythatshouldbechanged
+  key: raw:dev-only-session-key-change-me-0123456789
 
+# --- Lease store -----------------------------------------------------------
+# Holds issued leases + revocation state. `memory` is ephemeral (lost on
+# restart); use `postgres` in production. Migrations must be applied out-of-band.
+store:
+  type: memory
+  # type: postgres
+  # dsn: env:TALMI_STORE_DSN
+
+# --- Audit log -------------------------------------------------------------
+# Every decision is recorded, including denials.
+audit:
+  enabled: true
+  type: memory          # postgres | memory | noop
+  # dsn: env:TALMI_AUDIT_DSN
+
+# --- Admin API -------------------------------------------------------------
+# Enables `talmi login`, `talmi audit`, and `talmi tasks`. Names a github-oauth
+# issuer for interactive login and a talmi-session issuer for the signed session,
+# plus the GitHub device-flow parameters the CLI needs.
 auth:
-  login_issuer: gh-human
-  session_issuer: talmi-admins
+  login_issuer: gh-login
+  session_issuer: talmi-session
   session_ttl: 8h
   server: https://github.com
-  client_id: ffffffffffffffffffff
-  scopes: [ "read:org", "read:user", "user:email" ]
+  client_id: Iv1.0000000000000000
+  scopes: [ "read:org", "read:user" ]
+
+# --- Config source ---------------------------------------------------------
+# By default issuers/realms/rules are read from the local include globs below.
+# Alternatively, pull them from a GitHub repo pinned to a commit:
+#
+# source:
+#   github:
+#     server: https://github.example.com/     # omit for github.com
+#     owner: my-org
+#     repo: talmi-config
+#     ref: main
+#     app_id: 123456
+#     installation_id: 7890123
+#     private_key: file:/run/secrets/config-source.pem
+#     webhook_secret: env:TALMI_WEBHOOK_SECRET  # enables POST /v2/webhooks/github
+#   sync:
+#     interval: 8h                              # periodic re-pull
 
 issuers: { include: [ "issuers.d/*.yaml" ] }
-realms: { include: [ "realms.d/*.yaml" ] }
-rules: { include: [ "rules.d/*.yaml" ] }
+realms:  { include: [ "realms.d/*.yaml" ] }
+rules:   { include: [ "rules.d/*.yaml" ] }

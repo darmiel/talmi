@@ -1,9 +1,31 @@
+# Admin authorization rules.
+#
+# The admin API resources live in the `talmi` realm and use EXACT action strings
+# (no ordering): a grant of "read" does not imply "trigger".
+
+# GitHub humans in the admin team get the admin console. `teams` is a list of
+# "org/slug"; `contains` checks list membership.
+#
+# NOTE: this same rule authorizes both the interactive login (live gh-login
+# token) AND subsequent admin API calls: a Talmi session restores the original
+# login issuer (gh-login) and its attributes, so it re-matches here. There is no
+# separate rule for the talmi-session issuer.
 - name: talmi-admins
   match:
-    issuer: gh-human
+    issuer: gh-login
     condition:
-      teams: { contains: "talmi-dev-poc/admin-users" }
+      teams: { contains: "my-org/talmi-admins" }
   allow:
     - { resources: [ "talmi:session" ], actions: [ "login" ] }
     - { resources: [ "talmi:audit" ],   actions: [ "read" ] }
     - { resources: [ "talmi:tasks", "talmi:tasks/*" ], actions: [ "read", "trigger" ] }
+
+# A narrower "auditor" role: members of my-org/security may read the audit log
+# but cannot trigger tasks or mint anything.
+- name: talmi-auditors
+  match:
+    issuer: gh-login
+    condition:
+      teams: { contains: "my-org/security" }
+  allow:
+    - { resources: [ "talmi:audit" ], actions: [ "read" ] }
