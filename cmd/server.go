@@ -24,43 +24,53 @@ import (
 	"github.com/darmiel/talmi/internal/tasks"
 )
 
-var (
-	serveConfigPath string
-	serveAddr       string
-	serveDevMode    bool
-	serveLocal      bool
-	serveRef        string
-)
+func newServerCmd(deps Deps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "server",
+		Short: "Run and manage the Talmi server",
+	}
+	cmd.AddCommand(newServerRunCmd(deps))
+	return cmd
+}
 
-// serveCmd represents the serve command
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start the Talmi server",
-	RunE: func(cmd *cobra.Command, args []string) error {
+func newServerRunCmd(_ Deps) *cobra.Command {
+	var (
+		configPath string
+		addr       string
+		devMode    bool
+		local      bool
+		ref        string
+	)
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start the Talmi server",
+		Args:  cobra.NoArgs,
+	}
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		appCtx, cancelApp := context.WithCancel(cmd.Context())
 		defer cancelApp()
 
-		cfg, err := config.Load(serveConfigPath)
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
-		if err := validateVetSourceFlags(serveLocal, serveRef); err != nil {
+		if err := validateVetSourceFlags(local, ref); err != nil {
 			return fmt.Errorf("invalid source flags: %w", err)
 		}
 
-		src, err := source.Resolve(cfg, filepath.Dir(serveConfigPath), source.Options{
-			ForceLocal: serveLocal,
-			Ref:        serveRef,
+		src, err := source.Resolve(cfg, filepath.Dir(configPath), source.Options{
+			ForceLocal: local,
+			Ref:        ref,
 		})
 		if err != nil {
 			return fmt.Errorf("resolving config source: %w", err)
 		}
 
 		log.Info().
-			Bool("dev", serveDevMode).
+			Bool("dev", devMode).
 			Msg("building runtime manager...")
 
-		mgr, err := runtime.NewManager(appCtx, cfg, src, serveDevMode)
+		mgr, err := runtime.NewManager(appCtx, cfg, src, devMode)
 		if err != nil {
 			return fmt.Errorf("building runtime manager: %w", err)
 		}
@@ -139,7 +149,7 @@ var serveCmd = &cobra.Command{
 			return mgr.Current().Service
 		}, opts...)
 		server := &http.Server{
-			Addr:              serveAddr,
+			Addr:              addr,
 			Handler:           srv.Routes(),
 			ReadHeaderTimeout: 5 * time.Second,
 			ReadTimeout:       30 * time.Second,
@@ -151,7 +161,7 @@ var serveCmd = &cobra.Command{
 		serverErr := make(chan error, 1)
 		go func() {
 			log.Info().
-				Str("addr", serveAddr).
+				Str("addr", addr).
 				Msg("talmi listening")
 			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				serverErr <- err
@@ -183,16 +193,11 @@ var serveCmd = &cobra.Command{
 
 		log.Info().Msg("bye!")
 		return nil
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(serveCmd)
-
-	// f.bindPolicyFlag(serveCmd.Flags())
-	serveCmd.Flags().StringVarP(&serveConfigPath, "config", "c", "talmi.yaml", "Bootstrap config file")
-	serveCmd.Flags().StringVar(&serveAddr, "addr", ":8080", "Address to listen on")
-	serveCmd.Flags().BoolVar(&serveDevMode, "dev", false, "Dev mode: real providers replaced with in-memory stubs")
-	serveCmd.Flags().BoolVar(&serveLocal, "local", false, "Force local config source (ignores remote)")
-	serveCmd.Flags().StringVar(&serveRef, "ref", "", "Override git ref for remote config source")
+	}
+	cmd.Flags().StringVarP(&configPath, "config", "c", "talmi.yaml", "Bootstrap config file")
+	cmd.Flags().StringVar(&addr, "addr", ":8080", "Address to listen on")
+	cmd.Flags().BoolVar(&devMode, "dev", false, "Dev mode: real providers replaced with in-memory stubs")
+	cmd.Flags().BoolVar(&local, "local", false, "Force local config source (ignores remote)")
+	cmd.Flags().StringVar(&ref, "ref", "", "Override git ref for remote config source")
+	return cmd
 }
