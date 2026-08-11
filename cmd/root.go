@@ -31,7 +31,6 @@ var (
 	redCross   = color.RedString("✗")
 
 	faint = color.New(color.Faint).SprintFunc()
-	bold  = color.New(color.Bold).SprintFunc()
 )
 
 const (
@@ -61,28 +60,6 @@ based on verified identities from upstream IdPs (like OIDC).`,
 		return nil
 	},
 }
-
-//
-//func Execute() {
-//	err := rootCmd.Execute()
-//	if err != nil {
-//		switch {
-//		case errors.Is(err, client.ErrInvalidSession):
-//			log.Error().Msg("session token is invalid or expired, please use 'talmi login' to authenticate")
-//			os.Exit(403)
-//		default:
-//			if bqe, ok := errors.AsType[BeQuietError](err); ok {
-//				if bqe.ExitCode == 0 {
-//					bqe.ExitCode = 1
-//				}
-//				os.Exit(bqe.ExitCode)
-//				return
-//			}
-//			log.Fatal().Err(err).Msg("execution failed")
-//			os.Exit(1)
-//		}
-//	}
-//}
 
 func init() {
 	// setup pre-flag logger

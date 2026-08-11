@@ -29,7 +29,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "audit",
+		Use:   "list",
 		Short: "List audit entries (requires a session with talmi:audit=read)",
 		Args:  cobra.NoArgs,
 	}
@@ -71,9 +71,9 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 			if e.Principal != nil {
 				principal = e.Principal.ID
 			}
-			result := greenCheck
+			result := "\u2713"
 			if !e.Success {
-				result = redCross + " " + e.Error
+				result = "\u2717 " + e.Error
 			}
 			tw.AppendRow(table.Row{
 				e.Time.Local().Format(time.RFC3339),

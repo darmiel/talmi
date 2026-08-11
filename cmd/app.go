@@ -17,20 +17,38 @@ func buildDeps(io cli.IOStreams) Deps {
 		IO:    io,
 		Build: buildinfo.GetBuildInfo(),
 		NewClient: func() (TalmiClient, error) {
-			return f.GetClient()
+			c, err := f.GetClient()
+			if err != nil {
+				return nil, errServerNotConfigured()
+			}
+			return c, nil
 		},
 		RemoteAddr: func() (string, error) {
-			return f.GetRemoteAddr()
+			addr, err := f.GetRemoteAddr()
+			if err != nil {
+				return "", errServerNotConfigured()
+			}
+			return addr, nil
 		},
+	}
+}
+
+func errServerNotConfigured() error {
+	return &cli.ExitError{
+		Code:    cli.CodeUsage,
+		Message: "server address not configured",
+		Hint:    "set --server or the TALMI_ADDR environment variable",
 	}
 }
 
 func registerMigrated(root *cobra.Command, deps Deps) {
 	root.AddCommand(
 		newVersionCmd(deps),
+		newServerCmd(deps),
 		newTokenCmd(deps),
 		newSessionCmd(deps),
 		newAuditCmd(deps),
+		newTasksCmd(deps),
 	)
 }
 

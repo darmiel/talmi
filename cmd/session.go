@@ -32,13 +32,12 @@ func newSessionCmd(deps Deps) *cobra.Command {
 }
 
 func newSessionLoginCmd(deps Deps) *cobra.Command {
-	var (
-		withToken string
-	)
+	var withToken string
 	cmd := &cobra.Command{
-		Use: "login",
-		Short: `Logs in to a Talmi server. By default this runs a GitHub device-authorization
-flow (open a URL, enter a code). Use --with-token to exchange a GitHub access 
+		Use:   "login",
+		Short: "Authenticate via your GitHub account",
+		Long: `Logs in to a Talmi server. By default this runs a GitHub device-authorization
+flow (open a URL, enter a code). Use --with-token to exchange a GitHub access
 token you already hold, skipping the browser step.`,
 		Args: cobra.NoArgs,
 	}
@@ -227,10 +226,10 @@ func runDeviceFlow(ctx context.Context, deps Deps, info *client.LoginInfo) (stri
 	p := ui.New(deps.IO.ErrOut, deps.IO.Color)
 	p.Println()
 	p.Printf("  one-time code:  ")
-	p.Boldln(dc.UserCode)
+	p.Boldln("%s", dc.UserCode)
 	p.Printf("  open:           %s\n\n", dc.VerificationURI)
 
-	sp := ui.NewSpinner(deps.IO.ErrOut, deps.IO.Color)
+	sp := ui.NewSpinner(deps.IO.ErrOut, deps.IO.IsTTY)
 	sp.Start("waiting for authorization...")
 
 	token, err := pollForToken(ctx, info, dc)
@@ -270,14 +269,16 @@ func pollForToken(ctx context.Context, info *client.LoginInfo, dc *deviceCodeRes
 	deadline := time.Now().Add(time.Duration(dc.ExpiresIn) * time.Second)
 	endpoint := strings.TrimRight(info.Server, "/") + "/login/oauth/access_token"
 
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
-		case <-time.After(interval):
+		case <-timer.C:
 		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
-			return "", fmt.Errorf("code expired, run `talmi login` again")
+			return "", fmt.Errorf("code expired, run `talmi session login` again")
 		}
 
 		form := url.Values{
@@ -299,10 +300,11 @@ func pollForToken(ctx context.Context, info *client.LoginInfo, dc *deviceCodeRes
 		case tok.Error == "access_denied":
 			return "", fmt.Errorf("authorization denied")
 		case tok.Error == "expired_token":
-			return "", fmt.Errorf("code expired, run `talmi login` again")
+			return "", fmt.Errorf("code expired, run `talmi session login` again")
 		default:
 			return "", fmt.Errorf("unexpected error from server: %s - %s", tok.Error, tok.ErrorDescription)
 		}
+		timer.Reset(interval)
 	}
 }
 
