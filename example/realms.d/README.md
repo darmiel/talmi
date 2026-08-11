@@ -1,11 +1,11 @@
-# `realms.d/` — resource namespaces & the providers that mint them
+# `realms.d/`: resource namespaces & the providers that mint them
 
 Files here define **realms**. A realm is a namespace of resources with its own
 meaning of "resource" and "action", plus the **provider instances** (apps /
 accounts) that actually mint tokens for it.
 
-- A **resource** is written `<realm>:<body>` — the realm prefix routes it; the
-  body is opaque to the core and interpreted by the realm.
+- A **resource** is written `<realm>:<body>`. The realm prefix routes it, and
+  the body is opaque to the core and interpreted by the realm.
 - An **action** is a realm-defined string. Realms differ in how actions are
   ordered (see below).
 
@@ -23,7 +23,7 @@ prefix) and a `type` (which backend/semantics to use).
       # ...type-specific credentials...
 ```
 
-## `capability` — the ceiling
+## `capability`: the ceiling
 
 `capability` bounds what a realm may ever mint, independent of policy:
 
@@ -37,14 +37,14 @@ For `github-app`, `resources`/`max_actions` are **discovered live** from the App
 (installations, repos, permissions) and the declared values act as documentation
 / the `--online` vet baseline. For `artifactory` and `talmi` they are declarative.
 
-> Rules grant access *within* the capability; the effective grant is the
-> intersection of (matched rule allows) ∩ (realm/provider capability). A rule can
+> Rules grant access within the capability. The effective grant is the overlap
+> of the matched rule allows and the realm/provider capability, so a rule can
 > never exceed the ceiling.
 
 ## Types
 
 ### `github-app`
-Mints GitHub App **installation tokens**. Resources are `realm:owner/repo`;
+Mints GitHub App **installation tokens**. Resources are `realm:owner/repo` and
 actions are `<permission>:<level>` where `none < read < write < admin` (so
 granting `contents:write` also satisfies a `contents:read` request).
 
@@ -80,7 +80,7 @@ Mints JFrog Artifactory access tokens. Actions are bare levels ordered
 ```
 
 ### `talmi`
-The **session realm**. It has no provider backend and mints nothing — it exists
+The **session realm**. It has no provider backend and mints nothing. It exists
 so admin resources have semantics rules can grant. Actions are **exact strings
 with no ordering** (e.g. `login`, `read`, `trigger`; `read` does *not* imply
 `trigger`).
@@ -101,8 +101,15 @@ Well-known admin resources: `talmi:session` (`login`), `talmi:audit` (`read`),
   read-only App and a write-capable App), with rules deciding who reaches which.
   When several instances can serve a request, Talmi picks the **least-privileged**
   one that covers it.
-- Secrets are **never inline values** — use a `secret.Ref`: `raw:literal` (dev
+- Secrets are **never inline values**. Use a `secret.Ref`: `raw:literal` (dev
   only), `file:/path`, or `env:VAR_NAME`.
+
+> **Security:** these `file:`/`env:` secrets are resolved on the Talmi host and
+> then sent to the `server`/`base_url` this block names. If your realms come
+> from a remote config repo, anyone who can push to it can point a provider at a
+> URL they control and exfiltrate those host secrets. Only source realms from a
+> trusted, access-controlled repo. See the config-source note in the bootstrap
+> file.
 
 > **Known limitation:** a per-*instance* `capability:` override is advertised by
 > the JSON schema but currently rejected by the instance decoder. Set

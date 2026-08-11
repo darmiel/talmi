@@ -1,4 +1,4 @@
-# `rules.d/` — who may request what
+# `rules.d/`: who may request what
 
 Files here define **rules**. A rule maps identity to grants: a `match` (which
 principals it applies to) and a list of `allow` entries (what those principals
@@ -26,11 +26,11 @@ Each `*.yaml` file is a **list** of rules. Rules need a unique `name`.
 - **All-or-nothing per request.** If *any* requested resource+action is left
   uncovered, the whole request is denied.
 - **Bounded by capability.** A grant is still capped by the realm/provider
-  capability (see [`../realms.d/`](../realms.d)); rules cannot exceed the ceiling.
-- **Fail-closed.** No matching rule ⇒ denied. Empty action list ⇒ denied. Empty
-  condition without `allow_empty` ⇒ matches nobody.
+  capability (see [`../realms.d/`](../realms.d)), so rules cannot exceed the ceiling.
+- **Fail-closed.** No matching rule denies. An empty action list denies. An empty
+  condition without `allow_empty` matches nobody.
 
-## `match` — selecting principals
+## `match`: selecting principals
 
 `match.issuer` is required and must reference a defined issuer. Then choose
 **exactly one** of `condition`, `expr`, or `allow_empty: true`.
@@ -84,7 +84,7 @@ match:
 An empty/absent condition denies by default. Set `allow_empty: true` to make a
 rule match **every** principal from its issuer.
 
-## `allow` — granting resources
+## `allow`: granting resources
 
 Each `allow` entry needs `resources` (glob patterns, `realm:body`) and `actions`.
 Semantics are realm-specific:
@@ -101,17 +101,17 @@ allow:
 
 Glob rules: `*` does **not** cross `/`, so `acme/*` matches `acme/web` but not
 `acme/group/repo`. The requested resource is matched **literally** against the
-pattern — request bodies are not themselves globs.
+pattern. Request bodies are not themselves globs.
 
 ## Anti-footguns
 
 - **Identity can't be spoofed.** `iss`/`sub`/`id`/`issuer` in `ctx`/conditions
-  are the server-verified values; a token claim of the same name is ignored.
+  are the server-verified values, so a token claim of the same name is ignored.
 - **`not` over a missing attribute matches.** `not: { role: admin }` is true for
   a principal with *no* `role` at all, not just non-admins. Combine with
   `exists` if that matters.
 - **Sessions re-match the login issuer.** Admin rules use the `github-oauth`
-  issuer name; the restored session carries that same issuer.
+  issuer name, and the restored session carries that same issuer.
 
 Validate everything before shipping:
 

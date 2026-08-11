@@ -1,4 +1,4 @@
-# `issuers.d/` — trusted identity sources
+# `issuers.d/`: trusted identity sources
 
 Files here define **issuers**: the upstream systems Talmi trusts to prove *who
 the caller is*. On an `issue`/`why`/`login` request Talmi picks an issuer,
@@ -20,7 +20,7 @@ Each `*.yaml` file is a **list** of issuer blocks. All matched files are merged
 
 ### `oidc`
 Verifies an OIDC ID token against the issuer's discovery keys (signature,
-issuer, audience, expiry). The principal `id` is the token `sub`; `attributes`
+issuer, audience, expiry). The principal `id` is the token `sub`, and `attributes`
 are all claims.
 
 ```yaml
@@ -34,7 +34,7 @@ are all claims.
 > so it needs network access to the issuer.
 
 ### `static`
-Maps fixed token strings to attributes. **Local dev and tests only** — the
+Maps fixed token strings to attributes. Local dev and tests only: the
 "token" the client sends is literally the map key.
 
 ```yaml
@@ -48,7 +48,7 @@ Maps fixed token strings to attributes. **Local dev and tests only** — the
 
 ### `github-oauth`
 Verifies a GitHub / GHES OAuth access token by calling the GitHub API. The
-principal `id` is the login; `attributes` include `login`, `orgs`, and `teams`
+principal `id` is the login. `attributes` include `login`, `orgs`, and `teams`
 (each as `org/slug`). This is what backs human admin login.
 
 ```yaml
@@ -75,8 +75,8 @@ admin API calls.
 
 - **Auto-discovery vs. explicit.** If the client doesn't name an issuer, Talmi
   auto-detects: a JWT (`eyJ...`) is routed by its `iss` claim to the matching
-  `oidc` issuer; anything else is looked up as a `static` token. Callers can also
-  force an issuer explicitly (`--issuer`, or the `issuer` field in the request).
+  `oidc` issuer, and anything else is looked up as a `static` token. Callers can
+  also force an issuer explicitly (`--issuer`, or the `issuer` field in the request).
 - **Every issuer should be referenced** by a rule's `match.issuer` or by
   `auth.login_issuer` / `auth.session_issuer`. `talmi config vet` warns about
   unused issuers.

@@ -160,8 +160,8 @@ Sharp edges (all covered by tests, documented so they're intentional):
 
 - `not: { role: admin }` is **true when `role` is absent** - negation over a
   missing attribute matches.
-- Numeric comparison coerces through `float64`; integers above 2^53 can collide
-  (tracked as a known limitation).
+- Numeric comparison coerces through `float64`, so integers above 2^53 can
+  collide (tracked as a known limitation).
 - A claim key colliding with a structural field (`value`, `key`, `operator`,
   `all`, `any`, `not`) misparses in shorthand -> use the long form.
 
@@ -278,6 +278,22 @@ flowchart LR
     EXP --> RT[runtime.buildReloadable]
 ```
 
+### Trust boundary of the config source
+
+The bootstrap file is trusted (it lives on the host). The **sourced tree is
+not**, and this matters when it comes from a remote repo. A sourced realm or
+issuer block can name arbitrary provider/OAuth endpoints AND reference the
+host's local secrets through `file:`/`env:` refs, which Talmi resolves locally
+and then sends to whatever URL the block specifies. So anyone who can push to
+the config repo (or the tracked branch) can either rewrite policy or exfiltrate
+host secrets by pointing a client at an endpoint they control.
+
+Operational rule: only source from a repository you fully control, restrict
+write access, and require review on the tracked branch. Treat push access as
+equivalent to read access to every secret Talmi can resolve. Until the code
+gates this (restrict schemes for remote trees, allow-list endpoint hosts), the
+control is entirely organizational.
+
 ### Validation layers
 
 1. **`config vet` (`internal/configvet`)**: `Static` does
@@ -296,11 +312,11 @@ flowchart LR
 `runtime.Manager` holds **stable** components (lease store, auditor, session
 signer) that persist across reloads, and swaps a `Runtime` snapshot atomically:
 
-- `Reload` loads the source; if the revision is unchanged it's a no-op.
-- A new `Runtime` is built off to the side; only on success is it stored
+- `Reload` loads the source. If the revision is unchanged it's a no-op.
+- A new `Runtime` is built off to the side, and only on success is it stored
   (`atomic.Pointer`). A failed reload leaves the running config untouched.
 - The engine's `PolicyManager` similarly swaps an immutable `Engine`.
-- Reads are lock-free (`Current()`); reload takes a mutex.
+- Reads are lock-free (`Current()`), and reload takes a mutex.
 
 Triggers: startup, the `config-sync` background task (if `source.sync.interval`
 is set), and the GitHub webhook (`POST /v2/webhooks/github`, HMAC-verified),

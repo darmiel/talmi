@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../docs/schema/config.schema.json
 #
-# Comprehensive Talmi bootstrap example (dev).
+# Full Talmi bootstrap example (dev), covering every config section.
 #
 # It is self-contained and passes offline validation:
 #     talmi config vet example/talmi.dev.yaml --local
@@ -49,13 +49,22 @@ auth:
 
 # --- Config source ---------------------------------------------------------
 # By default issuers/realms/rules are read from the local include globs below.
-# Alternatively, pull them from a GitHub repo pinned to a commit:
+# Alternatively, pull them from a GitHub repo pinned to a commit.
+#
+# SECURITY: only point this at a repository you fully trust, and lock down who
+# can write to it (and to the branch/ref you track). The sourced tree defines
+# rules AND issuer/realm blocks, and those blocks can reference the SERVER's
+# local secrets (file:/env:) and send them to any URL they name. Anyone who can
+# push to this repo can therefore rewrite your policy, or exfiltrate host
+# secrets by pointing a provider/OAuth client at an endpoint they control.
+# Treat push access to this repo as equivalent to access to every secret Talmi
+# can read. Require reviews on the tracked branch.
 #
 # source:
 #   github:
 #     server: https://github.example.com/     # omit for github.com
 #     owner: my-org
-#     repo: talmi-config
+#     repo: talmi-config                       # MUST be a trusted, access-controlled repo
 #     ref: main
 #     app_id: 123456
 #     installation_id: 7890123
