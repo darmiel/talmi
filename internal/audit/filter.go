@@ -6,19 +6,23 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-func matchFilter(e core.AuditEntry, f core.AuditFilter) bool {
+func matchFilter(e core.Event, f core.AuditFilter) bool {
 	switch {
-	case f.CorrelationID != "" && e.ID != f.CorrelationID:
+	case f.ID != "" && e.ID != f.ID:
 		return false
 	case f.Action != "" && e.Action != f.Action:
 		return false
-	case f.PrincipalID != "" && (e.Principal == nil || e.Principal.ID != f.PrincipalID):
+	case f.Outcome != "" && e.Outcome != f.Outcome:
 		return false
-	case f.Fingerprint != "" && !slices.ContainsFunc(e.Artifacts, func(audit core.ArtifactAudit) bool {
-		return audit.Fingerprint == f.Fingerprint
+	case f.RequestID != "" && e.RequestID != f.RequestID:
+		return false
+	case f.SessionID != "" && e.SessionID != f.SessionID:
+		return false
+	case f.ActorID != "" && (e.Actor == nil || e.Actor.ID != f.ActorID):
+		return false
+	case f.Fingerprint != "" && !slices.ContainsFunc(e.Artifacts, func(a core.ArtifactAudit) bool {
+		return a.Fingerprint == f.Fingerprint
 	}):
-		return false
-	case f.Success != nil && e.Success != *f.Success:
 		return false
 	case !f.Since.IsZero() && e.Time.Before(f.Since):
 		return false
@@ -28,10 +32,10 @@ func matchFilter(e core.AuditEntry, f core.AuditFilter) bool {
 	return true
 }
 
-// limitTail returns the last `limit` entries from `entries`.
-func limitTail(entries []core.AuditEntry, limit int) []core.AuditEntry {
-	if limit > 0 && len(entries) > limit {
-		return entries[len(entries)-limit:]
+// limitTail returns the last `limit` events from `events`.
+func limitTail(events []core.Event, limit int) []core.Event {
+	if limit > 0 && len(events) > limit {
+		return events[len(events)-limit:]
 	}
-	return entries
+	return events
 }
