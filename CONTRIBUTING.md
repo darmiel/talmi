@@ -227,7 +227,7 @@ flowchart TD
   partial failure leaves the rest active for a retry.
 - **Audit** records one entry per request (issue/revoke), success or failure,
   with the decision trace and nested artifact fingerprints. `--fingerprint`
-  lookups join through `audit_artifacts`. `talmi why --replay-id <id>` re-renders
+  lookups join through `audit_artifacts`. `talmi lease explain --replay-id <id>` re-renders
   a past decision from the stored trace.
 - **Fingerprints** are SHA-256(token) (base64), stored so a leaked downstream
   token can be traced back to the issuing request/lease.
@@ -329,7 +329,7 @@ which reloads and then invalidates provider capability caches.
 - `signing` configures a `SessionSigner` (ES256 default, HS256 for dev). The
   algorithm is **pinned on verify** (`keyfunc` rejects a mismatched `alg`), so
   there's no alg-confusion / `alg=none`.
-- `talmi login` runs a GitHub device flow, verifies the identity through the
+- `talmi session login` runs a GitHub device flow, verifies the identity through the
   `login_issuer`, checks the principal against a rule granting
   `talmi:session=login`, and returns a Talmi-signed session JWT.
 - Admin routes (`/v2/audit`, `/v2/tasks/*`) are guarded per-handler by
