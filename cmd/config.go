@@ -55,14 +55,10 @@ func newConfigVetCmd(deps Deps) *cobra.Command {
 
 		cfg, err := config.Load(path)
 		if err != nil {
-			return &cli.ExitError{
-				Code:    cli.CodeConfig,
-				Message: fmt.Sprintf("could not load config: %v", err),
-				Cause:   err,
-			}
+			return cli.Fail(cli.CodeConfig, fmt.Sprintf("could not load config: %v", err)).Because(err)
 		}
 		if err := validateVetSourceFlags(local, ref); err != nil {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
+			return cli.Fail(cli.CodeUsage, err.Error()).Because(err)
 		}
 
 		src, err := source.Resolve(cfg, filepath.Dir(path), source.Options{
@@ -70,20 +66,12 @@ func newConfigVetCmd(deps Deps) *cobra.Command {
 			Ref:        ref,
 		})
 		if err != nil {
-			return &cli.ExitError{
-				Code:    cli.CodeConfig,
-				Message: fmt.Sprintf("could not resolve config source: %v", err),
-				Cause:   err,
-			}
+			return cli.Fail(cli.CodeConfig, fmt.Sprintf("could not resolve config source: %v", err)).Because(err)
 		}
 
 		sourced, revision, err := src.Load(cmd.Context())
 		if err != nil {
-			return &cli.ExitError{
-				Code:    cli.CodeConfig,
-				Message: fmt.Sprintf("could not load config tree: %v", err),
-				Cause:   err,
-			}
+			return cli.Fail(cli.CodeConfig, fmt.Sprintf("could not load config source: %v", err)).Because(err)
 		}
 		if revision != "" && revision != "local" && cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil {
 			ui.New(deps.IO.ErrOut, deps.IO.Color).Successln("vetting %s/%s@%s",
@@ -117,7 +105,7 @@ func newConfigVetCmd(deps Deps) *cobra.Command {
 		}
 
 		if report.HasErrors() || (strict && len(report.Warnings()) > 0) {
-			return &cli.ExitError{Code: cli.CodeConfig, Message: "configuration is invalid"}
+			return cli.Fail(cli.CodeConfig, "configuration is invalid")
 		}
 		return nil
 	}
@@ -139,7 +127,7 @@ func newConfigSchemaCmd(deps Deps) *cobra.Command {
 		}
 		data, err := config.GenerateSchema(target)
 		if err != nil {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
+			return cli.Fail(cli.CodeUsage, fmt.Sprintf("could not generate schema: %v", err)).Because(err)
 		}
 		data = append(data, '\n')
 		if out == "" || out == "-" {

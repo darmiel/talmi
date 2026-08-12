@@ -63,22 +63,16 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 		}
 		tok := resolveToken(token, args)
 		if tok == "" {
-			return &cli.ExitError{
-				Code:    cli.CodeUsage,
-				Message: "no token provided",
-				Hint:    "use --token, an argument, or $TALMI_TOKEN",
-			}
+			return cli.Fail(cli.CodeUsage, "no token provided").
+				Hint("use --token, an argument, or $TALMI_TOKEN")
 		}
 		reqs, err := gatherResources(resources, manifest)
 		if err != nil {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
+			return cli.Fail(cli.CodeUsage, fmt.Sprintf("gathering resources: %v", err)).Because(err)
 		}
 		if len(reqs) == 0 {
-			return &cli.ExitError{
-				Code:    cli.CodeUsage,
-				Message: "no resources requested",
-				Hint:    "use --resource or --manifest",
-			}
+			return cli.Fail(cli.CodeUsage, "no resources requested").
+				Hint("use --resource or --manifest")
 		}
 
 		sp := ui.NewSpinner(deps.IO.ErrOut, deps.IO.IsTTY && !*jsonOut)
@@ -136,22 +130,16 @@ func newLeaseRevokeCmd(deps Deps) *cobra.Command {
 		}
 		sec, tokMap, err := gatherRevoke(fromLease, secret, tokens)
 		if err != nil {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
+			return cli.Fail(cli.CodeUsage, fmt.Sprintf("gathering revocation info: %v", err)).Because(err)
 		}
 		if sec == "" {
-			return &cli.ExitError{
-				Code:    cli.CodeUsage,
-				Message: "no revocation secret provided",
-				Hint:    "use --from-lease or --secret",
-			}
+			return cli.Fail(cli.CodeUsage, "no revocation secret provided").
+				Hint("use --from-lease or --secret")
 		}
 		if !yes {
 			if !deps.IO.IsTTY {
-				return &cli.ExitError{
-					Code:    cli.CodeUsage,
-					Message: "refusing to revoke without confirmation",
-					Hint:    "pass --yess to confirm in a non-interactive context",
-				}
+				return cli.Fail(cli.CodeUsage, "refusing to revoke without confirmation").
+					Hint("pass --yess to confirm in a non-interactive context")
 			}
 			confirmed, err := ui.Confirm(deps.IO.In, deps.IO.ErrOut, "revoke this lease?")
 			if err != nil {
@@ -207,22 +195,16 @@ func newLeaseExplainCmd(deps Deps) *cobra.Command {
 
 		tok := resolveToken(token, args)
 		if tok == "" {
-			return &cli.ExitError{
-				Code:    cli.CodeUsage,
-				Message: "no token provided",
-				Hint:    "use --token, an argument, or $TALMI_TOKEN",
-			}
+			return cli.Fail(cli.CodeUsage, "no token provided").
+				Hint("use --token, an argument, or $TALMI_TOKEN")
 		}
 		reqs, err := gatherResources(resources, manifest)
 		if err != nil {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
+			return cli.Fail(cli.CodeUsage, fmt.Sprintf("gathering resources: %v", err)).Because(err)
 		}
 		if len(reqs) == 0 {
-			return &cli.ExitError{
-				Code:    cli.CodeUsage,
-				Message: "no resources requested",
-				Hint:    "use --resource or --manifest",
-			}
+			return cli.Fail(cli.CodeUsage, "no resources requested").
+				Hint("use --resource or --manifest")
 		}
 
 		resp, correlation, err := c.Explain(cmd.Context(), tok, client.IssueRequestBody{
@@ -366,10 +348,7 @@ func explainReplay(cmd *cobra.Command, deps Deps, c TalmiClient, replayID string
 		return clientError(err, correlation)
 	}
 	if len(entries) == 0 {
-		return &cli.ExitError{
-			Code:    cli.CodeDenied,
-			Message: fmt.Sprintf("no audit entry with correlation id %q", replayID),
-		}
+		return cli.Fail(cli.CodeDenied, fmt.Sprintf("no audit entry with correlation id %q", replayID))
 	}
 
 	e := entries[0]
