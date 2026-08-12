@@ -113,14 +113,19 @@ func TestIssueAndVerifySession(t *testing.T) {
 	iss, err := NewTalmiSessionIssuer("talmi-admins", config.TalmiSessionConfig{}, signer)
 	require.NoError(t, err)
 
+	is := assert.New(t)
+	must := require.New(t)
+
 	p := &core.Principal{ID: "alice", Issuer: "gh-human", Attributes: map[string]any{"teams": []any{"acme/admins"}}}
-	tok, exp, err := IssueSession(signer, p, time.Hour)
-	require.NoError(t, err)
-	assert.True(t, exp.After(time.Now()))
+	tok, sessionID, exp, err := IssueSession(signer, p, time.Hour)
+	must.NoError(err)
+	is.NotEmpty(sessionID, "IssueSession returns a jti")
+	is.True(exp.After(time.Now()))
 
 	got, err := iss.Verify(context.Background(), tok)
-	require.NoError(t, err)
-	assert.Equal(t, "alice", got.ID)
-	assert.Equal(t, "gh-human", got.Issuer) // restored from origin_iss — admin rules match this
-	assert.Contains(t, got.Attributes["teams"], "acme/admins")
+	must.NoError(err)
+	is.Equal("alice", got.ID)
+	is.Equal("gh-human", got.Issuer) // restored from origin_iss — admin rules match this
+	is.Contains(got.Attributes["teams"], "acme/admins")
+	is.Equal(sessionID, got.Attributes["session_id"], "verified principal carries the jti as session_id")
 }

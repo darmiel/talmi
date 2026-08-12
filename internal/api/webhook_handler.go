@@ -11,6 +11,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/api/presenter"
+	"github.com/darmiel/talmi/internal/audit"
+	"github.com/darmiel/talmi/internal/core"
 )
 
 func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
@@ -33,10 +35,12 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.gitHubOnWebhook(ctx); err != nil {
 		logger.Error().Err(err).Msg("webhook handler failed")
+		s.record(ctx, core.ActionWebhookReceived, core.OutcomeFailure, audit.WithError(err))
 		presenter.Error(w, r, "webhook handler failed", http.StatusInternalServerError)
 		return
 	}
 
+	s.record(ctx, core.ActionWebhookReceived, core.OutcomeSuccess)
 	presenter.JSON(w, r, map[string]string{"status": "ok"}, http.StatusOK)
 }
 

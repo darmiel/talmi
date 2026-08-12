@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -8,7 +10,9 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/api/presenter"
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/correlation"
 )
 
 // requireTalmi verifies the admin session and authorizes the principal for the given talmi resource/action.
@@ -18,22 +22,27 @@ func (s *Server) requireTalmi(
 	r *http.Request,
 	resource core.Resource,
 	action core.Action,
-) bool {
+) (*core.Principal, bool) {
+	meta := map[string]any{"resource": string(resource), "action": string(action)}
 	token := bearerToken(r)
 	if token == "" {
+		s.record(r.Context(), core.ActionAuthzDenied, core.OutcomeDenied,
+			audit.WithError(fmt.Errorf("missing session token")), audit.WithMetadata(meta))
 		presenter.Error(w, r, "missing session token", http.StatusUnauthorized)
-		return false
+		return nil, false
 	}
 	issuer, ok := s.admin.SessionIssuer()
 	if !ok {
 		presenter.Error(w, r, "session issuer not configured", http.StatusInternalServerError)
-		return false
+		return nil, false
 	}
 	principal, err := issuer.Verify(r.Context(), token)
 	if err != nil {
 		log.Ctx(r.Context()).Warn().Err(err).Msg("admin: invalid session token")
+		s.record(r.Context(), core.ActionAuthzDenied, core.OutcomeDenied,
+			audit.WithError(err), audit.WithMetadata(meta))
 		presenter.Error(w, r, "invalid session token", http.StatusUnauthorized)
-		return false
+		return nil, false
 	}
 	decision := s.admin.Authorize(principal, []core.ResourceRequest{
 		{Resource: resource, Actions: []core.Action{action}},
@@ -44,33 +53,49 @@ func (s *Server) requireTalmi(
 			Str("resource", string(resource)).
 			Str("action", string(action)).
 			Msg("admin: principal not authorized for action")
+		s.record(withSession(r.Context(), principal), core.ActionAuthzDenied, core.OutcomeDenied,
+			audit.WithActor(principal), audit.WithMetadata(meta))
 		presenter.Error(w, r, "not authorized for this action", http.StatusForbidden)
-		return false
+		return nil, false
 	}
 	log.Ctx(r.Context()).Debug().
 		Str("sub", principal.ID).
 		Str("resource", string(resource)).
 		Str("action", string(action)).
 		Msg("admin: action authorized")
-	return true
+	return principal, true
+}
+
+// withSession attaches the principal's session id (jti) to the context so
+// recorded events are linked to the login session.
+func withSession(ctx context.Context, p *core.Principal) context.Context {
+	if p == nil {
+		return ctx
+	}
+	if sid, ok := p.Attributes["session_id"].(string); ok && sid != "" {
+		return correlation.WithSession(ctx, sid)
+	}
+	return ctx
 }
 
 func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
-	if !s.requireTalmi(w, r, "talmi:audit", "read") {
+	if _, ok := s.requireTalmi(w, r, "talmi:audit", "read"); !ok {
 		return
 	}
 	logger := log.Ctx(r.Context())
 
 	q := r.URL.Query()
 	filter := core.AuditFilter{
-		CorrelationID: q.Get("correlation_id"),
-		PrincipalID:   q.Get("principal_id"),
-		Action:        q.Get("action"),
-		Fingerprint:   q.Get("fingerprint"),
-		Success:       parseBoolPtr(q.Get("success")),
-		Since:         parseTime(q.Get("since")),
-		Until:         parseTime(q.Get("until")),
-		Limit:         parseLimit(q.Get("limit"), 50),
+		ID:          q.Get("id"),
+		RequestID:   q.Get("request_id"),
+		SessionID:   q.Get("session_id"),
+		ActorID:     q.Get("principal_id"),
+		Action:      core.AuditAction(q.Get("action")),
+		Outcome:     core.Outcome(q.Get("outcome")),
+		Fingerprint: q.Get("fingerprint"),
+		Since:       parseTime(q.Get("since")),
+		Until:       parseTime(q.Get("until")),
+		Limit:       parseLimit(q.Get("limit"), 50),
 	}
 	entries, err := s.admin.Auditor().Query(r.Context(), filter)
 	if err != nil {
@@ -82,7 +107,7 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
-	if !s.requireTalmi(w, r, "talmi:tasks", "read") {
+	if _, ok := s.requireTalmi(w, r, "talmi:tasks", "read"); !ok {
 		return
 	}
 	presenter.JSON(w, r, s.admin.Tasks.ListStatus(), http.StatusOK)
@@ -90,10 +115,21 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTriggerTask(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if !s.requireTalmi(w, r, core.Resource("talmi:tasks/"+name), "trigger") {
+	principal, ok := s.requireTalmi(w, r, core.Resource("talmi:tasks/"+name), "trigger")
+	if !ok {
 		return
 	}
-	if err := s.admin.Tasks.Trigger(name); err != nil {
+	ctx := withSession(r.Context(), principal)
+	err := s.admin.Tasks.Trigger(name)
+	outcome := core.OutcomeSuccess
+	if err != nil {
+		outcome = core.OutcomeFailure
+	}
+	s.record(ctx, core.ActionTaskTrigger, outcome,
+		audit.WithActor(principal),
+		audit.WithError(err),
+		audit.WithMetadata(map[string]any{"task": name}))
+	if err != nil {
 		presenter.Error(w, r, "failed to trigger task: "+err.Error(), http.StatusNotFound)
 		return
 	}
@@ -102,7 +138,7 @@ func (s *Server) handleTriggerTask(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTaskLogs(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if !s.requireTalmi(w, r, core.Resource("talmi:tasks/"+name), "read") {
+	if _, ok := s.requireTalmi(w, r, core.Resource("talmi:tasks/"+name), "read"); !ok {
 		return
 	}
 	logs, err := s.admin.Tasks.GetLogs(name)
@@ -121,19 +157,6 @@ func parseLimit(s string, def int) int {
 		return n
 	}
 	return def
-}
-
-func parseBoolPtr(s string) *bool {
-	switch s {
-	case "true":
-		b := true
-		return &b
-	case "false":
-		b := false
-		return &b
-	default:
-		return nil
-	}
 }
 
 func parseTime(s string) time.Time {
