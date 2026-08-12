@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"regexp"
 
 	"github.com/fatih/color"
 )
@@ -11,8 +12,10 @@ const (
 	symSuccess = "\u2713" // ✓
 	symError   = "\u2717" // ✗
 	symWarn    = "!"
-	symHint    = "->"
+	symHint    = "\u2192" // →
 )
+
+var codeSpan = regexp.MustCompile("`([^`]+)`")
 
 // Printer renders stylized text to the terminal.
 type Printer struct {
@@ -37,6 +40,14 @@ func (p *Printer) colorize(s string, attrs ...color.Attribute) string {
 	return c.Sprint(s)
 }
 
+// emphasize renders `backtick` spans as bold-cyan and drops the backticks, so
+// commands and flags in messages stand out and read as copy-pasteable.
+func (p *Printer) emphasize(s string) string {
+	return codeSpan.ReplaceAllStringFunc(s, func(m string) string {
+		return p.colorize(m[1:len(m)-1], color.FgCyan, color.Bold)
+	})
+}
+
 func (p *Printer) symbolLine(sym string, attr color.Attribute, msg string, args ...any) {
 	_, _ = fmt.Fprintf(p.w, "%s %s\n", p.colorize(sym, attr), fmt.Sprintf(msg, args...))
 }
@@ -45,16 +56,25 @@ func (p *Printer) Successln(msg string, args ...any) {
 	p.symbolLine(symSuccess, color.FgGreen, msg, args...)
 }
 
+// Errorln renders a bold error headline: a red ✗ followed by the bold message.
 func (p *Printer) Errorln(msg string, args ...any) {
-	p.symbolLine(symError, color.FgRed, msg, args...)
+	_, _ = fmt.Fprintf(p.w, "%s %s\n",
+		p.colorize(symError, color.FgRed, color.Bold),
+		p.colorize(fmt.Sprintf(msg, args...), color.Bold),
+	)
 }
 
 func (p *Printer) Warnln(msg string, args ...any) {
 	p.symbolLine(symWarn, color.FgYellow, msg, args...)
 }
 
+// Hintln renders an indented, dim → followed by the message, with `backtick`
+// spans emphasized.
 func (p *Printer) Hintln(msg string, args ...any) {
-	p.symbolLine(symHint, color.FgCyan, msg, args...)
+	_, _ = fmt.Fprintf(p.w, "  %s %s\n",
+		p.colorize(symHint, color.Faint),
+		p.emphasize(fmt.Sprintf(msg, args...)),
+	)
 }
 
 func (p *Printer) Faintln(msg string, args ...any) {

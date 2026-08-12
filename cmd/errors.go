@@ -27,7 +27,7 @@ func enrich(err, orig error, cmd *cobra.Command) error {
 		_ = ee.Hint(didYouMean(orig.Error(), cmd)...)
 	}
 	if ee.Code == cli.CodeUsage && cmd != nil {
-		_ = ee.Hint(fmt.Sprintf("run '%s --help' for usage", cmd.CommandPath()))
+		_ = ee.Hint(fmt.Sprintf("run `%s --help` for usage", cmd.CommandPath()))
 	}
 	return ee
 }
@@ -57,5 +57,5 @@ func didYouMeanHints(target string, candidates []string, prefix string) []string
 	if len(matches) == 0 {
 		return nil
 	}
-	return []string{fmt.Sprintf("did you mean '%s%s'?", prefix, matches[0])}
+	return []string{fmt.Sprintf("did you mean `%s%s`?", prefix, matches[0])}
 }

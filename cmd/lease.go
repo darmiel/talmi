@@ -65,7 +65,7 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 		tok := resolveToken(token, args)
 		if tok == "" {
 			return cli.Fail(cli.CodeUsage, "no token provided").
-				Hint("use --token, an argument, or $TALMI_TOKEN")
+				Hint("use `--token`, an argument, or `$TALMI_TOKEN`")
 		}
 		reqs, err := gatherResources(resources, manifest)
 		if err != nil {
@@ -73,7 +73,7 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 		}
 		if len(reqs) == 0 {
 			return cli.Fail(cli.CodeUsage, "no resources requested").
-				Hint("use --resource or --manifest")
+				Hint("use `--resource` or `--manifest`")
 		}
 
 		sp := ui.NewSpinner(deps.IO.ErrOut, deps.IO.IsTTY && !*jsonOut)
@@ -86,7 +86,7 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 		if err != nil {
 			e := clientError(err, correlation)
 			if ee, ok := errors.AsType[*cli.ExitError](e); ok && ee.Code == cli.CodeDenied {
-				_ = ee.Hint("see why it was denied: run the same request with 'talmi lease explain'")
+				_ = ee.Hint("see why it was denied: run the same request with `talmi lease explain`")
 			}
 			return e
 		}
@@ -139,12 +139,12 @@ func newLeaseRevokeCmd(deps Deps) *cobra.Command {
 		}
 		if sec == "" {
 			return cli.Fail(cli.CodeUsage, "no revocation secret provided").
-				Hint("use --from-lease or --secret")
+				Hint("use `--from-lease` or `--secret`")
 		}
 		if !yes {
 			if !deps.IO.IsTTY {
 				return cli.Fail(cli.CodeUsage, "refusing to revoke without confirmation").
-					Hint("pass --yess to confirm in a non-interactive context")
+					Hint("pass `--yes` to confirm in a non-interactive context")
 			}
 			confirmed, err := ui.Confirm(deps.IO.In, deps.IO.ErrOut, "revoke this lease?")
 			if err != nil {
@@ -201,7 +201,7 @@ func newLeaseExplainCmd(deps Deps) *cobra.Command {
 		tok := resolveToken(token, args)
 		if tok == "" {
 			return cli.Fail(cli.CodeUsage, "no token provided").
-				Hint("use --token, an argument, or $TALMI_TOKEN")
+				Hint("use `--token`, an argument, or `$TALMI_TOKEN`")
 		}
 		reqs, err := gatherResources(resources, manifest)
 		if err != nil {
@@ -209,7 +209,7 @@ func newLeaseExplainCmd(deps Deps) *cobra.Command {
 		}
 		if len(reqs) == 0 {
 			return cli.Fail(cli.CodeUsage, "no resources requested").
-				Hint("use --resource or --manifest")
+				Hint("use `--resource` or `--manifest`")
 		}
 
 		resp, correlation, err := c.Explain(cmd.Context(), tok, client.IssueRequestBody{

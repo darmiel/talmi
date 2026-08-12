@@ -42,7 +42,7 @@ func TestRenderTextClean(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	RenderText(&buf, Report{}, false)
-	assert.Contains(t, buf.String(), "no issues found")
+	assert.Contains(t, buf.String(), "configuration is valid")
 }
 
 func TestRenderJSON(t *testing.T) {

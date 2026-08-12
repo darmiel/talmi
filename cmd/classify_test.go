@@ -32,7 +32,7 @@ func TestClassify(t *testing.T) {
 		assert.Equal(t, "c1", ee.Correlation)
 	})
 
-	t.Run("network error is friendly, names the host, keeps the cause", func(t *testing.T) {
+	t.Run("client network error is friendly, names the host, keeps the cause", func(t *testing.T) {
 		t.Parallel()
 		urlErr := &url.Error{
 			Op:  "Get",
@@ -40,10 +40,20 @@ func TestClassify(t *testing.T) {
 			Err: &net.OpError{Op: "dial", Err: errors.New("connect: connection refused")},
 		}
 		var ee *cli.ExitError
-		require.ErrorAs(t, classify(urlErr, ""), &ee)
+		require.ErrorAs(t, clientError(urlErr, ""), &ee)
 		assert.Contains(t, ee.Message, "localhost:8080")
 		assert.NotEmpty(t, ee.Hints)
 		require.NotNil(t, ee.Cause)
+	})
+
+	t.Run("classify does not blame the server for unrelated network errors", func(t *testing.T) {
+		t.Parallel()
+		netErr := &net.OpError{Op: "dial", Err: errors.New("connect: connection refused")}
+		wrapped := fmt.Errorf("pinging database: %w", netErr)
+		var ee *cli.ExitError
+		require.ErrorAs(t, classify(wrapped, ""), &ee)
+		assert.NotContains(t, ee.Message, "Talmi server")
+		assert.Contains(t, ee.Message, "pinging database")
 	})
 
 	t.Run("api 401 maps to auth", func(t *testing.T) {
