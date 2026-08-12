@@ -86,5 +86,5 @@ func newTalmiClient() (TalmiClient, error) {
 
 func errServerNotConfigured() error {
 	return cli.Fail(cli.CodeUsage, "server address not configured").
-		Hint("set --server or the TALMI_ADDR environment variable")
+		Hint("set `--server` or the `TALMI_ADDR` environment variable")
 }

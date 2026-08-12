@@ -49,7 +49,7 @@ func classify(err error, correlation string) error {
 			msg = fmt.Sprintf("your session expired %s ago", time.Since(exp).Round(time.Second))
 		}
 		return cli.Fail(cli.CodeAuth, msg).
-			Hint("run 'talmi session login' to authenticate").
+			Hint("run `talmi session login` to authenticate").
 			Trace(correlation).
 			Because(err)
 	}
@@ -63,25 +63,6 @@ func classify(err error, correlation string) error {
 			Because(err)
 	case errors.Is(err, context.Canceled):
 		return cli.Fail(cli.CodeGeneric, "operation canceled").Trace(correlation).Because(err)
-	}
-
-	// network failures
-	if netErr, ok := errors.AsType[net.Error](err); ok {
-		target := "the Talmi server"
-		if host := serverHostFromErr(err); host != "" {
-			target = "the Talmi server at " + host
-		}
-		detail := "the connection was refused or the host is unreachable"
-		if netErr.Timeout() {
-			detail = "the connection timed out"
-		}
-		return cli.Fail(cli.CodeGeneric, "can't reach "+target).
-			Detailed(detail).
-			Hint(
-				"is the server running? start it with 'talmi server run'",
-				"or target another server with --server (or $TALMI_ADDR)",
-			).
-			Because(err)
 	}
 
 	// structured API error from client
@@ -104,7 +85,7 @@ func classifyAPIError(apiErr client.APIError, correlation string) *cli.ExitError
 	switch {
 	case apiErr.StatusCode == 401:
 		ee.Code = cli.CodeAuth
-		_ = ee.Hint("run 'talmi session login' to authenticate")
+		_ = ee.Hint("run `talmi session login` to authenticate")
 	case apiErr.StatusCode == 403:
 		ee.Code = cli.CodeDenied
 		_ = ee.Hint(
@@ -142,5 +123,25 @@ func isUsageError(err error) bool {
 }
 
 func clientError(err error, correlation string) error {
+	if err == nil {
+		return nil
+	}
+	if netErr, ok := errors.AsType[net.Error](err); ok {
+		target := "the Talmi server"
+		if host := serverHostFromErr(err); host != "" {
+			target = "the Talmi server at " + host
+		}
+		detail := "the connection was refused or the host is unreachable"
+		if netErr.Timeout() {
+			detail = "the connection timed out"
+		}
+		return cli.Fail(cli.CodeGeneric, "can't reach "+target).
+			Detailed(detail).
+			Hint(
+				"is the server running? start it with `talmi server run`",
+				"or target another server with `--server` (or `$TALMI_ADDR`)",
+			).
+			Because(err)
+	}
 	return classify(err, correlation)
 }

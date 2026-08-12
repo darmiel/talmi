@@ -25,12 +25,12 @@ func RenderJSON(w io.Writer, r Report) error {
 	})
 }
 
-// RenderText writes a human-friendly, compiler-style report. Errors are shown
-// before warnings; each finding shows its code, location, message, an optional
-// source position, did-you-mean suggestions and remediation help.
+// RenderText writes a human-friendly report.
 func RenderText(w io.Writer, r Report, useColor bool) {
+	green := colorizer(useColor, color.FgGreen)
+
 	if len(r.Findings) == 0 {
-		_, _ = fmt.Fprintln(w, "configuration is valid - no issues found")
+		_, _ = fmt.Fprintln(w, green("configuration is valid"))
 		return
 	}
 

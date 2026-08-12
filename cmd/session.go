@@ -160,7 +160,7 @@ func newSessionStatusCmd(deps Deps) *cobra.Command {
 		}
 
 		notLoggedIn := cli.Fail(cli.CodeAuth, fmt.Sprintf("not logged in to %s", server)).
-			Hint("run 'talmi session login'")
+			Hint("run `talmi session login`")
 		if *jsonOut {
 			if err := emitJSON(deps, status); err != nil {
 				return err

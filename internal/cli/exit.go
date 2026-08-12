@@ -79,7 +79,7 @@ func Handle(io IOStreams, err error) int {
 	p := ui.New(io.ErrOut, io.Color)
 	p.Errorln("%s", exitErr.Message)
 	if exitErr.Detail != "" {
-		p.Println("  " + exitErr.Detail)
+		p.Faintln("  %s", exitErr.Detail)
 	}
 	if len(exitErr.Hints) > 0 {
 		p.Println()
@@ -92,10 +92,10 @@ func Handle(io IOStreams, err error) int {
 		p.Println()
 	}
 	if exitErr.Cause != nil {
-		p.Faintln("%s", exitErr.Cause.Error())
+		p.Faintln("  %s", exitErr.Cause.Error())
 	}
 	if exitErr.Correlation != "" {
-		p.Faintln("correlation: %s", exitErr.Correlation)
+		p.Faintln("  correlation: %s", exitErr.Correlation)
 	}
 	return exitErr.Code
 }
