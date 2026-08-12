@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,23 +14,8 @@ import (
 	"github.com/darmiel/talmi/internal/logging"
 )
 
-// BeQuietError can be used to signal that no error output should be shown.
-type BeQuietError struct {
-	ExitCode int
-}
-
-func (e BeQuietError) Error() string {
-	return "program exited quietly"
-}
-
-var (
-	f = NewFactory()
-
-	greenCheck = color.GreenString("✓")
-	redCross   = color.RedString("✗")
-
-	faint = color.New(color.Faint).SprintFunc()
-)
+// f is the shared CLI factory used to resolve the server address and client.
+var f = NewFactory()
 
 const (
 	LogLevelKey   = "log.level"

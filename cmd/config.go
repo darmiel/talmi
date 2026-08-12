@@ -5,35 +5,49 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/backend"
+	"github.com/darmiel/talmi/internal/cli"
+	"github.com/darmiel/talmi/internal/cli/ui"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/configvet"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/source"
 )
 
-var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Interact with the configuration",
-	Long:  `Utilities for validating and viewing the Talmi configuration`,
+func newConfigCmd(deps Deps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Interact with the configuration",
+		Long:  `Utilities for validating and viewing the Talmi configuration`,
+	}
+	cmd.AddCommand(
+		newConfigVetCmd(deps),
+		newConfigSchemaCmd(deps),
+	)
+	return cmd
 }
 
-var (
-	vetOnline bool
-	vetStrict bool
-	vetFormat string
-	vetLocal  bool
-	vetRef    string
-)
+func newConfigVetCmd(deps Deps) *cobra.Command {
+	var (
+		online bool
+		strict bool
+		local  bool
+		ref    string
+	)
+	cmd := &cobra.Command{
+		Use:   "vet [config.yaml]",
+		Short: "Validate a Talmi configuration",
+		Args:  cobra.MaximumNArgs(1),
+	}
+	jsonOut := addJSONFlag(cmd)
+	cmd.Flags().BoolVar(&online, "online", false, "perform network-based checks (may be slow)")
+	cmd.Flags().BoolVar(&strict, "strict", false, "treat warnings as errors")
+	cmd.Flags().BoolVar(&local, "local", false, "force local config source (ignore remote)")
+	cmd.Flags().StringVar(&ref, "ref", "", "override git ref for remote config source")
 
-var configVetCmd = &cobra.Command{
-	Use:   "vet [config.yaml]",
-	Short: "Validate a Talmi configuration",
-	Args:  cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		path := "talmi.yaml"
 		if len(args) == 1 {
 			path = args[0]
@@ -41,26 +55,39 @@ var configVetCmd = &cobra.Command{
 
 		cfg, err := config.Load(path)
 		if err != nil {
-			return logError(err, "", "could not load config")
+			return &cli.ExitError{
+				Code:    cli.CodeConfig,
+				Message: fmt.Sprintf("could not load config: %v", err),
+				Cause:   err,
+			}
 		}
-		if err := validateVetSourceFlags(vetLocal, vetRef); err != nil {
-			return logError(err, "", "invalid source flags")
+		if err := validateVetSourceFlags(local, ref); err != nil {
+			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
 		}
 
 		src, err := source.Resolve(cfg, filepath.Dir(path), source.Options{
-			ForceLocal: vetLocal,
-			Ref:        vetRef,
+			ForceLocal: local,
+			Ref:        ref,
 		})
 		if err != nil {
-			return logError(err, "", "could not resolve config source")
+			return &cli.ExitError{
+				Code:    cli.CodeConfig,
+				Message: fmt.Sprintf("could not resolve config source: %v", err),
+				Cause:   err,
+			}
 		}
 
 		sourced, revision, err := src.Load(cmd.Context())
 		if err != nil {
-			return logError(err, "", "could not load sourced config tree")
+			return &cli.ExitError{
+				Code:    cli.CodeConfig,
+				Message: fmt.Sprintf("could not load config tree: %v", err),
+				Cause:   err,
+			}
 		}
 		if revision != "" && revision != "local" && cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil {
-			logSuccess("vetting %s/%s@%s", cfg.ConfigSource.GitHub.Owner, cfg.ConfigSource.GitHub.Repo, revision)
+			ui.New(deps.IO.ErrOut, deps.IO.Color).Successln("vetting %s/%s@%s",
+				cfg.ConfigSource.GitHub.Owner, cfg.ConfigSource.GitHub.Repo, revision)
 		}
 
 		staticIn := configvet.StaticInput{
@@ -70,7 +97,7 @@ var configVetCmd = &cobra.Command{
 		}
 
 		var report configvet.Report
-		if vetOnline {
+		if online {
 			providers, buildFindings := buildProvidersForVet(sourced)
 			report = configvet.Live(cmd.Context(), configvet.LiveInput{
 				Static:    staticIn,
@@ -81,51 +108,51 @@ var configVetCmd = &cobra.Command{
 			report = configvet.Static(staticIn)
 		}
 
-		switch vetFormat {
-		case "json":
-			if err := configvet.RenderJSON(os.Stdout, report); err != nil {
+		if *jsonOut {
+			if err := configvet.RenderJSON(deps.IO.Out, report); err != nil {
 				return err
 			}
-		case "text", "":
-			configvet.RenderText(os.Stdout, report, !color.NoColor)
-		default:
-			return fmt.Errorf("unknown --format %q (want text or json)", vetFormat)
+		} else {
+			configvet.RenderText(deps.IO.Out, report, deps.IO.Color)
 		}
 
-		if report.HasErrors() || (vetStrict && len(report.Warnings()) > 0) {
-			return BeQuietError{} // non-zero exit; findings already printed
+		if report.HasErrors() || (strict && len(report.Warnings()) > 0) {
+			return &cli.ExitError{Code: cli.CodeConfig, Message: "configuration is invalid"}
 		}
 		return nil
-	},
+	}
+	return cmd
 }
 
-var schemaOut string
-
-var configSchemaCmd = &cobra.Command{
-	Use:   "schema [TARGET]",
-	Short: "Generate JSON Schema for Talmi configuration",
-	Args:  cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+func newConfigSchemaCmd(deps Deps) *cobra.Command {
+	var out string
+	cmd := &cobra.Command{
+		Use:   "schema [target]",
+		Short: "Generate JSON Schema for Talmi configuration",
+		Args:  cobra.MaximumNArgs(1),
+	}
+	cmd.Flags().StringVarP(&out, "out", "o", "", "output file for schema (default stdout)")
+	cmd.RunE = func(_ *cobra.Command, args []string) error {
 		target := "config"
 		if len(args) == 1 {
 			target = args[0]
 		}
 		data, err := config.GenerateSchema(target)
 		if err != nil {
-			return err
+			return &cli.ExitError{Code: cli.CodeUsage, Message: err.Error(), Cause: err}
 		}
 		data = append(data, '\n')
-
-		if schemaOut == "" || schemaOut == "-" {
-			_, err = os.Stdout.Write(data)
+		if out == "" || out == "-" {
+			_, err = deps.IO.Out.Write(data)
 			return err
 		}
-		if err := os.WriteFile(schemaOut, data, 0o600); err != nil {
+		if err := os.WriteFile(out, data, 0o600); err != nil {
 			return fmt.Errorf("writing schema: %w", err)
 		}
-		logSuccess("wrote %s schema to %s", target, schemaOut)
+		ui.New(deps.IO.ErrOut, deps.IO.Color).Successln("wrote %s schema to %s", target, out)
 		return nil
-	},
+	}
+	return cmd
 }
 
 func buildProvidersForVet(sourced *config.SourcedConfig) ([]core.ResourceProvider, []configvet.Finding) {
@@ -171,17 +198,4 @@ func validateVetSourceFlags(local bool, ref string) error {
 		return fmt.Errorf("--local and --ref cannot be used together")
 	}
 	return nil
-}
-
-func init() {
-	rootCmd.AddCommand(configCmd)
-	configCmd.AddCommand(configVetCmd, configSchemaCmd)
-
-	configVetCmd.Flags().BoolVar(&vetOnline, "online", false, "perform network-based checks (may be slow)")
-	configVetCmd.Flags().BoolVar(&vetStrict, "strict", false, "treat warnings as errors")
-	configVetCmd.Flags().StringVar(&vetFormat, "format", "text", "output format: text or json")
-	configVetCmd.Flags().BoolVar(&vetLocal, "local", false, "force local config source (ignore remote)")
-	configVetCmd.Flags().StringVar(&vetRef, "ref", "", "override git ref for remote config source")
-
-	configSchemaCmd.Flags().StringVarP(&schemaOut, "out", "o", "", "output file for schema (default stdout)")
 }

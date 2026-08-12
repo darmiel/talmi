@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/cli"
-	"github.com/darmiel/talmi/pkg/client"
 )
 
 func buildDeps(io cli.IOStreams) Deps {
@@ -50,6 +47,7 @@ func registerMigrated(root *cobra.Command, deps Deps) {
 		newAuditCmd(deps),
 		newTasksCmd(deps),
 		newLeaseCmd(deps),
+		newConfigCmd(deps),
 	)
 }
 
@@ -60,27 +58,5 @@ func Execute() {
 	rootCmd.SetOut(io.Out)
 	rootCmd.SetErr(io.ErrOut)
 
-	err := rootCmd.Execute()
-	if err == nil {
-		return
-	}
-
-	if _, ok := errors.AsType[*cli.ExitError](err); ok {
-		os.Exit(cli.Handle(io, err))
-		return
-	}
-
-	switch {
-	case errors.Is(err, client.ErrInvalidSession):
-		log.Error().Msg("session token is invalid or expired, please use 'talmi login' to authenticate")
-		os.Exit(403)
-	default:
-		if bqe, ok := errors.AsType[BeQuietError](err); ok {
-			if bqe.ExitCode == 0 {
-				bqe.ExitCode = 1
-			}
-			os.Exit(bqe.ExitCode)
-		}
-		log.Fatal().Err(err).Msg("execution failed")
-	}
+	os.Exit(cli.Handle(io, rootCmd.Execute()))
 }

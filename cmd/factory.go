@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 
 	"github.com/darmiel/talmi/internal/cliconfig"
@@ -57,25 +55,4 @@ func (f *Factory) GetClient() (*client.Client, error) {
 	}
 
 	return client.New(server, client.WithAuthToken(token)), nil
-}
-
-func unwrapAPIError(err error) string {
-	if apiErr, ok := errors.AsType[client.APIError](err); ok {
-		return apiErr.Message
-	}
-	return err.Error()
-}
-
-func logSuccess(format string, args ...any) {
-	log.Info().Msgf("%s %s", greenCheck, fmt.Sprintf(format, args...))
-}
-
-func logError(err error, correlation, msg string) error {
-	suffix := ""
-	if correlation != "" {
-		suffix += fmt.Sprintf(" (correlation: %s)", correlation)
-	}
-	log.Error().Msgf("%s %s%s", redCross, msg, suffix)
-	log.Error().Msgf("error: %v", unwrapAPIError(err))
-	return BeQuietError{}
 }
