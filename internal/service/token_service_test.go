@@ -42,16 +42,18 @@ func (f fakeIssuers) IdentifyIssuer(string) (core.Issuer, error) {
 
 var _ core.Auditor = (*fakeAuditor)(nil)
 
-type fakeAuditor struct{ entries []core.AuditEntry }
+type fakeAuditor struct{ events []core.Event }
 
-func (a *fakeAuditor) Log(_ context.Context, entry core.AuditEntry) error {
-	a.entries = append(a.entries, entry)
+func (a *fakeAuditor) Log(_ context.Context, event core.Event) error {
+	a.events = append(a.events, event)
 	return nil
 }
 
-func (a *fakeAuditor) Query(ctx context.Context, filter core.AuditFilter) ([]core.AuditEntry, error) {
+func (a *fakeAuditor) Query(context.Context, core.AuditFilter) ([]core.Event, error) {
 	return nil, nil
 }
+
+func (a *fakeAuditor) Prune(context.Context, time.Time) (int, error) { return 0, nil }
 
 func (a *fakeAuditor) Close() error { return nil }
 
@@ -85,7 +87,7 @@ func setup(
 			principal: principal,
 			err:       verifyErr,
 		},
-	}, pm, res, leaseStore, auditor, "rev-1")
+	}, pm, res, leaseStore, audit.NewRecorder(auditor), "rev-1")
 	return svc, auditor
 }
 
@@ -118,13 +120,15 @@ func TestIssueLeaseHappyPath(t *testing.T) {
 	is.Len(stored.Artifacts, 1)
 	is.NotEmpty(stored.Artifacts[0].Fingerprint)
 	// audit recorded success
-	must.Len(auditor.entries, 1)
-	is.True(auditor.entries[0].Success)
+	must.Len(auditor.events, 1)
+	is.Equal(core.ActionLeaseIssue, auditor.events[0].Action)
+	is.Equal(core.OutcomeSuccess, auditor.events[0].Outcome)
 }
 
 func TestIssueLeaseDenied(t *testing.T) {
 	t.Parallel()
 	is := assert.New(t)
+	must := require.New(t)
 	principal := &core.Principal{ID: "p", Issuer: "fake"}
 	gh := stub.New("gh-ro", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
 	svc, auditor := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore())
@@ -133,8 +137,9 @@ func TestIssueLeaseDenied(t *testing.T) {
 	req.Resources[0].Actions = []core.Action{"contents:write"} // not covered by policy
 	_, err := svc.IssueLease(context.Background(), req)
 	is.Error(err)
-	is.False(auditor.entries[0].Success)
-	is.Equal("policy denied", auditor.entries[0].Error)
+	must.Len(auditor.events, 1)
+	is.Equal(core.OutcomeDenied, auditor.events[0].Outcome)
+	is.NotEmpty(auditor.events[0].Error, "denied event records the deny reason")
 }
 
 func TestIssueLeaseVerificationFails(t *testing.T) {
@@ -210,6 +215,30 @@ func TestRevokeLeaseSuccess(t *testing.T) {
 	active, err := mem.ListActive(context.Background())
 	is.NoError(err)
 	is.Empty(active, "revoked lease must no longer be active")
+}
+
+func TestRevokeEmitsAuditEvent(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	svc, auditor := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore())
+
+	issued, err := svc.IssueLease(context.Background(), readRequest())
+	must.NoError(err)
+	_, err = svc.RevokeLease(context.Background(), RevokeRequest{
+		RevocationSecret: issued.RevocationSecret,
+		Tokens:           tokensFrom(issued),
+	})
+	must.NoError(err)
+
+	must.Len(auditor.events, 2, "one issue event, one revoke event")
+	revoke := auditor.events[1]
+	is.Equal(core.ActionLeaseRevoke, revoke.Action)
+	is.Equal(core.OutcomeSuccess, revoke.Outcome)
+	is.Equal(issued.LeaseID, revoke.Metadata["lease_id"])
 }
 
 func TestRevokeLeaseInvalidSecret(t *testing.T) {
@@ -339,7 +368,7 @@ func TestRevokeLeasePartialFailureIsResumable(t *testing.T) {
 	mem := store.NewMemoryLeaseStore()
 	svc := NewTokenService(
 		fakeIssuers{issuer: fakeIssuer{principal: principal}},
-		pm, res, mem, &fakeAuditor{}, "rev-1",
+		pm, res, mem, audit.NewRecorder(&fakeAuditor{}), "rev-1",
 	)
 
 	issued, err := svc.IssueLease(context.Background(), IssueRequest{
@@ -399,7 +428,7 @@ func TestIssueNestsArtifactsInAudit(t *testing.T) {
 	auditor := audit.NewInMemoryAuditor()
 	svc := NewTokenService(
 		fakeIssuers{issuer: fakeIssuer{principal: principal}},
-		pm, res, mem, auditor, "rev-1",
+		pm, res, mem, audit.NewRecorder(auditor), "rev-1",
 	)
 
 	issued, err := svc.IssueLease(context.Background(), readRequest())
@@ -413,9 +442,10 @@ func TestIssueNestsArtifactsInAudit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, all, 1, "one audit entry per request, not per artifact")
 	entry := all[0]
-	is.Equal("lease.issue", entry.Action)
-	is.Equal(issued.LeaseID, entry.ID)
-	is.True(entry.Success)
+	is.Equal(core.ActionLeaseIssue, entry.Action)
+	is.Equal(core.OutcomeSuccess, entry.Outcome)
+	is.Equal(issued.LeaseID, entry.Metadata["lease_id"], "the lease id is carried in metadata, not the event id")
+	is.NotEqual(issued.LeaseID, entry.ID, "the event has its own id, distinct from the lease id")
 	require.Len(t, entry.Artifacts, 1)
 	is.Equal(issued.Artifacts[0].ArtifactID, entry.Artifacts[0].ArtifactID)
 	is.Equal(fp, entry.Artifacts[0].Fingerprint)
@@ -425,7 +455,7 @@ func TestIssueNestsArtifactsInAudit(t *testing.T) {
 	byFP, err := auditor.Query(context.Background(), core.AuditFilter{Fingerprint: fp})
 	require.NoError(t, err)
 	require.Len(t, byFP, 1)
-	is.Equal(issued.LeaseID, byFP[0].ID)
+	is.Equal(issued.LeaseID, byFP[0].Metadata["lease_id"])
 }
 
 // TestIssueDeniedWritesSingleAuditEntry verifies that a denied multi-resource
@@ -453,7 +483,7 @@ func TestIssueDeniedWritesSingleAuditEntry(t *testing.T) {
 	auditor := audit.NewInMemoryAuditor()
 	svc := NewTokenService(
 		fakeIssuers{issuer: fakeIssuer{principal: principal}},
-		pm, res, mem, auditor, "rev-1",
+		pm, res, mem, audit.NewRecorder(auditor), "rev-1",
 	)
 
 	reqs := make([]core.ResourceRequest, 0, 10)
@@ -469,7 +499,7 @@ func TestIssueDeniedWritesSingleAuditEntry(t *testing.T) {
 	all, err := auditor.Query(context.Background(), core.AuditFilter{})
 	require.NoError(t, err)
 	require.Len(t, all, 1, "a denied 10-resource request must write exactly one audit entry")
-	is.False(all[0].Success)
+	is.Equal(core.OutcomeDenied, all[0].Outcome)
 	is.Empty(all[0].Artifacts, "nothing minted, so no nested artifacts")
 }
 

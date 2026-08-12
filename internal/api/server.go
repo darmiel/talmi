@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/darmiel/talmi/internal/api/middleware"
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/service"
@@ -23,6 +26,7 @@ type Server struct {
 	admin               *AdminConfig
 	gitHubWebhookSecret []byte
 	gitHubOnWebhook     func(ctx context.Context) error
+	recorder            func() *audit.Recorder
 }
 
 type AdminConfig struct {
@@ -56,6 +60,12 @@ func WithGitHubWebhook(secret []byte, onReceive func(ctx context.Context) error)
 func WithAdmin(cfg AdminConfig) Option {
 	return func(server *Server) {
 		server.admin = &cfg
+	}
+}
+
+func WithRecorder(recorder func() *audit.Recorder) Option {
+	return func(server *Server) {
+		server.recorder = recorder
 	}
 }
 
@@ -98,4 +108,17 @@ func (s *Server) Routes() http.Handler {
 	return middleware.RecoverMiddleware(
 		middleware.CorrelationIDMiddleware(
 			middleware.LoggingMiddleware(mux)))
+}
+
+func (s *Server) record(ctx context.Context, action core.AuditAction, outcome core.Outcome, opts ...audit.Option) {
+	if s.recorder == nil {
+		return
+	}
+	rec := s.recorder()
+	if rec == nil {
+		return
+	}
+	if err := rec.Record(ctx, action, outcome, opts...); err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("audit record failed")
+	}
 }

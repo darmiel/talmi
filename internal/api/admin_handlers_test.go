@@ -16,16 +16,22 @@ import (
 )
 
 type fakeAuditor struct {
-	entries   []core.AuditEntry
+	entries   []core.Event
 	gotFilter core.AuditFilter
+	logged    []core.Event
 }
 
-func (a *fakeAuditor) Log(context.Context, core.AuditEntry) error { return nil }
-func (a *fakeAuditor) Query(_ context.Context, f core.AuditFilter) ([]core.AuditEntry, error) {
+func (a *fakeAuditor) Log(_ context.Context, e core.Event) error {
+	a.logged = append(a.logged, e)
+	return nil
+}
+
+func (a *fakeAuditor) Query(_ context.Context, f core.AuditFilter) ([]core.Event, error) {
 	a.gotFilter = f
 	return a.entries, nil
 }
-func (a *fakeAuditor) Close() error { return nil }
+func (a *fakeAuditor) Prune(context.Context, time.Time) (int, error) { return 0, nil }
+func (a *fakeAuditor) Close() error                                  { return nil }
 
 func adminHandlerServer(
 	t *testing.T,
@@ -60,7 +66,7 @@ func req(t *testing.T, srv *Server, method, path, auth string) *httptest.Respons
 func TestAuditQuery(t *testing.T) {
 	t.Parallel()
 	p := &core.Principal{ID: "alice", Issuer: "gh-human"}
-	aud := &fakeAuditor{entries: []core.AuditEntry{{ID: "l1", Action: "lease.issue", Success: true}}}
+	aud := &fakeAuditor{entries: []core.Event{{ID: "l1", Action: core.ActionLeaseIssue, Outcome: core.OutcomeSuccess}}}
 
 	t.Run("authorized returns entries and parses filter", func(t *testing.T) {
 		t.Parallel()
@@ -68,7 +74,7 @@ func TestAuditQuery(t *testing.T) {
 		rec := req(t, srv, http.MethodGet, AuditQueryRoute+"?action=lease.issue&limit=10", "session")
 		require.Equal(t, http.StatusOK, rec.Code)
 		assert.Contains(t, rec.Body.String(), `"l1"`)
-		assert.Equal(t, "lease.issue", aud.gotFilter.Action)
+		assert.Equal(t, core.ActionLeaseIssue, aud.gotFilter.Action)
 		assert.Equal(t, 10, aud.gotFilter.Limit)
 	})
 

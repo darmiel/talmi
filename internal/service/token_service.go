@@ -14,10 +14,15 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/resolver"
 )
+
+type recorder interface {
+	Record(ctx context.Context, action core.AuditAction, outcome core.Outcome, opts ...audit.Option) error
+}
 
 // TokenService orchestrates the issuance pipeline:
 // verify -> authorize -> resolve/mint -> persist -> audit
@@ -26,7 +31,7 @@ type TokenService struct {
 	policyManager *engine.PolicyManager
 	resolver      *resolver.Resolver
 	leaseStore    core.LeaseStore
-	auditor       core.Auditor
+	recorder      recorder
 	revision      string
 }
 
@@ -40,7 +45,7 @@ func NewTokenService(
 	policyManager *engine.PolicyManager,
 	res *resolver.Resolver,
 	leaseStore core.LeaseStore,
-	auditor core.Auditor,
+	recorder recorder,
 	revision string,
 ) *TokenService {
 	return &TokenService{
@@ -48,7 +53,7 @@ func NewTokenService(
 		policyManager: policyManager,
 		resolver:      res,
 		leaseStore:    leaseStore,
-		auditor:       auditor,
+		recorder:      recorder,
 		revision:      revision,
 	}
 }
@@ -57,37 +62,47 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	logger := log.Ctx(ctx)
 	leaseID := xid.New().String()
 
-	entry := core.AuditEntry{
-		ID:       leaseID,
-		Time:     time.Now(),
-		Action:   "lease.issue",
-		Revision: s.revision,
-	}
+	var (
+		principal *core.Principal
+		decision  *core.Decision
+		artifacts []core.ArtifactAudit
+		outcome   = core.OutcomeFailure
+		auditErr  error
+	)
 	defer func() {
-		if err := s.auditor.Log(context.WithoutCancel(ctx), entry); err != nil {
+		opts := []audit.Option{
+			audit.WithActor(principal),
+			audit.WithRevision(s.revision),
+			audit.WithMetadata(map[string]any{"lease_id": leaseID}),
+			audit.WithError(auditErr),
+		}
+		if decision != nil {
+			opts = append(opts, audit.WithDecision(decision))
+		}
+		if len(artifacts) > 0 {
+			opts = append(opts, audit.WithArtifacts(artifacts))
+		}
+		if err := s.recorder.Record(ctx, core.ActionLeaseIssue, outcome, opts...); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for lease issuance")
 		}
 	}()
 
 	if len(req.Resources) == 0 {
-		entry.Error = "no resources requested"
-		return nil, httpError(http.StatusBadRequest, fmt.Errorf("no resources requested"))
+		auditErr = fmt.Errorf("no resources requested")
+		return nil, httpError(http.StatusBadRequest, auditErr)
 	}
 
 	// first we need to identify the issuer that we use to create the principal
 	issuer, err := s.selectIssuer(req)
 	if err != nil {
-		entry.Error = "issuer selection failed"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("verification failed: %w", err))
+		auditErr = fmt.Errorf("issuer selection failed: %w", err)
+		return nil, httpError(http.StatusUnauthorized, auditErr)
 	}
-	principal, err := issuer.Verify(ctx, req.Token)
+	principal, err = issuer.Verify(ctx, req.Token)
 	if err != nil {
-		entry.Error = "verification failed"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("verification failed: %w", err))
+		auditErr = fmt.Errorf("verification failed: %w", err)
+		return nil, httpError(http.StatusUnauthorized, auditErr)
 	}
-	entry.Principal = principal
 
 	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
 		return c.Str("sub", principal.ID)
@@ -98,8 +113,7 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		Msg("principal verified")
 
 	// now that we have verified the principal, we can continue with authorizing the requested resources
-	decision := s.policyManager.GetEngine().Authorize(principal, req.Resources)
-	entry.Decision = &decision
+	decision = new(s.policyManager.GetEngine().Authorize(principal, req.Resources))
 
 	logger.Debug().
 		Int("requests", len(req.Resources)).
@@ -108,27 +122,23 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		Msg("policy evaluated")
 
 	if !decision.Authorized {
-		// one or more of the requested resources were denied
-		entry.Success = false
-		entry.Error = "policy denied"
-		dr := denyReason(decision)
-		entry.Stacktrace = dr
-		return nil, httpError(http.StatusForbidden, fmt.Errorf("policy denied: %s", dr))
+		outcome = core.OutcomeDenied
+		auditErr = fmt.Errorf("policy denied: %s", denyReason(*decision))
+		return nil, httpError(http.StatusForbidden, auditErr)
 	}
-	entry.PolicyName = strings.Join(decision.PolicyNames, ",")
 
 	// now resolve + mint (and roll back if partial)
 	minted, err := s.resolver.Resolve(ctx, principal, req.Resources)
 	if err != nil {
-		entry.Error = "resolution failed"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("resolving: %w", err))
+		auditErr = fmt.Errorf("resolution failed: %w", err)
+		return nil, httpError(http.StatusInternalServerError, auditErr)
 	}
 
 	secret, err := revocationSecretFor(minted)
 	if err != nil {
 		s.rollback(ctx, minted)
-		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("generating revocation secret: %w", err))
+		auditErr = fmt.Errorf("generating revocation secret: %w", err)
+		return nil, httpError(http.StatusInternalServerError, auditErr)
 	}
 
 	lease := core.Lease{
@@ -146,13 +156,11 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	for _, m := range minted {
 		aid := xid.New().String()
 
-		// add to audit entry and lease record
-		entry.Artifacts = append(entry.Artifacts, core.ArtifactAudit{
+		artifacts = append(artifacts, core.ArtifactAudit{
 			ArtifactID:  aid,
 			Provider:    m.Provider,
 			Fingerprint: m.Artifact.Fingerprint,
 		})
-
 		lease.Artifacts = append(lease.Artifacts, core.LeasedArtifact{
 			ArtifactID:                 aid,
 			Provider:                   m.Provider,
@@ -165,7 +173,6 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 			Metadata:                   m.Artifact.Metadata,
 			RequiresTokenForRevocation: m.RequiresTokenForRevocation,
 		})
-
 		resp.Artifacts = append(resp.Artifacts, IssuedArtifact{
 			ArtifactID:                 aid,
 			Provider:                   m.Provider,
@@ -181,12 +188,11 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 
 	if err := s.leaseStore.SaveLease(ctx, lease); err != nil {
 		s.rollback(ctx, minted)
-		entry.Error = "persisting lease failed"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("persisting lease: %w", err))
+		auditErr = fmt.Errorf("persisting lease failed: %w", err)
+		return nil, httpError(http.StatusInternalServerError, auditErr)
 	}
 
-	entry.Success = true
+	outcome = core.OutcomeSuccess
 	logger.Info().
 		Str("lease_id", leaseID).
 		Int("artifacts", len(lease.Artifacts)).
@@ -199,31 +205,36 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*RevokeResponse, error) {
 	logger := log.Ctx(ctx)
 
-	entry := core.AuditEntry{
-		ID:       xid.New().String(),
-		Time:     time.Now(),
-		Action:   "lease.revoke",
-		Revision: s.revision,
-	}
+	var (
+		principal *core.Principal
+		outcome   = core.OutcomeFailure
+		auditErr  error
+		meta      = map[string]any{}
+	)
 	defer func() {
-		if err := s.auditor.Log(context.WithoutCancel(ctx), entry); err != nil {
+		if err := s.recorder.Record(ctx, core.ActionLeaseRevoke, outcome,
+			audit.WithActor(principal),
+			audit.WithRevision(s.revision),
+			audit.WithMetadata(meta),
+			audit.WithError(auditErr),
+		); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for lease revocation")
 		}
 	}()
 
 	lease, err := s.leaseStore.FindByRevocationSecret(ctx, req.RevocationSecret)
 	if errors.Is(err, core.ErrLeaseNotFound) {
-		entry.Error = "invalid revocation secret"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("invalid revocation secret"))
+		auditErr = fmt.Errorf("invalid revocation secret")
+		return nil, httpError(http.StatusUnauthorized, auditErr)
 	}
 	if err != nil {
-		entry.Error = "store lookup failed"
-		entry.Stacktrace = err.Error()
-		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("store lookup failed: %w", err))
+		auditErr = fmt.Errorf("store lookup failed: %w", err)
+		return nil, httpError(http.StatusInternalServerError, auditErr)
 	}
-	entry.Principal = &core.Principal{ID: lease.PrincipalID, Issuer: lease.Issuer}
-	entry.Metadata = map[string]any{"lease_id": lease.ID}
+
+	principal = &core.Principal{ID: lease.PrincipalID, Issuer: lease.Issuer}
+	meta["lease_id"] = lease.ID
+
 	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
 		return c.Str("sub", lease.PrincipalID).Str("lease_id", lease.ID)
 	})
@@ -235,7 +246,7 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 		}
 	}
 	if len(pending) == 0 {
-		entry.Success = true
+		outcome = core.OutcomeSuccess
 		logger.Debug().Msg("lease.revoke: nothing to revoke (no active revocable artifacts)")
 		return &RevokeResponse{LeaseID: lease.ID}, nil
 	}
@@ -264,13 +275,13 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 	}
 	if len(errs) > 0 {
 		joined := errors.Join(errs...)
-		entry.Error = "revocation failed"
-		entry.Stacktrace = joined.Error()
-		return nil, httpError(http.StatusInternalServerError, fmt.Errorf("revoking lease: %w", joined))
+		auditErr = fmt.Errorf("revocation failed: %w", joined)
+		return nil, httpError(http.StatusInternalServerError, auditErr)
 	}
 
-	entry.Success = true
-	entry.Metadata["revoked_count"] = len(revoked)
+	outcome = core.OutcomeSuccess
+	meta["revoked_count"] = len(revoked)
+
 	logger.Info().
 		Int("revoked", len(revoked)).
 		Int("pending", len(pending)).

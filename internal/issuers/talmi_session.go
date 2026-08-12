@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/xid"
 
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
@@ -62,6 +63,9 @@ func (i *TalmiSessionIssuer) Verify(_ context.Context, token string) (*core.Prin
 	if attrs == nil {
 		attrs = make(map[string]any)
 	}
+	if jti, ok := claims["jti"].(string); ok && jti != "" {
+		attrs["session_id"] = jti
+	}
 	return &core.Principal{
 		ID:         sub,
 		Issuer:     issuer,
@@ -70,21 +74,27 @@ func (i *TalmiSessionIssuer) Verify(_ context.Context, token string) (*core.Prin
 }
 
 // IssueSession mints a Talmi admin session JWT for the given principal.
-func IssueSession(signer *SessionSigner, principal *core.Principal, ttl time.Duration) (string, time.Time, error) {
+func IssueSession(
+	signer *SessionSigner,
+	principal *core.Principal,
+	ttl time.Duration,
+) (string, string, time.Time, error) {
 	now := time.Now()
 	exp := now.Add(ttl)
+	sessionID := xid.New().String()
 	claims := jwt.MapClaims{
 		"iss":        "talmi-auth",
 		"aud":        TalmiSessionAudience,
 		"sub":        principal.ID,
 		"origin_iss": principal.Issuer,
 		"attrs":      principal.Attributes,
+		"jti":        sessionID,
 		"iat":        now.Unix(),
 		"exp":        exp.Unix(),
 	}
 	signed, err := signer.Sign(claims)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("signing talmi session token: %w", err)
+		return "", "", time.Time{}, fmt.Errorf("signing talmi session token: %w", err)
 	}
-	return signed, exp, nil
+	return signed, sessionID, exp, nil
 }

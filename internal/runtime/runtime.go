@@ -32,6 +32,7 @@ type Runtime struct {
 	Engine     *engine.PolicyManager
 	LeaseStore core.LeaseStore
 	Auditor    core.Auditor
+	Recorder   *audit.Recorder
 	Providers  []core.ResourceProvider // for webhook cache invalidation
 	Revision   string
 }
@@ -124,7 +125,8 @@ func buildReloadable(
 	}
 	policy := engine.NewManager(validRules, realms)
 	res := resolver.New(providers, realms)
-	svc := service.NewTokenService(issReg, policy, res, stable.store, stable.auditor, revision)
+	rec := audit.NewRecorder(stable.auditor)
+	svc := service.NewTokenService(issReg, policy, res, stable.store, rec, revision)
 	return &Runtime{
 		Service:    svc,
 		Issuers:    issReg,
@@ -132,6 +134,7 @@ func buildReloadable(
 		Engine:     policy,
 		LeaseStore: stable.store,
 		Auditor:    stable.auditor,
+		Recorder:   rec,
 		Revision:   revision,
 		Providers:  providers,
 	}, nil

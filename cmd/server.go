@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/api"
+	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/logging"
@@ -84,7 +85,9 @@ func newServerRunCmd(_ Deps) *cobra.Command {
 		if cfg.ConfigSource != nil && cfg.ConfigSource.Sync.Interval > 0 {
 			taskMgr.Register("config-sync", cfg.ConfigSource.Sync.Interval,
 				func(ctx context.Context, logger logging.InternalLogger) error {
-					return mgr.Reload(ctx)
+					reloadErr := mgr.Reload(ctx)
+					recordReload(ctx, mgr, reloadErr)
+					return reloadErr
 				})
 		}
 		taskMgr.Register("lease-cleanup", 15*time.Minute,
@@ -159,7 +162,11 @@ func newServerRunCmd(_ Deps) *cobra.Command {
 }
 
 func buildServerOptions(cfg *config.Config, mgr *runtime.Manager, taskMgr *tasks.Manager) ([]api.Option, error) {
-	var opts []api.Option
+	opts := []api.Option{
+		api.WithRecorder(func() *audit.Recorder {
+			return mgr.Current().Recorder
+		}),
+	}
 
 	if cfg.ConfigSource != nil && cfg.ConfigSource.GitHub != nil && cfg.ConfigSource.GitHub.WebhookSecret != "" {
 		log.Info().Msg("enabling GitHub webhook endpoint for config source")
@@ -169,8 +176,10 @@ func buildServerOptions(cfg *config.Config, mgr *runtime.Manager, taskMgr *tasks
 			return nil, fmt.Errorf("resolving GitHub webhook secret: %w", err)
 		}
 		opts = append(opts, api.WithGitHubWebhook(sec, func(ctx context.Context) error {
-			if err := mgr.Reload(ctx); err != nil {
-				return err
+			reloadErr := mgr.Reload(ctx)
+			recordReload(ctx, mgr, reloadErr)
+			if reloadErr != nil {
+				return reloadErr
 			}
 			mgr.InvalidateProviders()
 			return nil
@@ -209,4 +218,21 @@ func buildServerOptions(cfg *config.Config, mgr *runtime.Manager, taskMgr *tasks
 	}
 
 	return opts, nil
+}
+
+func recordReload(ctx context.Context, mgr *runtime.Manager, err error) {
+	rec := mgr.Current().Recorder
+	if rec == nil {
+		return
+	}
+	outcome := core.OutcomeSuccess
+	if err != nil {
+		outcome = core.OutcomeFailure
+	}
+	if recordErr := rec.Record(ctx, core.ActionConfigReload, outcome,
+		audit.WithRevision(mgr.Current().Revision),
+		audit.WithError(err),
+	); recordErr != nil {
+		log.Ctx(ctx).Error().Err(recordErr).Msg("recording config.reload failed")
+	}
 }

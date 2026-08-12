@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,36 +33,37 @@ func (a *Auditor) Close() error {
 	return nil
 }
 
-func (a *Auditor) Log(ctx context.Context, entry core.AuditEntry) error {
-	principalID := ""
-	if entry.Principal != nil {
-		principalID = entry.Principal.ID
+func (a *Auditor) Log(ctx context.Context, event core.Event) error {
+	actorID := ""
+	if event.Actor != nil {
+		actorID = event.Actor.ID
 	}
 
-	artifacts := entry.Artifacts
-	stored := entry
+	artifacts := event.Artifacts
+	stored := event
 	stored.Artifacts = nil // we store artifacts separately.
 
 	tx, err := a.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin audit tx: %w", err)
 	}
+
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
 	}(tx, ctx)
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO audit_log (correlation_id, time, action, principal_id, success, revision, entry)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		stored.ID, stored.Time, stored.Action, principalID,
-		stored.Success, stored.Revision, stored,
+		INSERT INTO audit_log (id, time, action, outcome, actor_id, request_id, session_id, revision, error, entry)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		stored.ID, stored.Time, stored.Action, stored.Outcome, actorID,
+		stored.RequestID, stored.SessionID, stored.Revision, stored.Error, stored,
 	); err != nil {
 		return fmt.Errorf("writing audit entry: %w", err)
 	}
 
 	for _, art := range artifacts {
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO audit_artifacts (artifact_id, correlation_id, provider, fingerprint)
+			INSERT INTO audit_artifacts (artifact_id, entry_id, provider, fingerprint)
 			VALUES ($1, $2, $3, $4)`,
 			art.ArtifactID, stored.ID, art.Provider, art.Fingerprint,
 		); err != nil {
@@ -75,7 +77,8 @@ func (a *Auditor) Log(ctx context.Context, entry core.AuditEntry) error {
 	return nil
 }
 
-func (a *Auditor) Query(ctx context.Context, f core.AuditFilter) ([]core.AuditEntry, error) {
+func (a *Auditor) Query(ctx context.Context, f core.AuditFilter) ([]core.Event, error) {
+	// can we make this better :(
 	var (
 		conds []string
 		args  []any
@@ -84,22 +87,28 @@ func (a *Auditor) Query(ctx context.Context, f core.AuditFilter) ([]core.AuditEn
 		args = append(args, val)
 		conds = append(conds, fmt.Sprintf("%s = $%d", col, len(args)))
 	}
-	if f.CorrelationID != "" {
-		add("correlation_id", f.CorrelationID)
+	if f.ID != "" {
+		add("id", f.ID)
 	}
 	if f.Action != "" {
 		add("action", f.Action)
 	}
-	if f.PrincipalID != "" {
-		add("principal_id", f.PrincipalID)
+	if f.Outcome != "" {
+		add("outcome", f.Outcome)
 	}
-	if f.Success != nil {
-		add("success", *f.Success)
+	if f.ActorID != "" {
+		add("actor_id", f.ActorID)
+	}
+	if f.RequestID != "" {
+		add("request_id", f.RequestID)
+	}
+	if f.SessionID != "" {
+		add("session_id", f.SessionID)
 	}
 	if f.Fingerprint != "" {
 		args = append(args, f.Fingerprint)
 		conds = append(conds, fmt.Sprintf(
-			"correlation_id IN (SELECT correlation_id FROM audit_artifacts WHERE fingerprint = $%d)", len(args)))
+			"id IN (SELECT entry_id FROM audit_artifacts WHERE fingerprint = $%d)", len(args)))
 	}
 	if !f.Since.IsZero() {
 		args = append(args, f.Since)
@@ -126,46 +135,57 @@ func (a *Auditor) Query(ctx context.Context, f core.AuditFilter) ([]core.AuditEn
 	}
 	defer rows.Close()
 
-	var entries []core.AuditEntry
+	var events []core.Event
 	for rows.Next() {
-		var entry core.AuditEntry
-		if err := rows.Scan(&entry); err != nil {
+		var event core.Event
+		if err := rows.Scan(&event); err != nil {
 			return nil, fmt.Errorf("scanning audit entry: %w", err)
 		}
-		entries = append(entries, entry)
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating audit entries: %w", err)
 	}
 
-	// re-attach the entries :)
-	if len(entries) > 0 {
-		ids := make([]string, len(entries))
-		for i, e := range entries {
+	// re-attach artifacts by entry id
+	if len(events) > 0 {
+		ids := make([]string, len(events))
+		for i, e := range events {
 			ids[i] = e.ID
 		}
 
-		rows, err := a.pool.Query(ctx, `
-			SELECT correlation_id, artifact_id, provider, fingerprint
-			FROM audit_artifacts WHERE correlation_id = ANY($1)`, ids)
+		artRows, err := a.pool.Query(ctx, `
+			SELECT entry_id, artifact_id, provider, fingerprint
+			FROM audit_artifacts WHERE entry_id = ANY($1)`, ids)
 		if err != nil {
 			return nil, fmt.Errorf("loading audit artifacts: %w", err)
 		}
-		defer rows.Close()
+		defer artRows.Close()
 
-		byCorr := make(map[string][]core.ArtifactAudit)
-		for rows.Next() {
-			var corrID string
+		byEntry := make(map[string][]core.ArtifactAudit)
+		for artRows.Next() {
+			var entryID string
 			var art core.ArtifactAudit
-			if err := rows.Scan(&corrID, &art.ArtifactID, &art.Provider, &art.Fingerprint); err != nil {
+			if err := artRows.Scan(&entryID, &art.ArtifactID, &art.Provider, &art.Fingerprint); err != nil {
 				return nil, fmt.Errorf("scanning audit artifact: %w", err)
 			}
-			byCorr[corrID] = append(byCorr[corrID], art)
+			byEntry[entryID] = append(byEntry[entryID], art)
 		}
-		if err := rows.Err(); err != nil {
+		if err := artRows.Err(); err != nil {
 			return nil, fmt.Errorf("iterating audit artifacts: %w", err)
 		}
-		for i := range entries {
-			entries[i].Artifacts = byCorr[entries[i].ID]
+		for i := range events {
+			events[i].Artifacts = byEntry[events[i].ID]
 		}
 	}
 
-	return entries, nil
+	return events, nil
+}
+
+func (a *Auditor) Prune(ctx context.Context, before time.Time) (int, error) {
+	tag, err := a.pool.Exec(ctx, `DELETE FROM audit_log WHERE time < $1`, before)
+	if err != nil {
+		return 0, fmt.Errorf("pruning audit entries: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }
