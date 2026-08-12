@@ -43,7 +43,7 @@ func Execute() {
 
 	registerCommands(rootCmd, deps)
 
-	os.Exit(cli.Handle(io, rootCmd.Execute()))
+	os.Exit(cli.Handle(io, classify(rootCmd.Execute(), "")))
 }
 
 // remoteAddr resolves the target server from --server, $TALMI_ADDR or the CLI config file.
@@ -76,9 +76,6 @@ func newTalmiClient() (TalmiClient, error) {
 }
 
 func errServerNotConfigured() error {
-	return &cli.ExitError{
-		Code:    cli.CodeUsage,
-		Message: "server address not configured",
-		Hint:    "set --server or the TALMI_ADDR environment variable",
-	}
+	return cli.Fail(cli.CodeUsage, "server address not configured").
+		Hint("set --server or the TALMI_ADDR environment variable")
 }

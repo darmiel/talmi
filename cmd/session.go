@@ -59,10 +59,8 @@ token you already hold, skipping the browser step.`,
 			return clientError(err, correlation)
 		}
 		if info.ClientID == "" || info.Server == "" {
-			return &cli.ExitError{
-				Code:    cli.CodeGeneric,
-				Message: "this server does not have interactive login configured",
-			}
+			return cli.Fail(cli.CodeGeneric, "this server does not have interactive login configured").
+				Trace(correlation)
 		}
 
 		ghToken := withToken
@@ -161,11 +159,8 @@ func newSessionStatusCmd(deps Deps) *cobra.Command {
 			}
 		}
 
-		notLoggedIn := &cli.ExitError{
-			Code:    cli.CodeAuth,
-			Message: fmt.Sprintf("not logged in to %s", server),
-			Hint:    "run 'talmi session login'",
-		}
+		notLoggedIn := cli.Fail(cli.CodeAuth, fmt.Sprintf("not logged in to %s", server)).
+			Hint("run 'talmi session login'")
 		if *jsonOut {
 			if err := emitJSON(deps, status); err != nil {
 				return err
@@ -235,11 +230,7 @@ func runDeviceFlow(ctx context.Context, deps Deps, info *client.LoginInfo) (stri
 	token, err := pollForToken(ctx, info, dc)
 	if err != nil {
 		sp.Stop("authorization failed")
-		return "", &cli.ExitError{
-			Code:    cli.CodeAuth,
-			Message: err.Error(),
-			Cause:   err,
-		}
+		return "", cli.Fail(cli.CodeAuth, fmt.Sprintf("authorization failed: %v", err)).Because(err)
 	}
 	sp.Stop("authorization completed." + strings.Repeat(" ", 10)) // TODO: remove the extra spaces when spinner stops, this is a hack to avoid the spinner overwriting the last line
 	return token, nil

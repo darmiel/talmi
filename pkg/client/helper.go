@@ -14,6 +14,7 @@ import (
 var ErrInvalidSession = fmt.Errorf("invalid session token")
 
 type APIError struct {
+	StatusCode    int
 	CorrelationID string
 	Message       string
 }
@@ -57,6 +58,7 @@ func parseErrorResponse(resp *http.Response) error {
 			return ErrInvalidSession
 		}
 		return APIError{
+			StatusCode:    resp.StatusCode,
 			CorrelationID: errResp.CorrelationID,
 			Message:       errResp.Error,
 		}

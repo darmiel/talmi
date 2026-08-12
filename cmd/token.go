@@ -37,15 +37,15 @@ func newTokenInspectCmd(deps Deps) *cobra.Command {
 	jsonOut := addJSONFlag(cmd)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if args[0] == "" {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: "token cannot be empty"}
+			return cli.Fail(cli.CodeUsage, "token cannot be empty")
 		}
 		token, _, err := jwt.NewParser().ParseUnverified(args[0], jwt.MapClaims{})
 		if err != nil {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: fmt.Sprintf("parsing token: %v", err), Cause: err}
+			return cli.Fail(cli.CodeUsage, fmt.Sprintf("parsing token: %v", err)).Because(err)
 		}
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: "invalid token claims"}
+			return cli.Fail(cli.CodeUsage, "invalid token claims")
 		}
 		if *jsonOut {
 			return emitJSON(deps, claims)
@@ -108,16 +108,12 @@ func newTokenFingerprintCmd(deps Deps) *cobra.Command {
 		if token == "-" {
 			data, err := io.ReadAll(deps.IO.In)
 			if err != nil {
-				return &cli.ExitError{
-					Code:    cli.CodeGeneric,
-					Message: fmt.Sprintf("reading token from stdin: %v", err),
-					Cause:   err,
-				}
+				return cli.Fail(cli.CodeGeneric, fmt.Sprintf("reading token from stdin: %v", err)).Because(err)
 			}
 			token = strings.TrimSpace(string(data))
 		}
 		if token == "" {
-			return &cli.ExitError{Code: cli.CodeUsage, Message: "token cannot be empty"}
+			return cli.Fail(cli.CodeUsage, "token cannot be empty")
 		}
 		fp := audit.CalculateFingerprint(providerType, token)
 		if raw {

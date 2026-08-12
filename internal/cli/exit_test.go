@@ -27,7 +27,7 @@ func TestHandleExitErrorRendersCodeHintCorrelation(t *testing.T) {
 	code := Handle(io, &ExitError{
 		Code:        CodeAuth,
 		Message:     "session expired",
-		Hint:        "run talmi session login",
+		Hints:       []string{"run talmi session login"},
 		Correlation: "abc123",
 	})
 	assert.Equal(t, CodeAuth, code)
@@ -35,4 +35,25 @@ func TestHandleExitErrorRendersCodeHintCorrelation(t *testing.T) {
 	assert.Contains(t, errOut.String(), "session expired")
 	assert.Contains(t, errOut.String(), "run talmi session login")
 	assert.Contains(t, errOut.String(), "abc123")
+}
+
+func TestHandleRendersDetailMultiHintAndCause(t *testing.T) {
+	t.Parallel()
+	io, out, errOut := TestStreams()
+	code := Handle(io, &ExitError{
+		Code:    CodeGeneric,
+		Message: "can't reach the Talmi server",
+		Detail:  "the connection was refused",
+		Hints:   []string{"is the server running?", "or use --server"},
+		Cause:   errors.New("dial tcp 127.0.0.1:8080: connect: connection refused"),
+	})
+	assert.Equal(t, CodeGeneric, code)
+	assert.Empty(t, out.String())
+
+	s := errOut.String()
+	assert.Contains(t, s, "can't reach the Talmi server")
+	assert.Contains(t, s, "the connection was refused")
+	assert.Contains(t, s, "is the server running?")
+	assert.Contains(t, s, "or use --server")
+	assert.Contains(t, s, "connection refused", "the raw cause must be shown")
 }

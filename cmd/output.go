@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"net"
 
 	"github.com/spf13/cobra"
 
@@ -22,28 +24,71 @@ func emitJSON(d Deps, v any) error {
 	return enc.Encode(v)
 }
 
-// clientError maps a [client]-error to a [cli.ExitError] and returns it.
-func clientError(err error, correlation string) error {
+// classify turns any error into a [cli.ExitError] with an appropriate exit code and message.
+func classify(err error, correlation string) error {
+	if err == nil {
+		return nil
+	}
+
+	// already classified by a command?
+	if ee, ok := errors.AsType[*cli.ExitError](err); ok {
+		if ee.Correlation == "" {
+			return ee.Trace(correlation)
+		}
+		return ee
+	}
+
+	// expired / invalid session
 	if errors.Is(err, client.ErrInvalidSession) {
-		return &cli.ExitError{
-			Code:        cli.CodeAuth,
-			Message:     "session is invalid or expired",
-			Hint:        "run 'talmi session login' to authenticate",
-			Correlation: correlation,
-			Cause:       err,
-		}
+		return cli.Fail(cli.CodeAuth, "session is invalid or expired").
+			Hint("run 'talmi session login' to authenticate").
+			Trace(correlation).
+			Because(err)
 	}
-	msg := err.Error()
+
+	// timeout / cancellation
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return cli.Fail(cli.CodeGeneric, "operation timed out").Trace(correlation).Because(err)
+	case errors.Is(err, context.Canceled):
+		return cli.Fail(cli.CodeGeneric, "operation canceled").Trace(correlation).Because(err)
+	}
+
+	// network failures
+	if netErr, ok := errors.AsType[net.Error](err); ok {
+		detail := "the connection was refused or the host is unreachable"
+		if netErr.Timeout() {
+			detail = "the connection timed out"
+		}
+		return cli.Fail(cli.CodeGeneric, "can't reach the Talmi server").
+			Detailed(detail).
+			Hint(
+				"is the server running? start it with 'talmi server run'",
+				"or target another server with --server (or $TALMI_ADDR)",
+			).
+			Because(err)
+	}
+
+	// structured API error from client
 	if apiErr, ok := errors.AsType[client.APIError](err); ok {
-		msg = apiErr.Message
-		if correlation == "" {
-			correlation = apiErr.CorrelationID
+		trace := apiErr.CorrelationID
+		if trace == "" {
+			trace = correlation
 		}
+		ee := cli.Fail(cli.CodeGeneric, apiErr.Message).Trace(trace)
+		switch apiErr.StatusCode {
+		case 401, 403:
+			ee.Code = cli.CodeAuth
+			_ = ee.Hint("you may need to authenticate: talmi session login")
+		case 404:
+			ee.Code = cli.CodeDenied
+		}
+		return ee
 	}
-	return &cli.ExitError{
-		Code:        cli.CodeGeneric,
-		Message:     msg,
-		Correlation: correlation,
-		Cause:       err,
-	}
+
+	return cli.Fail(cli.CodeGeneric, err.Error())
+}
+
+func clientError(err error, correlation string) error {
+	return classify(err, correlation)
 }
