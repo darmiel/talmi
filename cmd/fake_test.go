@@ -18,7 +18,7 @@ type fakeClient struct {
 	issueFn   func(context.Context, string, client.IssueRequestBody) (*client.IssueResponse, string, error)
 	revokeFn  func(context.Context, string, map[string]string) (*client.RevokeResponse, string, error)
 	explainFn func(context.Context, string, client.IssueRequestBody) (*client.ExplainResponse, string, error)
-	queryFn   func(context.Context, client.AuditFilter) ([]core.AuditEntry, string, error)
+	queryFn   func(context.Context, client.AuditFilter) ([]core.Event, string, error)
 	listFn    func(context.Context) ([]tasks.TaskStatus, string, error)
 	triggerFn func(context.Context, string) (string, error)
 	logsFn    func(context.Context, string) ([]tasks.LogEntry, string, error)
@@ -49,7 +49,7 @@ func (f *fakeClient) Explain(ctx context.Context, token string, body client.Issu
 	return f.explainFn(ctx, token, body)
 }
 
-func (f *fakeClient) QueryAudit(ctx context.Context, filter client.AuditFilter) ([]core.AuditEntry, string, error) {
+func (f *fakeClient) QueryAudit(ctx context.Context, filter client.AuditFilter) ([]core.Event, string, error) {
 	return f.queryFn(ctx, filter)
 }
 

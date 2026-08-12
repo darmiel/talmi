@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/cli/ui"
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/pkg/client"
 )
 
@@ -50,7 +51,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 			Limit:       limit,
 			Action:      action,
 			Fingerprint: fingerprint,
-			PrincipalID: principal,
+			ActorID:     principal,
 			Since:       since,
 		})
 		if err != nil {
@@ -65,19 +66,22 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 		}
 
 		tw := ui.NewTable(deps.IO.Out)
-		tw.AppendHeader(table.Row{"Time", "Correlation", "Principal", "Action", "Result", "Policy@Rev"})
+		tw.AppendHeader(table.Row{"Time", "Request", "Principal", "Action", "Result", "Rev"})
 		for _, e := range entries {
-			principal := ""
-			if e.Principal != nil {
-				principal = e.Principal.ID
+			who := ""
+			if e.Actor != nil {
+				who = e.Actor.ID
 			}
 			result := "\u2713"
-			if !e.Success {
-				result = "\u2717 " + e.Error
+			if e.Outcome != core.OutcomeSuccess {
+				result = "\u2717 " + string(e.Outcome)
+				if e.Error != "" {
+					result += ": " + e.Error
+				}
 			}
 			tw.AppendRow(table.Row{
 				e.Time.Local().Format(time.RFC3339),
-				e.ID, principal, e.Action, result, e.Revision,
+				e.RequestID, who, string(e.Action), result, e.Revision,
 			})
 		}
 		tw.Render()

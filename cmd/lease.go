@@ -347,8 +347,8 @@ func renderLease(deps Deps, resp *client.IssueResponse) {
 
 func explainReplay(cmd *cobra.Command, deps Deps, c TalmiClient, replayID string, jsonOut bool) error {
 	entries, correlation, err := c.QueryAudit(cmd.Context(), client.AuditFilter{
-		CorrelationID: replayID,
-		Limit:         1,
+		ID:    replayID,
+		Limit: 1,
 	})
 	if err != nil {
 		return clientError(err, correlation)
@@ -363,11 +363,11 @@ func explainReplay(cmd *cobra.Command, deps Deps, c TalmiClient, replayID string
 	}
 
 	who := "(unknown)"
-	if e.Principal != nil {
-		who = e.Principal.ID
+	if e.Actor != nil {
+		who = e.Actor.ID
 	}
 	p := ui.New(deps.IO.Out, deps.IO.Color)
-	p.Printf("lease %s - %s - ", e.ID, e.Action)
+	p.Printf("lease %s - %s - ", e.ID, string(e.Action))
 	p.Faintln("policy@%s", e.Revision)
 	p.Printf("principal: %s\n", who)
 	if e.Decision == nil {

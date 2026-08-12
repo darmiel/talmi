@@ -62,10 +62,11 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 	logger := log.Ctx(ctx)
 	leaseID := xid.New().String()
 
+	//nolint:prealloc // count is unknown
+	var artifacts []core.ArtifactAudit
 	var (
 		principal *core.Principal
 		decision  *core.Decision
-		artifacts []core.ArtifactAudit
 		outcome   = core.OutcomeFailure
 		auditErr  error
 	)

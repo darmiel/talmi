@@ -79,45 +79,7 @@ func (a *Auditor) Log(ctx context.Context, event core.Event) error {
 
 func (a *Auditor) Query(ctx context.Context, f core.AuditFilter) ([]core.Event, error) {
 	// can we make this better :(
-	var (
-		conds []string
-		args  []any
-	)
-	add := func(col string, val any) {
-		args = append(args, val)
-		conds = append(conds, fmt.Sprintf("%s = $%d", col, len(args)))
-	}
-	if f.ID != "" {
-		add("id", f.ID)
-	}
-	if f.Action != "" {
-		add("action", f.Action)
-	}
-	if f.Outcome != "" {
-		add("outcome", f.Outcome)
-	}
-	if f.ActorID != "" {
-		add("actor_id", f.ActorID)
-	}
-	if f.RequestID != "" {
-		add("request_id", f.RequestID)
-	}
-	if f.SessionID != "" {
-		add("session_id", f.SessionID)
-	}
-	if f.Fingerprint != "" {
-		args = append(args, f.Fingerprint)
-		conds = append(conds, fmt.Sprintf(
-			"id IN (SELECT entry_id FROM audit_artifacts WHERE fingerprint = $%d)", len(args)))
-	}
-	if !f.Since.IsZero() {
-		args = append(args, f.Since)
-		conds = append(conds, fmt.Sprintf("time >= $%d", len(args)))
-	}
-	if !f.Until.IsZero() {
-		args = append(args, f.Until)
-		conds = append(conds, fmt.Sprintf("time <= $%d", len(args)))
-	}
+	conds, args := auditWhere(f)
 
 	query := "SELECT entry FROM audit_log"
 	if len(conds) > 0 {
@@ -188,4 +150,44 @@ func (a *Auditor) Prune(ctx context.Context, before time.Time) (int, error) {
 		return 0, fmt.Errorf("pruning audit entries: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+func auditWhere(f core.AuditFilter) (conds []string, args []any) {
+	add := func(col string, val any) {
+		args = append(args, val)
+		conds = append(conds, fmt.Sprintf("%s = $%d", col, len(args)))
+	}
+	if f.ID != "" {
+		add("id", f.ID)
+	}
+	if f.Action != "" {
+		add("action", f.Action)
+	}
+	if f.Outcome != "" {
+		add("outcome", f.Outcome)
+	}
+	if f.ActorID != "" {
+		add("actor_id", f.ActorID)
+	}
+	if f.RequestID != "" {
+		add("request_id", f.RequestID)
+	}
+	if f.SessionID != "" {
+		add("session_id", f.SessionID)
+	}
+	if f.Fingerprint != "" {
+		args = append(args, f.Fingerprint)
+		conds = append(conds, fmt.Sprintf(
+			"id IN (SELECT entry_id FROM audit_artifacts WHERE fingerprint = $%d)", len(args),
+		))
+	}
+	if !f.Since.IsZero() {
+		args = append(args, f.Since)
+		conds = append(conds, fmt.Sprintf("time >= $%d", len(args)))
+	}
+	if !f.Until.IsZero() {
+		args = append(args, f.Until)
+		conds = append(conds, fmt.Sprintf("time <= $%d", len(args)))
+	}
+	return conds, args
 }

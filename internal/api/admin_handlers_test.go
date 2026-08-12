@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -88,6 +89,50 @@ func TestAuditQuery(t *testing.T) {
 		t.Parallel()
 		srv := adminHandlerServer(t, p, true, aud, nil)
 		assert.Equal(t, http.StatusUnauthorized, req(t, srv, http.MethodGet, AuditQueryRoute, "").Code)
+	})
+}
+
+func TestParseAuditFilter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("maps all query params", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+
+		q := url.Values{}
+		q.Set("id", "e1")
+		q.Set("request_id", "req1")
+		q.Set("session_id", "sess1")
+		q.Set("principal_id", "alice")
+		q.Set("action", "lease.issue")
+		q.Set("outcome", "denied")
+		q.Set("fingerprint", "fp1")
+		q.Set("since", "2026-01-01T00:00:00Z")
+		q.Set("until", "2026-02-01T00:00:00Z")
+		q.Set("limit", "10")
+
+		f := parseAuditFilter(q)
+		is.Equal("e1", f.ID)
+		is.Equal("req1", f.RequestID)
+		is.Equal("sess1", f.SessionID)
+		is.Equal("alice", f.ActorID)
+		is.Equal(core.ActionLeaseIssue, f.Action)
+		is.Equal(core.OutcomeDenied, f.Outcome)
+		is.Equal("fp1", f.Fingerprint)
+		is.Equal(2026, f.Since.Year())
+		is.Equal(time.February, f.Until.Month())
+		is.Equal(10, f.Limit)
+	})
+
+	t.Run("empty query uses default limit and zero times", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+
+		f := parseAuditFilter(url.Values{})
+		is.Equal(50, f.Limit)
+		is.True(f.Since.IsZero())
+		is.True(f.Until.IsZero())
+		is.Empty(f.Action)
 	})
 }
 
