@@ -14,9 +14,6 @@ import (
 	"github.com/darmiel/talmi/internal/logging"
 )
 
-// f is the shared CLI factory used to resolve the server address and client.
-var f = NewFactory()
-
 const (
 	LogLevelKey   = "log.level"
 	LogFormatKey  = "log.format"
@@ -33,7 +30,8 @@ It grants access to downstream resources (like GitHub Apps, Cloud Providers)
 based on verified identities from upstream IdPs (like OIDC).`,
 	Version: fmt.Sprintf("%s (commit: %s)", buildinfo.Version, buildinfo.CommitHash),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		configPath, configErr := initConfig(f.CLIConfigPath)
+		cfgFile, _ := cmd.Flags().GetString("cli-config")
+		configPath, configErr := initConfig(cfgFile)
 		logging.Init()
 		if configErr != nil { // handle error after logging is initialized
 			return configErr
@@ -49,28 +47,19 @@ func init() {
 	// setup pre-flag logger
 	logging.InitDefault()
 
-	// CLI Configuration
-
-	rootCmd.PersistentFlags().StringVar(&f.CLIConfigPath, "cli-config", "",
+	rootCmd.PersistentFlags().String("cli-config", "",
 		"Path to CLI preferences file (default is $HOME/.talmi.yaml)")
 
 	// Logging
-
-	rootCmd.PersistentFlags().StringVar(&f.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	_ = viper.BindPFlag(LogLevelKey, rootCmd.PersistentFlags().Lookup("log-level"))
-
-	rootCmd.PersistentFlags().StringVar(&f.LogFormat, "log-format", "console", "Log format (console, json)")
+	rootCmd.PersistentFlags().String("log-format", "console", "Log format (console, json)")
 	_ = viper.BindPFlag(LogFormatKey, rootCmd.PersistentFlags().Lookup("log-format"))
-
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 	_ = viper.BindPFlag(LogNoColorKey, rootCmd.PersistentFlags().Lookup("no-color"))
 
-	// Server connection
-
-	rootCmd.PersistentFlags().StringVar(&f.RemoteAddr, "server", "", "Address of the remote Talmi server")
+	rootCmd.PersistentFlags().String("server", "", "Address of the remote Talmi server")
 	_ = viper.BindPFlag(TalmiAddrKey, rootCmd.PersistentFlags().Lookup("server"))
-
-	// Environment vars
 
 	viper.SetEnvPrefix("TALMI")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(

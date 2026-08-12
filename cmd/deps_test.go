@@ -7,9 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeClient embeds the TalmiClient facade so a test only overrides the methods
-// it exercises; any unimplemented method panics if called.
-type fakeClient struct{ TalmiClient }
+// fakeClient is defined in fake_test.go.
 
 func TestDepsNewClientReturnsInjected(t *testing.T) {
 	t.Parallel()
