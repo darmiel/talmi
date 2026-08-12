@@ -2,9 +2,9 @@ package configvet
 
 import "sort"
 
-// suggest returns up to 3 candidate names closest to target (small edit
+// Suggest returns up to 3 candidate names closest to target (small edit
 // distance), closest first, for "did you mean" hints.
-func suggest(target string, candidates []string) []string {
+func Suggest(target string, candidates []string) []string {
 	type scored struct {
 		name string
 		dist int

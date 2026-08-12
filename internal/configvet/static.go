@@ -134,7 +134,7 @@ func checkRules(in StaticInput, r *Report) {
 		} else if _, ok := issuers[rule.Match.Issuer]; !ok {
 			r.errorf("CFG-XREF-ISSUER", "rules", loc+".match.issuer",
 				"rule %q references unknown issuer %q", rule.Name, rule.Match.Issuer).
-				Suggestions = suggest(rule.Match.Issuer, issuerNames)
+				Suggestions = Suggest(rule.Match.Issuer, issuerNames)
 		}
 
 		if len(rule.Allow) == 0 {
@@ -160,7 +160,7 @@ func checkRules(in StaticInput, r *Report) {
 				if !ok {
 					r.errorf("CFG-XREF-REALM", "rules", loc+".allow",
 						"rule %q: pattern %q references unknown realm %q", rule.Name, p, realmName).
-						Suggestions = suggest(realmName, realmNames)
+						Suggestions = Suggest(realmName, realmNames)
 					continue
 				}
 				if err := sem.ValidateResourcePattern(p); err != nil {
@@ -232,7 +232,7 @@ func checkAuth(in StaticInput, r *Report) {
 		typ, ok := byName[name]
 		if !ok {
 			r.errorf(code, "auth", "auth."+field, "auth.%s references unknown issuer %q", field, name).
-				Suggestions = suggest(name, names)
+				Suggestions = Suggest(name, names)
 			return
 		}
 		if typ != wantType {

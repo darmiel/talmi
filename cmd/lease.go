@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,7 +84,11 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 		})
 		sp.Stop("" + strings.Repeat(" ", 30)) // TODO: make spinner support clearing line
 		if err != nil {
-			return clientError(err, correlation)
+			e := clientError(err, correlation)
+			if ee, ok := errors.AsType[*cli.ExitError](e); ok && ee.Code == cli.CodeDenied {
+				_ = ee.Hint("see why it was denied: run the same request with 'talmi lease explain'")
+			}
+			return e
 		}
 
 		if out != "" {
@@ -294,7 +299,8 @@ func gatherRevoke(fromLease, secret string, tokenFlags []string) (string, map[st
 			if a.Token == "" {
 				return "", nil, fmt.Errorf(
 					"lease file is missing the token for artifact %s (provider %q), which is required to revoke it",
-					a.ArtifactID, a.Provider)
+					a.ArtifactID, a.Provider,
+				)
 			}
 			tokens[a.ArtifactID] = a.Token
 		}
