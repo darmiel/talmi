@@ -194,7 +194,6 @@ func TestRegisterOnZeroValueRegistry(t *testing.T) {
 func TestValidateResourcePatternAcrossRealms(t *testing.T) {
 	t.Parallel()
 	for _, sem := range []Semantics{GitHub{}, Artifactory{}, Talmi{}} {
-		sem := sem
 		t.Run(sem.Kind(), func(t *testing.T) {
 			t.Parallel()
 			is := assert.New(t)

@@ -38,28 +38,34 @@ func req(resource string, actions ...string) core.ResourceRequest {
 // used by the matrix test below.
 func realisticPolicy() []core.Rule {
 	return []core.Rule{
-		{ // any CI job may read acme repos
+		{
+			// any CI job may read acme repos
 			Name:  "gh-ci-read",
 			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
 			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
 		},
-		{ // only platform-team CI may write to service repos
+		{
+			// only platform-team CI may write to service repos
 			Name: "gh-ci-write-svc",
 			Match: core.Match{
 				Issuer:    "ci",
 				Condition: &core.Condition{Key: "team", Operator: core.OpEqual, Value: "platform"},
 			},
-			Allow: []core.Allow{{
-				Resources: []string{"gh:acme/svc-*"},
-				Actions:   []core.Action{"contents:write", "actions:write"},
-			}},
+			Allow: []core.Allow{
+				{
+					Resources: []string{"gh:acme/svc-*"},
+					Actions:   []core.Action{"contents:write", "actions:write"},
+				},
+			},
 		},
-		{ // any CI job may read the docker-local artifactory repo
+		{
+			// any CI job may read the docker-local artifactory repo
 			Name:  "af-ci-read",
 			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
 			Allow: []core.Allow{{Resources: []string{"af:docker-local/*"}, Actions: []core.Action{"read"}}},
 		},
-		{ // GitHub humans in org/admins get the admin console
+		{
+			// GitHub humans in org/admins get the admin console
 			Name: "talmi-admins",
 			Match: core.Match{
 				Issuer:    "gh-human",
@@ -80,8 +86,16 @@ func TestAuthorizeMatrix(t *testing.T) {
 
 	ciPlain := &core.Principal{ID: "job", Issuer: "ci"}
 	ciPlatform := &core.Principal{ID: "job", Issuer: "ci", Attributes: map[string]any{"team": "platform"}}
-	admin := &core.Principal{ID: "alice", Issuer: "gh-human", Attributes: map[string]any{"teams": []string{"org/devs", "org/admins"}}}
-	nonAdmin := &core.Principal{ID: "bob", Issuer: "gh-human", Attributes: map[string]any{"teams": []string{"org/devs"}}}
+	admin := &core.Principal{
+		ID:         "alice",
+		Issuer:     "gh-human",
+		Attributes: map[string]any{"teams": []string{"org/devs", "org/admins"}},
+	}
+	nonAdmin := &core.Principal{
+		ID:         "bob",
+		Issuer:     "gh-human",
+		Attributes: map[string]any{"teams": []string{"org/devs"}},
+	}
 	stranger := &core.Principal{ID: "eve", Issuer: "unknown-issuer"}
 
 	tests := []struct {
@@ -92,51 +106,116 @@ func TestAuthorizeMatrix(t *testing.T) {
 	}{
 		// --- CI read paths ---
 		{"ci reads acme repo", ciPlain, []core.ResourceRequest{req("gh:acme/web", "contents:read")}, true},
-		{"ci reads via glob under acme", ciPlain, []core.ResourceRequest{req("gh:acme/anything", "contents:read")}, true},
-		{"ci cannot write without platform team", ciPlain, []core.ResourceRequest{req("gh:acme/svc-a", "contents:write")}, false},
-		{"platform ci can write service repo", ciPlatform, []core.ResourceRequest{req("gh:acme/svc-a", "contents:write")}, true},
-		{"platform ci cannot write a non-service repo", ciPlatform, []core.ResourceRequest{req("gh:acme/web", "contents:write")}, false},
+		{
+			"ci reads via glob under acme",
+			ciPlain,
+			[]core.ResourceRequest{req("gh:acme/anything", "contents:read")},
+			true,
+		},
+		{
+			"ci cannot write without platform team",
+			ciPlain,
+			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:write")},
+			false,
+		},
+		{
+			"platform ci can write service repo",
+			ciPlatform,
+			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:write")},
+			true,
+		},
+		{
+			"platform ci cannot write a non-service repo",
+			ciPlatform,
+			[]core.ResourceRequest{req("gh:acme/web", "contents:write")},
+			false,
+		},
 
 		// --- union across rules (read rule + write-svc rule together) ---
-		{"platform ci: read+write on svc via union of two rules", ciPlatform,
-			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:read", "actions:write")}, true},
-		{"plain ci: same two-action request denied (no write rule)", ciPlain,
-			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:read", "actions:write")}, false},
+		{
+			"platform ci: read+write on svc via union of two rules", ciPlatform,
+			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:read", "actions:write")},
+			true,
+		},
+		{
+			"plain ci: same two-action request denied (no write rule)", ciPlain,
+			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:read", "actions:write")},
+			false,
+		},
 
 		// --- least-scope: write covers read ---
-		{"platform ci: write grant covers a read request", ciPlatform,
-			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:read")}, true},
+		{
+			"platform ci: write grant covers a read request", ciPlatform,
+			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:read")},
+			true,
+		},
 
 		// --- too-wide: admin never granted ---
-		{"ci cannot request admin (ceiling is write)", ciPlatform,
-			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:admin")}, false},
+		{
+			"ci cannot request admin (ceiling is write)", ciPlatform,
+			[]core.ResourceRequest{req("gh:acme/svc-a", "contents:admin")},
+			false,
+		},
 
 		// --- artifactory ---
 		{"ci reads docker-local", ciPlain, []core.ResourceRequest{req("af:docker-local/img", "read")}, true},
-		{"ci cannot write docker-local (only read granted)", ciPlain,
-			[]core.ResourceRequest{req("af:docker-local/img", "write")}, false},
-		{"ci cannot annotate docker-local (annotate > read)", ciPlain,
-			[]core.ResourceRequest{req("af:docker-local/img", "annotate")}, false},
+		{
+			"ci cannot write docker-local (only read granted)", ciPlain,
+			[]core.ResourceRequest{req("af:docker-local/img", "write")},
+			false,
+		},
+		{
+			"ci cannot annotate docker-local (annotate > read)", ciPlain,
+			[]core.ResourceRequest{req("af:docker-local/img", "annotate")},
+			false,
+		},
 
 		// --- talmi admin console ---
 		{"admin can login", admin, []core.ResourceRequest{req("talmi:session", "login")}, true},
 		{"admin can read audit", admin, []core.ResourceRequest{req("talmi:audit", "read")}, true},
-		{"admin can trigger a specific task via glob", admin, []core.ResourceRequest{req("talmi:tasks/git-sync", "trigger")}, true},
-		{"admin cannot trigger audit (exact action set, no trigger)", admin,
-			[]core.ResourceRequest{req("talmi:audit", "trigger")}, false},
+		{
+			"admin can trigger a specific task via glob",
+			admin,
+			[]core.ResourceRequest{req("talmi:tasks/git-sync", "trigger")},
+			true,
+		},
+		{
+			"admin cannot trigger audit (exact action set, no trigger)", admin,
+			[]core.ResourceRequest{req("talmi:audit", "trigger")},
+			false,
+		},
 		{"non-admin denied the admin console", nonAdmin, []core.ResourceRequest{req("talmi:session", "login")}, false},
 
 		// --- cross-principal / cross-issuer ---
-		{"stranger from unknown issuer gets nothing", stranger, []core.ResourceRequest{req("gh:acme/web", "contents:read")}, false},
-		{"ci cannot use the admin console (wrong issuer)", ciPlatform, []core.ResourceRequest{req("talmi:session", "login")}, false},
-		{"admin cannot mint gh tokens (their rules only grant talmi)", admin,
-			[]core.ResourceRequest{req("gh:acme/web", "contents:read")}, false},
+		{
+			"stranger from unknown issuer gets nothing",
+			stranger,
+			[]core.ResourceRequest{req("gh:acme/web", "contents:read")},
+			false,
+		},
+		{
+			"ci cannot use the admin console (wrong issuer)",
+			ciPlatform,
+			[]core.ResourceRequest{req("talmi:session", "login")},
+			false,
+		},
+		{
+			"admin cannot mint gh tokens (their rules only grant talmi)", admin,
+			[]core.ResourceRequest{req("gh:acme/web", "contents:read")},
+			false,
+		},
 
 		// --- multi-resource: all-or-nothing ---
-		{"all covered -> authorized", ciPlain,
-			[]core.ResourceRequest{req("gh:acme/a", "contents:read"), req("af:docker-local/x", "read")}, true},
-		{"one uncovered fails the whole batch", ciPlain,
-			[]core.ResourceRequest{req("gh:acme/a", "contents:read"), req("af:docker-local/x", "write")}, false},
+		{
+			"all covered -> authorized", ciPlain,
+			[]core.ResourceRequest{req("gh:acme/a", "contents:read"), req("af:docker-local/x", "read")},
+			true,
+		},
+		{
+			"one uncovered fails the whole batch", ciPlain,
+			[]core.ResourceRequest{req("gh:acme/a", "contents:read"), req("af:docker-local/x", "write")},
+			false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -155,11 +234,13 @@ func TestAuthorizeCrossRealmIsolation(t *testing.T) {
 	is := assert.New(t)
 
 	// A rule that grants a body under realm "gh" must not cover realm "af".
-	e := multiRealmEngine([]core.Rule{{
-		Name:  "gh-only",
-		Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-		Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
-	}})
+	e := multiRealmEngine([]core.Rule{
+		{
+			Name:  "gh-only",
+			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	})
 	p := &core.Principal{Issuer: "ci"}
 
 	// Same body "acme/x", different realm - the af realm doesn't even understand "contents:read".
@@ -185,11 +266,13 @@ func TestAuthorizeNoRulesDeniesEverything(t *testing.T) {
 func TestAuthorizeMalformedAndWeirdResources(t *testing.T) {
 	t.Parallel()
 
-	e := multiRealmEngine([]core.Rule{{
-		Name:  "read",
-		Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-		Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
-	}})
+	e := multiRealmEngine([]core.Rule{
+		{
+			Name:  "read",
+			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	})
 	p := &core.Principal{Issuer: "ci"}
 
 	tests := []struct {
@@ -248,11 +331,13 @@ func TestAuthorizeMalformedAndWeirdResources(t *testing.T) {
 func TestAuthorizeActionEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	e := multiRealmEngine([]core.Rule{{
-		Name:  "gh",
-		Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-		Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:write"}}},
-	}})
+	e := multiRealmEngine([]core.Rule{
+		{
+			Name:  "gh",
+			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:write"}}},
+		},
+	})
 	p := &core.Principal{Issuer: "ci"}
 
 	tests := []struct {
@@ -284,11 +369,13 @@ func TestAuthorizeActionEdgeCases(t *testing.T) {
 func TestAuthorizeDuplicateRequests(t *testing.T) {
 	t.Parallel()
 	is := assert.New(t)
-	e := multiRealmEngine([]core.Rule{{
-		Name:  "read",
-		Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-		Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
-	}})
+	e := multiRealmEngine([]core.Rule{
+		{
+			Name:  "read",
+			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
+		},
+	})
 	p := &core.Principal{Issuer: "ci"}
 
 	// same resource twice, both read -> ok
@@ -315,33 +402,39 @@ func TestAuthorizeMalformedAllowsFailClosed(t *testing.T) {
 
 	t.Run("allow with no resources grants nothing", func(t *testing.T) {
 		t.Parallel()
-		e := multiRealmEngine([]core.Rule{{
-			Name:  "empty-resources",
-			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-			Allow: []core.Allow{{Resources: nil, Actions: []core.Action{"contents:read"}}},
-		}})
+		e := multiRealmEngine([]core.Rule{
+			{
+				Name:  "empty-resources",
+				Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+				Allow: []core.Allow{{Resources: nil, Actions: []core.Action{"contents:read"}}},
+			},
+		})
 		dec := e.Authorize(p, []core.ResourceRequest{req("gh:acme/x", "contents:read")})
 		assert.False(t, dec.Authorized)
 	})
 
 	t.Run("allow with no actions grants nothing", func(t *testing.T) {
 		t.Parallel()
-		e := multiRealmEngine([]core.Rule{{
-			Name:  "empty-actions",
-			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: nil}},
-		}})
+		e := multiRealmEngine([]core.Rule{
+			{
+				Name:  "empty-actions",
+				Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+				Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: nil}},
+			},
+		})
 		dec := e.Authorize(p, []core.ResourceRequest{req("gh:acme/x", "contents:read")})
 		assert.False(t, dec.Authorized)
 	})
 
 	t.Run("invalid glob pattern in allow matches nothing (fail-closed)", func(t *testing.T) {
 		t.Parallel()
-		e := multiRealmEngine([]core.Rule{{
-			Name:  "bad-glob",
-			Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
-			Allow: []core.Allow{{Resources: []string{"gh:acme/["}, Actions: []core.Action{"contents:read"}}},
-		}})
+		e := multiRealmEngine([]core.Rule{
+			{
+				Name:  "bad-glob",
+				Match: core.Match{Issuer: "ci", AllowEmptyCondition: true},
+				Allow: []core.Allow{{Resources: []string{"gh:acme/["}, Actions: []core.Action{"contents:read"}}},
+			},
+		})
 		dec := e.Authorize(p, []core.ResourceRequest{req("gh:acme/x", "contents:read")})
 		assert.False(t, dec.Authorized)
 	})
@@ -355,14 +448,16 @@ func TestAuthorizeReservedContextKeysCannotBeSpoofed(t *testing.T) {
 	is := assert.New(t)
 
 	// Rule only matches when sub == "admin".
-	e := multiRealmEngine([]core.Rule{{
-		Name: "sub-admin",
-		Match: core.Match{
-			Issuer:    "ci",
-			Condition: &core.Condition{Key: "sub", Operator: core.OpEqual, Value: "admin"},
+	e := multiRealmEngine([]core.Rule{
+		{
+			Name: "sub-admin",
+			Match: core.Match{
+				Issuer:    "ci",
+				Condition: &core.Condition{Key: "sub", Operator: core.OpEqual, Value: "admin"},
+			},
+			Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
 		},
-		Allow: []core.Allow{{Resources: []string{"gh:acme/*"}, Actions: []core.Action{"contents:read"}}},
-	}})
+	})
 
 	// Attacker's real subject is "attacker" but they smuggle a claim sub="admin".
 	// EvaluationContext overwrites sub with the verified principal ID.
@@ -400,11 +495,13 @@ func TestRuleMatchesConditionExprInteraction(t *testing.T) {
 		// rejects setting both, but the engine must be deterministic regardless.
 		prog, err := expr.Compile(`true`, expr.AsBool())
 		require.NoError(t, err)
-		r := core.Rule{Match: core.Match{
-			Issuer:       "a",
-			Condition:    &core.Condition{Key: "env", Operator: core.OpEqual, Value: "prod"},
-			CompiledExpr: prog,
-		}}
+		r := core.Rule{
+			Match: core.Match{
+				Issuer:       "a",
+				Condition:    &core.Condition{Key: "env", Operator: core.OpEqual, Value: "prod"},
+				CompiledExpr: prog,
+			},
+		}
 		assert.False(t, e.ruleMatches(r, &core.Principal{Issuer: "a", Attributes: map[string]any{"env": "dev"}}))
 		assert.True(t, e.ruleMatches(r, &core.Principal{Issuer: "a", Attributes: map[string]any{"env": "prod"}}))
 	})
