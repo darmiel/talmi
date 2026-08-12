@@ -137,7 +137,7 @@ func TestLeaseRevokeWithYes(t *testing.T) {
 func TestLeaseExplainReplayNotFound(t *testing.T) {
 	t.Parallel()
 	fake := &fakeClient{
-		queryFn: func(_ context.Context, _ client.AuditFilter) ([]core.AuditEntry, string, error) {
+		queryFn: func(_ context.Context, _ client.AuditFilter) ([]core.Event, string, error) {
 			return nil, "", nil
 		},
 	}
@@ -149,14 +149,14 @@ func TestLeaseExplainReplayNotFound(t *testing.T) {
 func TestAuditList(t *testing.T) {
 	t.Parallel()
 	fake := &fakeClient{
-		queryFn: func(_ context.Context, _ client.AuditFilter) ([]core.AuditEntry, string, error) {
-			return []core.AuditEntry{
+		queryFn: func(_ context.Context, _ client.AuditFilter) ([]core.Event, string, error) {
+			return []core.Event{
 				{
-					ID:        "c1",
-					Action:    "lease.issue",
-					Success:   true,
-					Time:      time.Now(),
-					Principal: &core.Principal{ID: "svc"},
+					ID:      "c1",
+					Action:  core.ActionLeaseIssue,
+					Outcome: core.OutcomeSuccess,
+					Time:    time.Now(),
+					Actor:   &core.Principal{ID: "svc"},
 				},
 			}, "", nil
 		},
@@ -170,7 +170,7 @@ func TestAuditList(t *testing.T) {
 func TestAuditListInvalidSessionMapsToAuth(t *testing.T) {
 	t.Parallel()
 	fake := &fakeClient{
-		queryFn: func(_ context.Context, _ client.AuditFilter) ([]core.AuditEntry, string, error) {
+		queryFn: func(_ context.Context, _ client.AuditFilter) ([]core.Event, string, error) {
 			return nil, "corr", client.ErrInvalidSession
 		},
 	}

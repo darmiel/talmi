@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -84,8 +85,17 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	logger := log.Ctx(r.Context())
 
-	q := r.URL.Query()
-	filter := core.AuditFilter{
+	entries, err := s.admin.Auditor().Query(r.Context(), parseAuditFilter(r.URL.Query()))
+	if err != nil {
+		logger.Error().Err(err).Msg("audit query failed")
+		presenter.Error(w, r, "audit query failed", http.StatusInternalServerError)
+		return
+	}
+	presenter.JSON(w, r, entries, http.StatusOK)
+}
+
+func parseAuditFilter(q url.Values) core.AuditFilter {
+	return core.AuditFilter{
 		ID:          q.Get("id"),
 		RequestID:   q.Get("request_id"),
 		SessionID:   q.Get("session_id"),
@@ -97,13 +107,6 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 		Until:       parseTime(q.Get("until")),
 		Limit:       parseLimit(q.Get("limit"), 50),
 	}
-	entries, err := s.admin.Auditor().Query(r.Context(), filter)
-	if err != nil {
-		logger.Error().Err(err).Msg("audit query failed")
-		presenter.Error(w, r, "audit query failed", http.StatusInternalServerError)
-		return
-	}
-	presenter.JSON(w, r, entries, http.StatusOK)
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {

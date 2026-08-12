@@ -107,7 +107,9 @@ func (s *Server) Routes() http.Handler {
 
 	return middleware.RecoverMiddleware(
 		middleware.CorrelationIDMiddleware(
-			middleware.LoggingMiddleware(mux)))
+			middleware.LoggingMiddleware(mux),
+		),
+	)
 }
 
 func (s *Server) record(ctx context.Context, action core.AuditAction, outcome core.Outcome, opts ...audit.Option) {

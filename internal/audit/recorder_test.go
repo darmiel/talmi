@@ -29,16 +29,16 @@ func TestRecorderFillsFromContext(t *testing.T) {
 	is := assert.New(t)
 	must := require.New(t)
 
-	cap := &capturingAuditor{}
-	r := NewRecorder(cap)
+	capt := &capturingAuditor{}
+	r := NewRecorder(capt)
 
 	ctx := correlation.WithSession(correlation.With(context.Background(), "req1"), "sess1")
 	err := r.Record(ctx, core.ActionSessionLogin, core.OutcomeSuccess,
 		WithActor(&core.Principal{ID: "alice"}))
 	must.NoError(err)
 
-	must.Len(cap.logged, 1)
-	e := cap.logged[0]
+	must.Len(capt.logged, 1)
+	e := capt.logged[0]
 	is.Equal(core.ActionSessionLogin, e.Action)
 	is.Equal(core.OutcomeSuccess, e.Outcome)
 	is.Equal("req1", e.RequestID)
@@ -57,13 +57,13 @@ func TestRecorderOptions(t *testing.T) {
 		is := assert.New(t)
 		must := require.New(t)
 
-		cap := &capturingAuditor{}
-		r := NewRecorder(cap)
+		capt := &capturingAuditor{}
+		r := NewRecorder(capt)
 
 		must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeFailure,
 			WithError(errors.New("boom"))))
-		must.Len(cap.logged, 1)
-		is.Equal("boom", cap.logged[0].Error)
+		must.Len(capt.logged, 1)
+		is.Equal("boom", capt.logged[0].Error)
 	})
 
 	t.Run("with nil error leaves it empty", func(t *testing.T) {
@@ -71,13 +71,13 @@ func TestRecorderOptions(t *testing.T) {
 		is := assert.New(t)
 		must := require.New(t)
 
-		cap := &capturingAuditor{}
-		r := NewRecorder(cap)
+		capt := &capturingAuditor{}
+		r := NewRecorder(capt)
 
 		must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess,
 			WithError(nil)))
-		must.Len(cap.logged, 1)
-		is.Empty(cap.logged[0].Error)
+		must.Len(capt.logged, 1)
+		is.Empty(capt.logged[0].Error)
 	})
 
 	t.Run("with metadata revision and artifacts", func(t *testing.T) {
@@ -85,16 +85,16 @@ func TestRecorderOptions(t *testing.T) {
 		is := assert.New(t)
 		must := require.New(t)
 
-		cap := &capturingAuditor{}
-		r := NewRecorder(cap)
+		capt := &capturingAuditor{}
+		r := NewRecorder(capt)
 
 		must.NoError(r.Record(context.Background(), core.ActionTaskTrigger, core.OutcomeSuccess,
 			WithRevision("rev9"),
 			WithMetadata(map[string]any{"task": "reload"}),
 			WithArtifacts([]core.ArtifactAudit{{ArtifactID: "a1"}}),
 		))
-		must.Len(cap.logged, 1)
-		e := cap.logged[0]
+		must.Len(capt.logged, 1)
+		e := capt.logged[0]
 		is.Equal("rev9", e.Revision)
 		is.Equal("reload", e.Metadata["task"])
 		must.Len(e.Artifacts, 1)
