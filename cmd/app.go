@@ -4,41 +4,24 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/cli"
+	"github.com/darmiel/talmi/internal/cliconfig"
+	"github.com/darmiel/talmi/pkg/client"
 )
 
 func buildDeps(io cli.IOStreams) Deps {
 	return Deps{
-		IO:    io,
-		Build: buildinfo.GetBuildInfo(),
-		NewClient: func() (TalmiClient, error) {
-			c, err := f.GetClient()
-			if err != nil {
-				return nil, errServerNotConfigured()
-			}
-			return c, nil
-		},
-		RemoteAddr: func() (string, error) {
-			addr, err := f.GetRemoteAddr()
-			if err != nil {
-				return "", errServerNotConfigured()
-			}
-			return addr, nil
-		},
+		IO:         io,
+		Build:      buildinfo.GetBuildInfo(),
+		NewClient:  newTalmiClient,
+		RemoteAddr: remoteAddr,
 	}
 }
 
-func errServerNotConfigured() error {
-	return &cli.ExitError{
-		Code:    cli.CodeUsage,
-		Message: "server address not configured",
-		Hint:    "set --server or the TALMI_ADDR environment variable",
-	}
-}
-
-func registerMigrated(root *cobra.Command, deps Deps) {
+func registerCommands(root *cobra.Command, deps Deps) {
 	root.AddCommand(
 		newVersionCmd(deps),
 		newServerCmd(deps),
@@ -53,10 +36,49 @@ func registerMigrated(root *cobra.Command, deps Deps) {
 
 func Execute() {
 	io := cli.SystemStreams()
-	d := buildDeps(io)
-	registerMigrated(rootCmd, d)
+	deps := buildDeps(io)
+
 	rootCmd.SetOut(io.Out)
 	rootCmd.SetErr(io.ErrOut)
 
+	registerCommands(rootCmd, deps)
+
 	os.Exit(cli.Handle(io, rootCmd.Execute()))
+}
+
+// remoteAddr resolves the target server from --server, $TALMI_ADDR or the CLI config file.
+func remoteAddr() (string, error) {
+	server := viper.GetString(TalmiAddrKey)
+	if server == "" {
+		return "", errServerNotConfigured()
+	}
+	return server, nil
+}
+
+// newTalmiClient builds an authenticated client for the configured server.
+func newTalmiClient() (TalmiClient, error) {
+	server, err := remoteAddr()
+	if err != nil {
+		return nil, err
+	}
+	var token string
+	if cfg, err := cliconfig.Load(); err == nil {
+		if cred, err := cfg.GetCredential(server); err == nil {
+			// token prio 1: from saved credential
+			token = cred.Token
+		}
+	}
+	if envToken := os.Getenv("TALMI_TOKEN"); envToken != "" {
+		// token prio 2: from env var
+		token = envToken
+	}
+	return client.New(server, client.WithAuthToken(token)), nil
+}
+
+func errServerNotConfigured() error {
+	return &cli.ExitError{
+		Code:    cli.CodeUsage,
+		Message: "server address not configured",
+		Hint:    "set --server or the TALMI_ADDR environment variable",
+	}
 }
