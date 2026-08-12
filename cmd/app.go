@@ -42,8 +42,17 @@ func Execute() {
 	rootCmd.SetErr(io.ErrOut)
 
 	registerCommands(rootCmd, deps)
+	disableCobraSuggestions(rootCmd)
 
-	os.Exit(cli.Handle(io, classify(rootCmd.Execute(), "")))
+	cmd, execErr := rootCmd.ExecuteC()
+	os.Exit(cli.Handle(io, enrich(classify(execErr, ""), execErr, cmd)))
+}
+
+func disableCobraSuggestions(cmd *cobra.Command) {
+	cmd.DisableSuggestions = true
+	for _, c := range cmd.Commands() {
+		disableCobraSuggestions(c)
+	}
 }
 
 // remoteAddr resolves the target server from --server, $TALMI_ADDR or the CLI config file.

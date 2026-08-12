@@ -319,3 +319,19 @@ func postForm(ctx context.Context, endpoint string, form url.Values, out any) er
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
+
+func savedSessionExpiry() time.Time {
+	server, err := remoteAddr()
+	if err != nil {
+		return time.Time{}
+	}
+	cfg, err := cliconfig.Load()
+	if err != nil {
+		return time.Time{}
+	}
+	cred, err := cfg.GetCredential(server)
+	if err != nil || cred == nil {
+		return time.Time{}
+	}
+	return jwtExpiry(cred.Token)
+}
