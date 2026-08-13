@@ -248,3 +248,78 @@ func TestCheckAuditRetentionAndSinks(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckRealmCapability(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		mutate   func(*config.RealmBlock)
+		wantCode string
+		wantSev  Severity
+	}{
+		{
+			name:     "bad discovery value",
+			mutate:   func(rb *config.RealmBlock) { rb.Capability.Discovery = "bogus" },
+			wantCode: "CFG-REALM-CAP",
+			wantSev:  SeverityError,
+		},
+		{
+			name:     "static without lists",
+			mutate:   func(rb *config.RealmBlock) { rb.Capability = config.CapabilityBlock{Discovery: "static"} },
+			wantCode: "CFG-REALM-CAP",
+			wantSev:  SeverityError,
+		},
+		{
+			name: "api with ceiling is fine",
+			mutate: func(rb *config.RealmBlock) {
+				rb.Capability = config.CapabilityBlock{
+					Discovery:  "api",
+					Resources:  []string{"ghes-corp:acme/*"},
+					MaxActions: []core.Action{"contents:read"},
+				}
+			},
+			wantCode: "",
+		},
+		{
+			name: "api on a type that does not support it",
+			mutate: func(rb *config.RealmBlock) {
+				rb.Type = config.KindArtifactory
+				rb.Capability = config.CapabilityBlock{Discovery: "api"}
+			},
+			wantCode: "CFG-REALM-CAP",
+			wantSev:  SeverityError,
+		},
+		{
+			name: "refresh under static is a warning",
+			mutate: func(rb *config.RealmBlock) {
+				rb.Capability = config.CapabilityBlock{
+					Discovery:  "static",
+					Resources:  []string{"ghes-corp:acme/*"},
+					MaxActions: []core.Action{"contents:read"},
+					Refresh:    5 * time.Minute,
+				}
+			},
+			wantCode: "CFG-REALM-CAP",
+			wantSev:  SeverityWarn,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			is := assert.New(t)
+			in := baseline()
+			tt.mutate(&in.Sourced.Realms[0]) // ghes-corp, github-app
+
+			r := Static(in)
+			f := findByCode(r, "CFG-REALM-CAP")
+			if tt.wantCode == "" {
+				is.Nil(f, "want no CFG-REALM-CAP; got %+v", r.Findings)
+				return
+			}
+			must := require.New(t)
+			must.NotNil(f, "want CFG-REALM-CAP; got %+v", r.Findings)
+			is.Equal(tt.wantSev, f.Severity)
+		})
+	}
+}

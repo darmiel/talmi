@@ -11,9 +11,10 @@ type BuildInput struct {
 }
 
 type Backend struct {
-	Type      string
-	Semantics realm.Semantics
-	Build     func(input BuildInput) (core.ResourceProvider, error)
+	Type                 string
+	Semantics            realm.Semantics
+	SupportsAPIDiscovery bool
+	Build                func(input BuildInput) (core.ResourceProvider, error)
 }
 
 func Lookup(kind string) (Backend, bool) {
