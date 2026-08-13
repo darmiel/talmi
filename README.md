@@ -320,7 +320,9 @@ rules: { include: [ "rules.d/*.yaml" ] }     # list of rules
 Other bootstrap sections:
 
 - `store`: `memory` or `postgres` (with a `dsn`). Holds the lease registry.
-- `audit`: `enabled`, plus `type` (`postgres`, `memory`, or `noop`) and a `dsn`.
+- `audit`: `enabled`, plus `type` (`postgres`, `memory`, or `noop`) and a `dsn`. Optional
+  `retention` (a duration; unset or `0` keeps forever) enables a daily prune, and `sinks`
+  (e.g. `[stdout]`) exports each event to an external collector.
 - `auth`: enables the admin API. Names the `login_issuer` (a `github-oauth` issuer) and
   `session_issuer` (a `talmi-session` issuer), plus `session_ttl`, the OAuth `server`,
   `client_id`, and `scopes`.
@@ -396,14 +398,23 @@ talmi session logout                           # clear the saved credential
 
 ## Auditing
 
-Every request is recorded, including denials. List and filter the log (needs a session with
-`talmi:audit=read`):
+Every request is recorded, including denials. List and filter the log, or inspect one entry
+(needs a session with `talmi:audit=read`):
 
 ```bash
 talmi audit list --limit 50
 talmi audit list --action lease.issue --principal my-pipeline/my-job
-talmi audit list --since 2026-01-01T00:00:00Z --json
+talmi audit list --outcome denied --since 2026-01-01T00:00:00Z --json
+talmi audit list --request-id "<correlation-id>"   # every event from one request
+talmi audit list --session-id "<jti>"              # every action in one login
+talmi audit inspect "<entry-id>"                    # one entry, with its decision trace
 ```
+
+Each event carries its own id, the request `X-Correlation-ID` (`request_id`), and, for actions
+inside an admin login, a `session_id`. Those three ids let you trace one event, one request, or a
+whole login session. See [docs/audit-events.md](docs/audit-events.md) for the full event catalog
+(actions, outcomes, metadata), and [docs/audit-integrity.md](docs/audit-integrity.md) for the
+append-only model, database permissions, retention, and export.
 
 ### Tracing a token back to a decision
 
@@ -415,11 +426,11 @@ the request that produced it:
 talmi audit list --fingerprint "<fingerprint>"
 ```
 
-Take the correlation id from the matching entry and replay the decision to see the rule-by-rule
+Take the entry id from the matching entry and replay the decision to see the rule-by-rule
 trace, without minting anything:
 
 ```bash
-talmi lease explain --replay-id "<correlation-id>"
+talmi lease explain --replay-id "<entry-id>"
 ```
 
 `lease explain` also runs ahead of time against a live token, which is the fastest way to
@@ -437,22 +448,23 @@ it (and if not, why).
 Commands are grouped by noun. The everyday verbs also work as top-level shortcuts (`talmi issue`
 = `talmi lease issue`, plus `revoke`, `why`, `login`, `serve`).
 
-| Command                           | What it does                                                                                                        |
-|-----------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| `talmi server run`                | Run the server. Flags: `-c/--config`, `--addr`, `--dev`, `--local`, `--ref`.                                        |
-| `talmi lease issue [TOKEN]`       | Exchange an OIDC token for resource tokens. `--resource` (repeatable), `--manifest`, `--out`, `--issuer`, `--json`. |
-| `talmi lease revoke`              | Revoke a lease. `--from-lease`, or `--secret` + `--token id=value`; `-y/--yes` to skip the prompt.                  |
-| `talmi lease explain [TOKEN]`     | Explain a decision (dry run). `--resource`, `--manifest`, `--issuer`, `--replay-id`, `--json`.                      |
-| `talmi session login`             | Authenticate via GitHub. `--with-token`.                                                                            |
-| `talmi session status` / `logout` | Show or clear the saved session for the target server. `--json` on `status`.                                        |
-| `talmi audit list`                | Query the audit log. `--limit`, `--action`, `--principal`, `--fingerprint`, `--since`, `--json`.                    |
-| `talmi task list\|trigger\|logs`  | Inspect and run background tasks (admin session).                                                                   |
-| `talmi config vet [file]`         | Validate config. `--online`, `--strict`, `--local`, `--ref`, `--json`.                                              |
-| `talmi config schema [target]`    | Emit JSON Schema for `config`, `issuers`, `realms`, or `rules`. `-o`.                                               |
-| `talmi token inspect JWT`         | Print a JWT's claims without verifying it. `--json`.                                                                |
-| `talmi token fingerprint TOKEN`   | Compute a token fingerprint. `--type`, `-r/--raw`.                                                                  |
-| `talmi version`                   | Show version/build info (local or from `--server`). `--json`.                                                       |
-| `talmi completion <shell>`        | Generate a shell completion script (bash, zsh, fish, powershell).                                                   |
+| Command                           | What it does                                                                                                                                             |
+|-----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `talmi server run`                | Run the server. Flags: `-c/--config`, `--addr`, `--dev`, `--local`, `--ref`.                                                                             |
+| `talmi lease issue [TOKEN]`       | Exchange an OIDC token for resource tokens. `--resource` (repeatable), `--manifest`, `--out`, `--issuer`, `--json`.                                      |
+| `talmi lease revoke`              | Revoke a lease. `--from-lease`, or `--secret` + `--token id=value`; `-y/--yes` to skip the prompt.                                                       |
+| `talmi lease explain [TOKEN]`     | Explain a decision (dry run). `--resource`, `--manifest`, `--issuer`, `--replay-id`, `--json`.                                                           |
+| `talmi session login`             | Authenticate via GitHub. `--with-token`.                                                                                                                 |
+| `talmi session status` / `logout` | Show or clear the saved session for the target server. `--json` on `status`.                                                                             |
+| `talmi audit list`                | Query the audit log. `--limit`, `--action`, `--outcome`, `--principal`, `--request-id`, `--session-id`, `--fingerprint`, `--since`, `--until`, `--json`. |
+| `talmi audit inspect <id>`        | Show one audit entry with its decision trace and artifacts. `--json`.                                                                                    |
+| `talmi task list\|trigger\|logs`  | Inspect and run background tasks (admin session).                                                                                                        |
+| `talmi config vet [file]`         | Validate config. `--online`, `--strict`, `--local`, `--ref`, `--json`.                                                                                   |
+| `talmi config schema [target]`    | Emit JSON Schema for `config`, `issuers`, `realms`, or `rules`. `-o`.                                                                                    |
+| `talmi token inspect JWT`         | Print a JWT's claims without verifying it. `--json`.                                                                                                     |
+| `talmi token fingerprint TOKEN`   | Compute a token fingerprint. `--type`, `-r/--raw`.                                                                                                       |
+| `talmi version`                   | Show version/build info (local or from `--server`). `--json`.                                                                                            |
+| `talmi completion <shell>`        | Generate a shell completion script (bash, zsh, fish, powershell).                                                                                        |
 
 Global flags apply to every command: `--server` (or `$TALMI_ADDR`), `--log-level`,
 `--log-format`, `--no-color`, `--cli-config`.
