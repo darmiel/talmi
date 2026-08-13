@@ -51,3 +51,19 @@ func TestHintlnEmphasisIsColoredInColorMode(t *testing.T) {
 	assert.Contains(t, b.String(), "\x1b[", "emphasis must emit ANSI")
 	assert.NotContains(t, b.String(), "`")
 }
+
+func TestSprintNoColorIsPlain(t *testing.T) {
+	t.Parallel()
+	p := New(new(bytes.Buffer), false)
+	assert.Equal(t, "hello", p.Sprint(StyleError, "hello"))
+	assert.Equal(t, "hello", p.Sprint(StyleDim, "hello"))
+}
+
+func TestSprintColorWrapsANSI(t *testing.T) {
+	t.Parallel()
+	p := New(new(bytes.Buffer), true)
+	out := p.Sprint(StyleSuccess, "ok")
+	assert.Contains(t, out, "ok")
+	assert.Contains(t, out, "\x1b[", "color mode must wrap in ANSI")
+	assert.NotEqual(t, "ok", out)
+}

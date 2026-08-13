@@ -100,3 +100,37 @@ func (p *Printer) Println(args ...any) {
 func (p *Printer) Writer() io.Writer {
 	return p.w
 }
+
+// Style is a semantic text style resolved to color (or plain when color is off).
+type Style int
+
+const (
+	StyleNone Style = iota
+	StyleDim
+	StyleBold
+	StyleSuccess
+	StyleWarn
+	StyleError
+	StyleHeading
+	StyleAccent
+)
+
+// Sprint returns s rendered in the given style, or s unchanged when color is off.
+func (p *Printer) Sprint(style Style, s string) string {
+	switch style {
+	case StyleDim:
+		return p.colorize(s, color.Faint)
+	case StyleBold, StyleHeading:
+		return p.colorize(s, color.Bold)
+	case StyleSuccess:
+		return p.colorize(s, color.FgGreen)
+	case StyleWarn:
+		return p.colorize(s, color.FgYellow)
+	case StyleError:
+		return p.colorize(s, color.FgRed)
+	case StyleAccent:
+		return p.colorize(s, color.FgCyan)
+	default:
+		return s
+	}
+}
