@@ -167,6 +167,41 @@ func TestAuditList(t *testing.T) {
 	assert.Contains(t, out.String(), "lease.issue")
 }
 
+func TestAuditInspect(t *testing.T) {
+	t.Parallel()
+	fake := &fakeClient{
+		inspectFn: func(_ context.Context, id string) (*core.Event, string, error) {
+			return &core.Event{
+				ID:      id,
+				Action:  core.ActionLeaseIssue,
+				Outcome: core.OutcomeSuccess,
+				Actor:   &core.Principal{ID: "svc"},
+			}, "", nil
+		},
+	}
+	d, out, _ := testDeps(fake)
+	require.NoError(t, run(newAuditInspectCmd(d), "e1"))
+	assert.Contains(t, out.String(), "svc")
+	assert.Contains(t, out.String(), "lease.issue")
+}
+
+func TestAuditListThreadsFilters(t *testing.T) {
+	t.Parallel()
+	var got client.AuditFilter
+	fake := &fakeClient{
+		queryFn: func(_ context.Context, f client.AuditFilter) ([]core.Event, string, error) {
+			got = f
+			return nil, "", nil
+		},
+	}
+	d, _, _ := testDeps(fake)
+	require.NoError(t, run(newAuditListCmd(d),
+		"--request-id", "req9", "--session-id", "sess9", "--outcome", "denied"))
+	assert.Equal(t, "req9", got.RequestID)
+	assert.Equal(t, "sess9", got.SessionID)
+	assert.Equal(t, "denied", got.Outcome)
+}
+
 func TestAuditListInvalidSessionMapsToAuth(t *testing.T) {
 	t.Parallel()
 	fake := &fakeClient{

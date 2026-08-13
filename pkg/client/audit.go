@@ -40,3 +40,13 @@ func (c *Client) QueryAudit(ctx context.Context, filter AuditFilter) ([]core.Eve
 	correlationID, err := c.get(ctx, u, &events)
 	return events, correlationID, err
 }
+
+func (c *Client) InspectAudit(ctx context.Context, id string) (*core.Event, string, error) {
+	u := c.url().
+		setPath(api.AuditEntryRoute).
+		setPathParam("id", id).
+		build()
+	var event core.Event
+	correlationID, err := c.get(ctx, u, &event)
+	return &event, correlationID, err
+}

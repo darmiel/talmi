@@ -98,6 +98,8 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("POST "+LoginRoute, s.handleLogin)
 
 		mux.HandleFunc("GET "+AuditQueryRoute, s.handleAuditQuery)
+		mux.HandleFunc("GET "+AuditEntryRoute, s.handleAuditEntry)
+
 		if s.admin.Tasks != nil {
 			mux.HandleFunc("GET "+ListTasksRoute, s.handleListTasks)
 			mux.HandleFunc("POST "+TriggerTaskRoute, s.handleTriggerTask)

@@ -16,6 +16,7 @@ const (
 
 	AuditParent     = "/v2/audit"
 	AuditQueryRoute = AuditParent
+	AuditEntryRoute = AuditParent + "/{id}"
 
 	TaskParent       = "/v2/tasks"
 	ListTasksRoute   = TaskParent

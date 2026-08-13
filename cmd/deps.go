@@ -18,6 +18,7 @@ type leaseAPI interface {
 
 type auditAPI interface {
 	QueryAudit(ctx context.Context, filter client.AuditFilter) ([]core.Event, string, error)
+	InspectAudit(ctx context.Context, id string) (*core.Event, string, error)
 }
 
 type taskAPI interface {
