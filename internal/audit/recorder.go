@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/xid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/correlation"
@@ -12,10 +13,14 @@ import (
 
 type Recorder struct {
 	auditor core.Auditor
+	sinks   []Sink
 }
 
-func NewRecorder(auditor core.Auditor) *Recorder {
-	return &Recorder{auditor: auditor}
+func NewRecorder(auditor core.Auditor, sinks ...Sink) *Recorder {
+	return &Recorder{
+		auditor: auditor,
+		sinks:   sinks,
+	}
 }
 
 // Option mutates an audit event before it is recorded.
@@ -65,5 +70,14 @@ func (r *Recorder) Record(ctx context.Context, action core.AuditAction, outcome 
 	for _, opt := range opts {
 		opt(&e)
 	}
-	return r.auditor.Log(context.WithoutCancel(ctx), e)
+	writeCtx := context.WithoutCancel(ctx)
+	err := r.auditor.Log(writeCtx, e)
+	for _, sink := range r.sinks {
+		if sinkErr := sink.Emit(writeCtx, e); sinkErr != nil {
+			log.Ctx(writeCtx).Error().Err(sinkErr).
+				Str("action", string(action)).
+				Msg("audit sink emit failed")
+		}
+	}
+	return err
 }

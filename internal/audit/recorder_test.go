@@ -101,3 +101,42 @@ func TestRecorderOptions(t *testing.T) {
 		is.Equal("a1", e.Artifacts[0].ArtifactID)
 	})
 }
+
+type captureSink struct {
+	events []core.Event
+	err    error
+}
+
+func (c *captureSink) Emit(_ context.Context, e core.Event) error {
+	c.events = append(c.events, e)
+	return c.err
+}
+func (c *captureSink) Close() error { return nil }
+
+func TestRecorderFansOutToSinks(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	auditor := &capturingAuditor{}
+	sink := &captureSink{}
+	r := NewRecorder(auditor, sink)
+
+	must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess))
+	must.Len(auditor.logged, 1)
+	must.Len(sink.events, 1)
+	is.Equal(auditor.logged[0].ID, sink.events[0].ID)
+}
+
+func TestRecorderSinkFailureIsIsolated(t *testing.T) {
+	t.Parallel()
+	must := require.New(t)
+
+	auditor := &capturingAuditor{}
+	sink := &captureSink{err: errors.New("sink down")}
+	r := NewRecorder(auditor, sink)
+
+	must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess),
+		"a failing sink must not fail the record call")
+	must.Len(auditor.logged, 1, "the store write still happened")
+}

@@ -99,6 +99,19 @@ func newServerRunCmd(_ Deps) *cobra.Command {
 				return err
 			})
 
+		// audit janitor task
+		if cfg.Audit.Enabled && cfg.Audit.Retention > 0 {
+			retention := cfg.Audit.Retention
+			taskMgr.Register("audit-cleanup", 24*time.Hour,
+				func(ctx context.Context, logger logging.InternalLogger) error {
+					n, err := mgr.Current().Auditor.Prune(ctx, time.Now().Add(-retention))
+					if err == nil && n > 0 {
+						logger.Info("pruned %d audit entries older than %s", n, retention)
+					}
+					return err
+				})
+		}
+
 		opts, err := buildServerOptions(cfg, mgr, taskMgr)
 		if err != nil {
 			return err
