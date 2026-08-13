@@ -13,8 +13,9 @@ import (
 
 var backends = []Backend{
 	{
-		Type:      config.KindGitHubApp,
-		Semantics: realm.GitHub{},
+		Type:                 config.KindGitHubApp,
+		Semantics:            realm.GitHub{},
+		SupportsAPIDiscovery: true,
 		Build: func(input BuildInput) (core.ResourceProvider, error) {
 			c, ok := input.Spec.Config.(*config.GitHubAppConfig)
 			if !ok {
@@ -33,8 +34,9 @@ var backends = []Backend{
 		},
 	},
 	{
-		Type:      config.KindArtifactory,
-		Semantics: realm.Artifactory{},
+		Type:                 config.KindArtifactory,
+		Semantics:            realm.Artifactory{},
+		SupportsAPIDiscovery: false,
 		Build: func(input BuildInput) (core.ResourceProvider, error) {
 			c, ok := input.Spec.Config.(*config.ArtifactoryConfig)
 			if !ok {

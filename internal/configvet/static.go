@@ -6,6 +6,8 @@ import (
 
 	"github.com/expr-lang/expr"
 
+	"github.com/darmiel/talmi/internal/backend"
+	"github.com/darmiel/talmi/internal/capability"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/realm"
@@ -27,6 +29,7 @@ func Static(in StaticInput) Report {
 	checkAudit(in, &r)
 	checkIssuers(in, &r)
 	checkRealms(in, &r)
+	checkRealmCapability(in, &r)
 	checkRules(in, &r)
 	checkAuth(in, &r)
 	checkSecrets(in, &r)
@@ -108,6 +111,49 @@ func checkRealms(in StaticInput, r *Report) {
 			if _, err := config.DecodeInstanceConfig(rb.Type, inst.Config); err != nil {
 				r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc, "%v", err)
 			}
+		}
+	}
+}
+
+func checkRealmCapability(in StaticInput, r *Report) {
+	for _, rb := range in.Sourced.Realms {
+		b, ok := backend.Lookup(rb.Type)
+		if !ok {
+			continue
+		}
+		checkCapabilityBlock(rb.Type, b.SupportsAPIDiscovery,
+			"realms["+rb.Realm+"].capability", rb.Capability, r)
+		for _, inst := range rb.Instances {
+			if !capabilityIsSet(inst.Capability) {
+				continue
+			}
+			checkCapabilityBlock(rb.Type, b.SupportsAPIDiscovery,
+				"realms["+rb.Realm+"].instances["+inst.Name+"].capability", inst.Capability, r)
+		}
+	}
+}
+
+func capabilityIsSet(c config.CapabilityBlock) bool {
+	return c.Discovery != "" || c.Refresh != 0 || len(c.Resources) > 0 || len(c.MaxActions) > 0
+}
+
+func checkCapabilityBlock(realmType string, supportsAPI bool, loc string, c config.CapabilityBlock, r *Report) {
+	if c.Discovery != "" && c.Discovery != "static" && c.Discovery != "api" {
+		r.errorf("CFG-REALM-CAP", "realms", loc, "invalid discovery %q, must be static or api",
+			c.Discovery)
+		return
+	}
+	if c.Discovery == "api" && !supportsAPI {
+		r.errorf("CFG-REALM-CAP", "realms", loc,
+			"realm type %q does not support api discovery", realmType)
+		return
+	}
+	if capability.Mode(c.Discovery, supportsAPI) == "static" {
+		if len(c.Resources) == 0 || len(c.MaxActions) == 0 {
+			r.errorf("CFG-REALM-CAP", "realms", loc, "static discovery requires resources and max_actions")
+		}
+		if c.Refresh != 0 {
+			r.warnf("CFG-REALM-CAP", "realms", loc, "refresh_interval is ignored for static discovery")
 		}
 	}
 }

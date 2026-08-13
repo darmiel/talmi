@@ -10,6 +10,7 @@ import (
 
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/backend"
+	"github.com/darmiel/talmi/internal/capability"
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/configvet"
 	"github.com/darmiel/talmi/internal/core"
@@ -202,28 +203,48 @@ func buildProviders(specs []config.ProviderSpec, dev bool) ([]core.ResourceProvi
 }
 
 func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, error) {
+	b, ok := backend.Lookup(spec.Type)
+	if !ok {
+		return nil, fmt.Errorf("unknown provider type %q", spec.Type)
+	}
+	mode := capability.Mode(spec.Capability.Discovery, b.SupportsAPIDiscovery)
+	declared := core.Capability{
+		Realm:      spec.Realm,
+		Resources:  spec.Capability.Resources,
+		MaxActions: spec.Capability.MaxActions,
+	}
+	var base core.ResourceProvider
 	if dev {
 		log.Debug().
 			Str("provider", spec.Name).
 			Str("realm", spec.Realm).
 			Msg("runtime: building provider (dev stub)")
-		return stub.New(spec.Name, spec.Realm,
+
+		base = stub.New(spec.Name, spec.Realm,
 			stub.WithResources(spec.Capability.Resources...),
 			stub.WithMaxActions(spec.Capability.MaxActions...),
-		), nil
+		)
+		if mode == "api" && len(spec.Capability.Resources) == 0 && len(spec.Capability.MaxActions) == 0 {
+			log.Warn().
+				Str("realm", spec.Realm).
+				Str("instance", spec.Name).
+				Msg("runtime: realm uses api discovery with no static ceiling (under --dev it serves nothing)")
+		}
+	} else {
+		log.Debug().
+			Str("provider", spec.Name).
+			Str("realm", spec.Realm).
+			Str("type", spec.Type).
+			Msg("runtime: building provider")
+
+		p, err := b.Build(backend.BuildInput{Spec: spec})
+		if err != nil {
+			return nil, err
+		}
+		base = p
 	}
-	b, ok := backend.Lookup(spec.Type)
-	if !ok {
-		return nil, fmt.Errorf("unknown provider type %q", spec.Type)
-	}
-	log.Debug().
-		Str("provider", spec.Name).
-		Str("realm", spec.Realm).
-		Str("type", spec.Type).
-		Msg("runtime: building provider")
-	return b.Build(backend.BuildInput{
-		Spec: spec,
-	})
+
+	return capability.Decorate(base, b.Semantics, mode, declared), nil
 }
 
 func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, error) {

@@ -96,3 +96,43 @@ func TestBuildStore(t *testing.T) {
 	_, err = buildStore(context.Background(), config.StoreConfig{Type: "mystery"})
 	assert.Error(t, err)
 }
+
+func capDevSpec(discovery string, resources []string, actions []core.Action) config.ProviderSpec {
+	return config.ProviderSpec{
+		Name:  "gh-1",
+		Realm: "gh",
+		Type:  config.KindGitHubApp,
+		Capability: config.CapabilityBlock{
+			Discovery:  discovery,
+			Resources:  resources,
+			MaxActions: actions,
+		},
+		Config: &config.GitHubAppConfig{AppID: 1, PrivateKey: "raw:pem"},
+	}
+}
+
+func TestBuildProviderDevStatic(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	p, err := buildProvider(capDevSpec("static", []string{"gh:acme/*"}, []core.Action{"contents:read"}), true)
+	must.NoError(err)
+	caps, err := p.Capabilities(context.Background())
+	must.NoError(err)
+	is.Equal([]string{"gh:acme/*"}, caps.Resources)
+	is.Equal([]core.Action{"contents:read"}, caps.MaxActions)
+}
+
+func TestBuildProviderDevAPINoCeilingServesNothing(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	// api discovery with no declared ceiling: the dev stub has nothing to discover.
+	p, err := buildProvider(capDevSpec("api", nil, nil), true)
+	must.NoError(err)
+	caps, err := p.Capabilities(context.Background())
+	must.NoError(err)
+	is.Empty(caps.Resources, "pure-api realm serves nothing under --dev")
+}
