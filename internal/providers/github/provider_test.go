@@ -115,7 +115,7 @@ func TestReposIn(t *testing.T) {
 	}
 }
 
-func TestUnionPerms(t *testing.T) {
+func TestAddPerms(t *testing.T) {
 	t.Parallel()
 
 	req := func(actions ...core.Action) core.ResourceRequest {
@@ -180,7 +180,11 @@ func TestUnionPerms(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, unionPerms(tt.group))
+			got := map[string]string{}
+			for _, r := range tt.group {
+				addPerms(got, r.Actions)
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -246,35 +250,125 @@ func TestCapabilitiesCaching(t *testing.T) {
 
 func TestPlanGroupsByOwner(t *testing.T) {
 	t.Parallel()
+
+	t.Run("splits by permission set within an owner", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		must := require.New(t)
+
+		p, _ := newTestProvider(t, &discovered{
+			installByOwner: map[string]int64{"acme": 111, "beta": 222},
+			reposByOwner:   map[string][]string{"acme": {"a", "b"}, "beta": {"c"}},
+		})
+
+		plans, err := p.Plan(context.Background(), []core.ResourceRequest{
+			{Resource: "ghes-corp:acme/a", Actions: []core.Action{"contents:read"}},
+			{Resource: "ghes-corp:acme/b", Actions: []core.Action{"contents:write"}},
+			{Resource: "ghes-corp:beta/c", Actions: []core.Action{"metadata:read"}},
+		})
+		must.NoError(err)
+		must.Len(plans, 3, "a(read), b(write), c(read) need three distinct tokens")
+
+		byRepo := map[string]ghMintPlan{}
+		for _, pl := range plans {
+			mp, ok := pl.Internal.(ghMintPlan)
+			must.True(ok)
+			must.Len(mp.repos, 1, "no two repos here share a permission set")
+			byRepo[mp.repos[0]] = mp
+		}
+		is.Equal("read", byRepo["a"].perms["contents"])
+		is.Equal(int64(111), byRepo["a"].installationID)
+		is.Equal("write", byRepo["b"].perms["contents"])
+		is.Equal(int64(111), byRepo["b"].installationID)
+		is.Equal("read", byRepo["c"].perms["metadata"])
+		is.Equal(int64(222), byRepo["c"].installationID)
+	})
+
+	t.Run("batches repos that share a permission set", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		must := require.New(t)
+
+		p, _ := newTestProvider(t, &discovered{
+			installByOwner: map[string]int64{"acme": 111},
+			reposByOwner:   map[string][]string{"acme": {"a", "d"}},
+		})
+
+		plans, err := p.Plan(context.Background(), []core.ResourceRequest{
+			{Resource: "ghes-corp:acme/a", Actions: []core.Action{"contents:read"}},
+			{Resource: "ghes-corp:acme/d", Actions: []core.Action{"contents:read"}},
+		})
+		must.NoError(err)
+		must.Len(plans, 1, "identical permission sets share one token")
+		mp, ok := plans[0].Internal.(ghMintPlan)
+		must.True(ok)
+		is.ElementsMatch([]string{"a", "d"}, mp.repos)
+		is.Equal("read", mp.perms["contents"])
+	})
+
+	t.Run("a repo unions its own multiple requests", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		must := require.New(t)
+
+		p, _ := newTestProvider(t, &discovered{
+			installByOwner: map[string]int64{"acme": 111},
+			reposByOwner:   map[string][]string{"acme": {"a"}},
+		})
+
+		plans, err := p.Plan(context.Background(), []core.ResourceRequest{
+			{Resource: "ghes-corp:acme/a", Actions: []core.Action{"contents:read"}},
+			{Resource: "ghes-corp:acme/a", Actions: []core.Action{"pull_requests:write"}},
+		})
+		must.NoError(err)
+		must.Len(plans, 1)
+		mp := plans[0].Internal.(ghMintPlan)
+		is.Equal("read", mp.perms["contents"])
+		is.Equal("write", mp.perms["pull_requests"])
+	})
+}
+
+// TestPlanLeastPrivilegeAcrossRepos is a regression test for a privilege
+// escalation: requesting contents:read on one repo and contents:write on
+// another (same owner) must not mint a single installation token that grants
+// contents:write to BOTH repos. GitHub installation tokens apply their
+// permission set to every repo in the token, so least privilege requires a
+// separate token per distinct permission set.
+func TestPlanLeastPrivilegeAcrossRepos(t *testing.T) {
+	t.Parallel()
 	is := assert.New(t)
+	must := require.New(t)
 
 	p, _ := newTestProvider(t, &discovered{
-		installByOwner: map[string]int64{"acme": 111, "beta": 222},
-		reposByOwner:   map[string][]string{"acme": {"a", "b"}, "beta": {"c"}},
+		installByOwner: map[string]int64{"talmi-dev-poc": 111},
+		reposByOwner:   map[string][]string{"talmi-dev-poc": {".github", "private-repo"}},
 	})
 
 	plans, err := p.Plan(context.Background(), []core.ResourceRequest{
-		{Resource: "ghes-corp:acme/a", Actions: []core.Action{"contents:read"}},
-		{Resource: "ghes-corp:acme/b", Actions: []core.Action{"contents:write"}},
-		{Resource: "ghes-corp:beta/c", Actions: []core.Action{"metadata:read"}},
+		{Resource: "gh-tools:talmi-dev-poc/.github", Actions: []core.Action{"contents:read"}},
+		{Resource: "gh-tools:talmi-dev-poc/private-repo", Actions: []core.Action{"contents:write"}},
 	})
-	is.NoError(err)
-	is.Len(plans, 2, "must produce one plan per owner")
+	must.NoError(err)
 
-	byInstall := make(map[int64]ghMintPlan)
+	// The read-only repo must never end up in a token that grants contents:write:
+	// a GitHub installation token applies its permission set to every repo it names.
 	for _, pl := range plans {
-		is.Equal("gh-corp", pl.Provider)
-		is.Equal("ghes-corp", pl.Realm)
-
 		mp, ok := pl.Internal.(ghMintPlan)
-		is.True(ok, "Internal must be ghMintPlan")
-		byInstall[mp.installationID] = mp
+		must.True(ok)
+		coversDotGithub := false
+		for _, r := range mp.repos {
+			if r == ".github" {
+				coversDotGithub = true
+			}
+		}
+		if coversDotGithub {
+			is.NotEqual("write", mp.perms["contents"],
+				".github requested only contents:read; the token scoping it must not grant contents:write")
+		}
 	}
 
-	is.ElementsMatch([]string{"a", "b"}, byInstall[111].repos)
-	is.Equal("write", byInstall[111].perms["contents"], "union kept the higher level")
-	is.Equal([]string{"c"}, byInstall[222].repos)
-	is.Equal("read", byInstall[222].perms["metadata"])
+	// Least privilege requires a separate token per distinct permission set.
+	is.Len(plans, 2, "want one token for the read repo and one for the write repo, not a single unioned token")
 }
 
 func TestPlanErrors(t *testing.T) {

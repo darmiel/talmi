@@ -150,31 +150,60 @@ func (p *Provider) Plan(ctx context.Context, requests []core.ResourceRequest) ([
 	if err != nil {
 		return nil, err
 	}
-	byOwner := make(map[string][]core.ResourceRequest)
+
+	type repoPerms struct {
+		perms  map[string]string
+		covers []core.ResourceRequest
+	}
+	byOwnerRepo := make(map[string]map[string]*repoPerms)
 	for _, r := range requests {
-		owner, _, ok := splitOwnerRepo(r.Resource)
+		owner, repo, ok := splitOwnerRepo(r.Resource)
 		if !ok {
 			return nil, fmt.Errorf("malformed github resource %q", r.Resource)
 		}
-		byOwner[owner] = append(byOwner[owner], r)
+		if byOwnerRepo[owner] == nil {
+			byOwnerRepo[owner] = make(map[string]*repoPerms)
+		}
+		rp := byOwnerRepo[owner][repo]
+		if rp == nil {
+			rp = &repoPerms{perms: make(map[string]string)}
+			byOwnerRepo[owner][repo] = rp
+		}
+		rp.covers = append(rp.covers, r)
+		addPerms(rp.perms, r.Actions)
 	}
 
-	plans := make([]core.MintPlan, 0, len(byOwner))
-	for owner, group := range byOwner {
+	var plans []core.MintPlan
+	for owner, repos := range byOwnerRepo {
 		installationID, ok := d.installByOwner[owner]
 		if !ok {
 			return nil, fmt.Errorf("no installation found for owner %q", owner)
 		}
-		plans = append(plans, core.MintPlan{
-			Provider: p.name,
-			Realm:    p.realm,
-			Covers:   group,
-			Internal: ghMintPlan{
-				installationID: installationID,
-				repos:          reposIn(group),
-				perms:          unionPerms(group),
-			},
-		})
+		groups := make(map[string]*ghMintPlan)
+		covers := make(map[string][]core.ResourceRequest)
+		for repo, rp := range repos {
+			key := permSetKey(rp.perms)
+			g := groups[key]
+			if g == nil {
+				g = &ghMintPlan{
+					installationID: installationID,
+					perms:          rp.perms,
+				}
+				groups[key] = g
+			}
+			g.repos = append(g.repos, repo)
+			covers[key] = append(covers[key], rp.covers...)
+		}
+
+		for key, g := range groups {
+			slices.Sort(g.repos)
+			plans = append(plans, core.MintPlan{
+				Provider: p.name,
+				Realm:    p.realm,
+				Covers:   covers[key],
+				Internal: *g,
+			})
+		}
 	}
 
 	return plans, nil
@@ -206,25 +235,36 @@ func reposIn(group []core.ResourceRequest) []string {
 	return out
 }
 
-func unionPerms(group []core.ResourceRequest) map[string]string {
-	best := make(map[string]PermissionLevel)
-	raw := make(map[string]string)
-
-	for _, r := range group {
-		for _, a := range r.Actions {
-			perm, lvlStr, ok := strings.Cut(string(a), ":")
-			if !ok {
-				continue
-			}
-			lvl := parseLevel(lvlStr)
-			if lvl > best[perm] {
-				best[perm] = lvl
-				raw[perm] = lvlStr
-			}
+func addPerms(dst map[string]string, actions []core.Action) {
+	for _, a := range actions {
+		perm, lvlStr, ok := strings.Cut(string(a), ":")
+		if !ok {
+			continue
+		}
+		lvl := parseLevel(lvlStr)
+		if lvl == LevelNone {
+			continue
+		}
+		if cur, exists := dst[perm]; !exists || lvl > parseLevel(cur) {
+			dst[perm] = lvlStr
 		}
 	}
+}
 
-	return raw
+func permSetKey(perms map[string]string) string {
+	keys := make([]string, 0, len(perms))
+	for k := range perms {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	var bob strings.Builder
+	for _, k := range keys {
+		bob.WriteString(k)
+		bob.WriteByte('=')
+		bob.WriteString(perms[k])
+		bob.WriteByte(';')
+	}
+	return bob.String()
 }
 
 func (p *Provider) Mint(
