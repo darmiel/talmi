@@ -92,6 +92,33 @@ func TestAuditQuery(t *testing.T) {
 	})
 }
 
+func TestAuditEntryByID(t *testing.T) {
+	t.Parallel()
+	p := &core.Principal{ID: "alice", Issuer: "gh-human"}
+	aud := &fakeAuditor{entries: []core.Event{{ID: "e1", Action: core.ActionLeaseIssue, Outcome: core.OutcomeSuccess}}}
+
+	t.Run("found", func(t *testing.T) {
+		t.Parallel()
+		srv := adminHandlerServer(t, p, true, aud, nil)
+		rec := req(t, srv, http.MethodGet, "/v2/audit/e1", "session")
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), `"e1"`)
+		assert.Equal(t, "e1", aud.gotFilter.ID)
+	})
+	t.Run("not found -> 404", func(t *testing.T) {
+		t.Parallel()
+		empty := &fakeAuditor{}
+		srv := adminHandlerServer(t, p, true, empty, nil)
+		rec := req(t, srv, http.MethodGet, "/v2/audit/missing", "session")
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+	t.Run("unauthorized -> 403", func(t *testing.T) {
+		t.Parallel()
+		srv := adminHandlerServer(t, p, false, aud, nil)
+		assert.Equal(t, http.StatusForbidden, req(t, srv, http.MethodGet, "/v2/audit/e1", "session").Code)
+	})
+}
+
 func TestParseAuditFilter(t *testing.T) {
 	t.Parallel()
 

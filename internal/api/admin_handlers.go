@@ -94,6 +94,26 @@ func (s *Server) handleAuditQuery(w http.ResponseWriter, r *http.Request) {
 	presenter.JSON(w, r, entries, http.StatusOK)
 }
 
+func (s *Server) handleAuditEntry(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireTalmi(w, r, "talmi:audit", "read"); !ok {
+		return
+	}
+	logger := log.Ctx(r.Context())
+	id := r.PathValue("id")
+
+	events, err := s.admin.Auditor().Query(r.Context(), core.AuditFilter{ID: id, Limit: 1})
+	if err != nil {
+		logger.Error().Err(err).Msg("audit entry lookup failed")
+		presenter.Error(w, r, "audit query failed", http.StatusInternalServerError)
+		return
+	}
+	if len(events) == 0 {
+		presenter.Error(w, r, "audit entry not found", http.StatusNotFound)
+		return
+	}
+	presenter.JSON(w, r, events[0], http.StatusOK)
+}
+
 func parseAuditFilter(q url.Values) core.AuditFilter {
 	return core.AuditFilter{
 		ID:          q.Get("id"),
