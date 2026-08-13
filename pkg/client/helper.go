@@ -68,7 +68,7 @@ func parseErrorResponse(resp *http.Response) error {
 
 func (c *Client) do(req *http.Request, result any) (string, error) {
 	// inject auth token if available
-	if c.authToken != "" {
+	if c.authToken != "" && req.Header.Get("Authorization") == "" {
 		req.Header.Set("Authorization", "Bearer "+c.authToken)
 	}
 
