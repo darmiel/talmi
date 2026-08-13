@@ -165,6 +165,7 @@ func TestAuditList(t *testing.T) {
 	require.NoError(t, run(newAuditListCmd(d)))
 	assert.Contains(t, out.String(), "svc")
 	assert.Contains(t, out.String(), "lease.issue")
+	assert.Contains(t, out.String(), "1 entry")
 }
 
 func TestAuditInspect(t *testing.T) {
@@ -183,6 +184,7 @@ func TestAuditInspect(t *testing.T) {
 	require.NoError(t, run(newAuditInspectCmd(d), "e1"))
 	assert.Contains(t, out.String(), "svc")
 	assert.Contains(t, out.String(), "lease.issue")
+	assert.Contains(t, out.String(), "Trace")
 }
 
 func TestAuditListThreadsFilters(t *testing.T) {

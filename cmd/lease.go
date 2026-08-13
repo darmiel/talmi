@@ -381,26 +381,29 @@ func explainReplay(cmd *cobra.Command, deps Deps, c TalmiClient, replayID string
 func renderDecision(deps Deps, d core.Decision) {
 	p := ui.New(deps.IO.Out, deps.IO.Color)
 	if d.Authorized {
-		p.Successln("authorized")
+		rules := "(none)"
+		if len(d.PolicyNames) > 0 {
+			rules = strings.Join(d.PolicyNames, ", ")
+		}
+		p.Printf("  %s %s %s\n",
+			p.Sprint(ui.StyleSuccess, "\u2713"),
+			p.Sprint(ui.StyleSuccess, "authorized"),
+			p.Sprint(ui.StyleDim, "· rules: "+rules))
 	} else {
-		p.Errorln("denied")
-	}
-	if len(d.PolicyNames) > 0 {
-		p.Printf("  matching rules: %s\n", strings.Join(d.PolicyNames, ", "))
-	} else {
-		p.Println("  matching rules: (none)")
+		p.Printf("  %s %s\n",
+			p.Sprint(ui.StyleError, "\u2717"),
+			p.Sprint(ui.StyleError, "denied"))
 	}
 	for _, rd := range d.PerRequest {
-		mark := "\u2713"
+		mark := p.Sprint(ui.StyleSuccess, "\u2713")
 		if !rd.Covered {
-			mark = "\u2717"
+			mark = p.Sprint(ui.StyleError, "\u2717")
 		}
-		p.Printf("  %s %s=%v", mark, rd.Request.Resource, rd.Request.Actions)
+		line := fmt.Sprintf("    %s %s = %v", mark, rd.Request.Resource, rd.Request.Actions)
 		if !rd.Covered && rd.Reason != "" {
-			p.Printf("  ")
-			p.Faintln("%s", rd.Reason)
+			p.Printf("%s  %s\n", line, p.Sprint(ui.StyleDim, rd.Reason))
 		} else {
-			p.Println()
+			p.Println(line)
 		}
 	}
 }
