@@ -2,6 +2,7 @@ package configvet
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,9 +22,11 @@ func baseline() StaticInput {
 	}
 	sourced := &config.SourcedConfig{
 		Issuers: []config.IssuerBlock{
-			{Name: "ci", Type: "static", Config: map[string]any{
-				"token_map": map[string]any{"tok": map[string]any{"sub": "svc"}},
-			}},
+			{
+				Name: "ci", Type: "static", Config: map[string]any{
+					"token_map": map[string]any{"tok": map[string]any{"sub": "svc"}},
+				},
+			},
 		},
 		Realms: []config.RealmBlock{
 			{
@@ -207,4 +210,41 @@ func TestStaticAcceptsTalmiRealmType(t *testing.T) {
 	r := Static(in)
 	assert.Nil(t, findByCode(r, "CFG-REALM-TYPE"),
 		"talmi is a valid realm type; findings: %+v", r.Findings)
+}
+
+func TestCheckAuditRetentionAndSinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		mutate    func(*config.AuditConfig)
+		wantError bool
+	}{
+		{
+			"valid retention and stdout sink", func(a *config.AuditConfig) {
+				a.Retention = 90 * 24 * time.Hour
+				a.Sinks = []string{"stdout"}
+			}, false,
+		},
+		{"zero retention is keep-forever", func(a *config.AuditConfig) { a.Retention = 0 }, false},
+		{"negative retention", func(a *config.AuditConfig) { a.Retention = -1 }, true},
+		{"unknown sink kind", func(a *config.AuditConfig) { a.Sinks = []string{"bogus"} }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			is := assert.New(t)
+			in := baseline()
+			in.Config.Audit = config.AuditConfig{Enabled: true, Type: "memory"}
+			tt.mutate(&in.Config.Audit)
+
+			r := Static(in)
+			f := findByCode(r, "CFG-AUDIT")
+			if tt.wantError {
+				is.NotNil(f, "expected a CFG-AUDIT finding; got: %+v", r.Findings)
+			} else {
+				is.Nil(f, "expected no CFG-AUDIT finding; got: %+v", r.Findings)
+			}
+		})
+	}
 }

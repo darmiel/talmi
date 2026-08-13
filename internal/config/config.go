@@ -36,9 +36,11 @@ type StoreConfig struct {
 }
 
 type AuditConfig struct {
-	Enabled bool       `yaml:"enabled"`
-	Type    string     `yaml:"type"` // postgres | memory | noop // TODO update to postgres
-	DSN     secret.Ref `yaml:"dsn,omitempty"`
+	Enabled   bool          `yaml:"enabled"`
+	Type      string        `yaml:"type"` // postgres | memory | noop
+	DSN       secret.Ref    `yaml:"dsn,omitempty"`
+	Retention time.Duration `yaml:"retention,omitempty"`
+	Sinks     []string      `yaml:"sinks,omitempty"`
 }
 
 // SourceConfig points at where the sourced tree lives

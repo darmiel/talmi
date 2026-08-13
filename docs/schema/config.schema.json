@@ -13,6 +13,15 @@
         },
         "dsn": {
           "type": "string"
+        },
+        "retention": {
+          "type": "string"
+        },
+        "sinks": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,

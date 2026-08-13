@@ -59,6 +59,16 @@ func checkAudit(in StaticInput, r *Report) {
 		r.errorf("CFG-AUDIT", "audit", "audit.type",
 			"unsupported audit type %q, must be one of postgres, memory or noop", a.Type)
 	}
+	if a.Retention < 0 {
+		r.errorf("CFG-AUDIT", "audit", "audit.retention",
+			"retention must not be negative (use 0 to keep forever)")
+	}
+	for _, s := range a.Sinks {
+		if s != "stdout" {
+			r.errorf("CFG-AUDIT", "audit", "audit.sinks",
+				"unsupported audit sink %q, supported: stdout", s)
+		}
+	}
 }
 
 func checkIssuers(in StaticInput, r *Report) {

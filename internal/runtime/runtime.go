@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/rs/zerolog/log"
 
@@ -41,11 +42,16 @@ type Runtime struct {
 type stable struct {
 	store   core.LeaseStore
 	auditor core.Auditor
+	sinks   []audit.Sink
 	signer  *issuers.SessionSigner
 }
 
 func (s stable) Close() error {
-	return errors.Join(s.store.Close(), s.auditor.Close())
+	errs := []error{s.store.Close(), s.auditor.Close()}
+	for _, sink := range s.sinks {
+		errs = append(errs, sink.Close())
+	}
+	return errors.Join(errs...)
 }
 
 func buildStable(ctx context.Context, cfg *config.Config, dev bool) (*stable, error) {
@@ -62,9 +68,16 @@ func buildStable(ctx context.Context, cfg *config.Config, dev bool) (*stable, er
 		_ = leaseStore.Close()
 		return nil, err
 	}
+	sinks, err := buildSinks(cfg.Audit)
+	if err != nil {
+		_ = leaseStore.Close()
+		_ = auditor.Close()
+		return nil, err
+	}
 	return &stable{
 		store:   leaseStore,
 		auditor: auditor,
+		sinks:   sinks,
 		signer:  signer,
 	}, nil
 }
@@ -125,7 +138,7 @@ func buildReloadable(
 	}
 	policy := engine.NewManager(validRules, realms)
 	res := resolver.New(providers, realms)
-	rec := audit.NewRecorder(stable.auditor)
+	rec := audit.NewRecorder(stable.auditor, stable.sinks...)
 	svc := service.NewTokenService(issReg, policy, res, stable.store, rec, revision)
 	return &Runtime{
 		Service:    svc,
@@ -269,4 +282,18 @@ func buildAuditor(ctx context.Context, cfg config.AuditConfig) (core.Auditor, er
 	default:
 		return nil, fmt.Errorf("unknown audit type %q", cfg.Type)
 	}
+}
+
+func buildSinks(cfg config.AuditConfig) ([]audit.Sink, error) {
+	var sinks []audit.Sink
+	for _, kind := range cfg.Sinks {
+		switch kind {
+		case "stdout":
+			sinks = append(sinks, audit.NewStdoutSink(os.Stdout))
+			log.Info().Str("sink", "stdout").Msg("runtime: audit sink enabled")
+		default:
+			return nil, fmt.Errorf("unknown audit sink type %q", kind)
+		}
+	}
+	return sinks, nil
 }
