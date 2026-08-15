@@ -270,21 +270,22 @@ with no condition match every principal from its issuer.
 
 ### Lease and revocation
 
-`lease issue` returns a *lease*: the minted tokens, their expiry, and a revocation secret. Save
-it with `--out`, which writes `lease.json`:
+`lease issue` returns a *lease*: the minted tokens, their expiry, and a revocation secret. Without
+`--out` it prints everything, including the token values and revocation secret, to the terminal.
+You can pass `--out` to write the full lease as JSON to a file instead:
 
 ```bash
 talmi lease issue \
   --resource "ghes-corp:acme/svc-a=contents:write" \
   --token "$OIDC" \
-  --out ./.talmi/out
+  --out ./.talmi/lease.json
 ```
 
 Revoke before expiry, either from the saved lease or by hand (`revoke` prompts for confirmation;
 pass `--yes` to skip it):
 
 ```bash
-talmi lease revoke --from-lease ./.talmi/out/lease.json
+talmi lease revoke --from-lease ./.talmi/lease.json
 talmi lease revoke --secret "$SECRET" --token "<artifact-id>=<token-value>"
 ```
 

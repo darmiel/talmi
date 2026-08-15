@@ -14,7 +14,8 @@ type kvMulti struct {
 	values []string
 }
 
-func kvBlockMulti(p *ui.Printer, indent string, pairs []kvMulti) {
+func kvBlockMulti(p *ui.Printer, pairs []kvMulti) {
+	const indent = "  "
 	width := 0
 	for _, kv := range pairs {
 		if l := len(kv.label); l > width {
@@ -50,11 +51,11 @@ func renderProviderList(deps Deps, infos []client.ProviderInfo) {
 			p.Sprint(ui.StyleDim, meta))
 
 		if in.Error != "" {
-			kvBlockMulti(p, "  ", []kvMulti{
+			kvBlockMulti(p, []kvMulti{
 				{label: "error", values: []string{p.Sprint(ui.StyleError, in.Error)}},
 			})
 		} else {
-			kvBlockMulti(p, "  ", []kvMulti{
+			kvBlockMulti(p, []kvMulti{
 				{label: "resources", values: in.Resources},
 				{label: "max actions", values: in.MaxActions},
 			})
@@ -102,7 +103,7 @@ func renderProviderResolve(deps Deps, results []resolver.RequestResolution, verb
 			}
 			pairs = append(pairs, kvMulti{label: "candidates", values: lines})
 		}
-		kvBlockMulti(p, "  ", pairs)
+		kvBlockMulti(p, pairs)
 		p.Println()
 	}
 }

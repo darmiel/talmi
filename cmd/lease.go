@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/goccy/go-yaml"
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
 	"github.com/darmiel/talmi/internal/cli"
@@ -47,14 +45,14 @@ func newLeaseIssueCmd(deps Deps) *cobra.Command {
 OIDC token is taken from --token, the first argument, or $TALMI_TOKEN.
 Resources come from repeated --resource flags and/or a --manifest file.`,
 		Example: `  talmi lease issue --resource "ghes-corp:acme/svc-a=contents:write" --token "$OIDC"
-  talmi lease issue --manifest .talmi/access.yaml --out ./.talmi/out`,
+  talmi lease issue --manifest .talmi/access.yaml --out ./.talmi/lease.json`,
 		Args: cobra.MaximumNArgs(1),
 	}
 	jsonOut := addJSONFlag(cmd)
 	cmd.Flags().StringVar(&token, "token", "", "Upstream OIDC token (or use $TALMI_TOKEN / arg)")
 	cmd.Flags().StringVar(&issuer, "issuer", "", "Explicit issuer name (skips auto-discovery)")
 	cmd.Flags().StringVarP(&manifest, "manifest", "R", "", "Path to a resources manifest (yaml)")
-	cmd.Flags().StringVar(&out, "out", "", "Write the full lease (incl. tokens) to <dir>/lease.json")
+	cmd.Flags().StringVar(&out, "out", "", "Write the full lease (incl. tokens) as JSON to this file")
 	cmd.Flags().StringArrayVar(&resources, "resource", nil, "Resource request realm:body=action[,action] (repeatable)")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
@@ -95,12 +93,12 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 			if err := writeLease(out, resp); err != nil {
 				return err
 			}
-			ui.New(deps.IO.ErrOut, deps.IO.Color).Successln("wrote lease to %s", filepath.Join(out, "lease.json"))
+			ui.New(deps.IO.ErrOut, deps.IO.Color).Successln("wrote lease to %s", out)
 		}
 		if *jsonOut {
 			return emitJSON(deps, resp)
 		}
-		renderLease(deps, resp)
+		renderLease(deps, resp, out == "")
 		return nil
 	}
 	return cmd
@@ -324,23 +322,81 @@ func writeLease(fileName string, resp *client.IssueResponse) error {
 	return os.WriteFile(fileName, data, 0o600)
 }
 
-func renderLease(deps Deps, resp *client.IssueResponse) {
-	ui.New(deps.IO.ErrOut, deps.IO.Color).Successln("lease %s issued (%d artifact(s))", resp.LeaseID, len(resp.Artifacts))
+// renderLease prints the issued lease as a header plus one card per artifact.
+// When showSecrets is true (no --out), the revocation secret and token values are
+// printed, since otherwise they are lost and the lease can neither be used nor revoked.
+func renderLease(deps Deps, resp *client.IssueResponse, showSecrets bool) {
+	p := ui.New(deps.IO.Out, deps.IO.Color)
+	now := time.Now()
 
-	tw := ui.NewTable(deps.IO.Out)
-	tw.AppendHeader(table.Row{"Artifact", "Provider", "Realm", "Covers", "Expires", "RevToken?"})
-	for _, a := range resp.Artifacts {
-		revTok := "no"
-		if a.RequiresTokenForRevocation {
-			revTok = "yes"
-		}
-		tw.AppendRow(table.Row{
-			a.ArtifactID, a.Provider, a.Realm, strings.Join(a.Covers, ","),
-			a.ExpiresAt.Local().Format(time.RFC3339), revTok,
-		})
+	n := len(resp.Artifacts)
+	revocable := resp.RevocationSecret != ""
+	status := "not revocable"
+	if revocable {
+		status = "revocable"
 	}
-	tw.Render()
-	ui.New(deps.IO.ErrOut, deps.IO.Color).Faintln("token values omitted - use --json or --out to capture them")
+	p.Printf("%s  %s  %s\n",
+		p.Sprint(ui.StyleSuccess, "\u2713"),
+		p.Sprint(ui.StyleBold, "lease "+resp.LeaseID),
+		p.Sprint(ui.StyleDim, fmt.Sprintf("%d artifact%s \u00b7 %s", n, plural(n), status)))
+	if showSecrets && revocable {
+		kvBlockMulti(p, []kvMulti{{label: "revocation secret", values: []string{resp.RevocationSecret}}})
+	}
+	p.Println()
+
+	for _, a := range resp.Artifacts {
+		p.Printf("%s  %s\n", p.Sprint(ui.StyleDim, "\u2022"), p.Sprint(ui.StyleBold, a.ArtifactID))
+
+		pairs := []kvMulti{
+			{label: "provider", values: []string{a.Provider}},
+			{label: "realm", values: []string{a.Realm}},
+			{label: "covers", values: a.Covers},
+			{label: "expires", values: []string{fmtExpiry(p, now, a.ExpiresAt)}},
+		}
+		if a.RequiresTokenForRevocation {
+			pairs = append(pairs, kvMulti{label: "revoke needs token", values: []string{"yes"}})
+		}
+		if a.Fingerprint != "" {
+			pairs = append(pairs, kvMulti{label: "fingerprint", values: []string{p.Sprint(ui.StyleDim, a.Fingerprint)}})
+		}
+		if showSecrets {
+			pairs = append(pairs, kvMulti{label: "token", values: []string{a.Token}})
+		}
+		kvBlockMulti(p, pairs)
+		p.Println()
+	}
+
+	if !showSecrets {
+		note := "token values written to the lease file"
+		if revocable {
+			note = "token values and revocation secret written to the lease file"
+		}
+		p.Faintln("%s", note)
+	}
+}
+
+// fmtExpiry renders an absolute local time plus a relative "in Xm" (or "expired").
+func fmtExpiry(p *ui.Printer, now, t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	abs := t.Local().Format(time.RFC3339)
+	d := t.Sub(now)
+	if d <= 0 {
+		return abs + p.Sprint(ui.StyleDim, " (expired)")
+	}
+	return abs + p.Sprint(ui.StyleDim, " (in "+humanDuration(d)+")")
+}
+
+func humanDuration(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours())/24)
+	}
 }
 
 func explainReplay(cmd *cobra.Command, deps Deps, c TalmiClient, replayID string, jsonOut bool) error {
