@@ -67,5 +67,10 @@ func (s *Spinner) Stop(final string) {
 	s.stopped = true
 	close(s.done)
 	s.wg.Wait()
-	_, _ = fmt.Fprintf(s.w, "\r%s\n", final)
+
+	if final == "" {
+		_, _ = fmt.Fprint(s.w, "\r\x1b[K")
+		return
+	}
+	_, _ = fmt.Fprintf(s.w, "\r\x1b[K%s\n", final)
 }

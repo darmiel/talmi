@@ -80,7 +80,7 @@ Resources come from repeated --resource flags and/or a --manifest file.`,
 			Issuer:    issuer,
 			Resources: reqs,
 		})
-		sp.Stop("" + strings.Repeat(" ", 30)) // TODO: make spinner support clearing line
+		sp.Stop("")
 		if err != nil {
 			e := clientError(err, correlation)
 			if ee, ok := errors.AsType[*cli.ExitError](e); ok && ee.Code == cli.CodeDenied {
