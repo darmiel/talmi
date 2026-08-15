@@ -120,6 +120,9 @@
                   },
                   "base_url": {
                     "type": "string"
+                  },
+                  "timeout": {
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false,
@@ -214,6 +217,9 @@
                     "type": "string"
                   },
                   "server": {
+                    "type": "string"
+                  },
+                  "timeout": {
                     "type": "string"
                   }
                 },
