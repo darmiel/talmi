@@ -347,10 +347,19 @@ func renderLease(deps Deps, resp *client.IssueResponse, showSecrets bool) {
 	for _, a := range resp.Artifacts {
 		p.Printf("%s  %s\n", p.Sprint(ui.StyleDim, "\u2022"), p.Sprint(ui.StyleBold, a.ArtifactID))
 
+		covers := make([]string, len(a.Covers))
+		for i, cr := range a.Covers {
+			acts := make([]string, len(cr.Actions))
+			for j, act := range cr.Actions {
+				acts[j] = string(act)
+			}
+			covers[i] = string(cr.Resource) + " = " + strings.Join(acts, ",")
+		}
+
 		pairs := []kvMulti{
 			{label: "provider", values: []string{a.Provider}},
 			{label: "realm", values: []string{a.Realm}},
-			{label: "covers", values: a.Covers},
+			{label: "covers", values: covers},
 			{label: "expires", values: []string{fmtExpiry(p, now, a.ExpiresAt)}},
 		}
 		if a.RequiresTokenForRevocation {

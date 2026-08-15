@@ -29,15 +29,15 @@ type issueResponseBody struct {
 }
 
 type issuedArtifactBody struct {
-	ArtifactID                 string         `json:"artifact_id"`
-	Provider                   string         `json:"provider"`
-	Realm                      string         `json:"realm"`
-	Covers                     []string       `json:"covers"`
-	Token                      string         `json:"token"`
-	Fingerprint                string         `json:"fingerprint,omitempty"`
-	ExpiresAt                  time.Time      `json:"expires_at"`
-	RequiresTokenForRevocation bool           `json:"requires_token_for_revocation"`
-	Metadata                   map[string]any `json:"metadata,omitempty"`
+	ArtifactID                 string                 `json:"artifact_id"`
+	Provider                   string                 `json:"provider"`
+	Realm                      string                 `json:"realm"`
+	Covers                     []core.ResourceRequest `json:"covers"`
+	Token                      string                 `json:"token"`
+	Fingerprint                string                 `json:"fingerprint,omitempty"`
+	ExpiresAt                  time.Time              `json:"expires_at"`
+	RequiresTokenForRevocation bool                   `json:"requires_token_for_revocation"`
+	Metadata                   map[string]any         `json:"metadata,omitempty"`
 }
 
 type revokeRequestBody struct {
@@ -200,15 +200,11 @@ func toIssueResponseBody(resp *service.IssueResponse) issueResponseBody {
 		Artifacts:        make([]issuedArtifactBody, len(resp.Artifacts)),
 	}
 	for i, a := range resp.Artifacts {
-		covers := make([]string, len(a.Covers))
-		for j, c := range a.Covers {
-			covers[j] = string(c.Resource)
-		}
 		body.Artifacts[i] = issuedArtifactBody{
 			ArtifactID:                 a.ArtifactID,
 			Provider:                   a.Provider,
 			Realm:                      a.Realm,
-			Covers:                     covers,
+			Covers:                     a.Covers,
 			Token:                      a.Token,
 			Fingerprint:                a.Fingerprint,
 			ExpiresAt:                  a.ExpiresAt,

@@ -74,8 +74,13 @@ func TestHandleIssue(t *testing.T) {
 				Artifacts: []service.IssuedArtifact{
 					{
 						ArtifactID: "a1", Provider: "gh", Realm: "ghes-corp",
-						Covers: []core.ResourceRequest{{Resource: "ghes-corp:acme/x"}},
-						Token:  "tok-value", Fingerprint: "fp",
+						Covers: []core.ResourceRequest{
+							{
+								Resource: "ghes-corp:acme/x",
+								Actions:  []core.Action{"contents:write"},
+							},
+						},
+						Token: "tok-value", Fingerprint: "fp",
 						RequiresTokenForRevocation: true,
 					},
 				},
@@ -99,7 +104,9 @@ func TestHandleIssue(t *testing.T) {
 		is.Equal("sec", body.RevocationSecret)
 		require.Len(t, body.Artifacts, 1)
 		is.Equal("tok-value", body.Artifacts[0].Token)
-		is.Equal([]string{"ghes-corp:acme/x"}, body.Artifacts[0].Covers)
+		require.Len(t, body.Artifacts[0].Covers, 1)
+		is.Equal(core.Resource("ghes-corp:acme/x"), body.Artifacts[0].Covers[0].Resource)
+		is.Equal([]core.Action{"contents:write"}, body.Artifacts[0].Covers[0].Actions)
 		is.Equal("a1", body.Artifacts[0].ArtifactID)
 		is.True(body.Artifacts[0].RequiresTokenForRevocation)
 	})

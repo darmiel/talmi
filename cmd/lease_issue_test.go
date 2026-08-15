@@ -4,13 +4,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/pkg/client"
 )
 
@@ -20,10 +20,16 @@ func sampleLease() *client.IssueResponse {
 		RevocationSecret: "sekret-value",
 		Artifacts: []client.IssuedArtifact{
 			{
-				ArtifactID:                 "art-1",
-				Provider:                   "gh-writer",
-				Realm:                      "ghes-corp",
-				Covers:                     []string{"ghes-corp:acme/svc-a", "ghes-corp:acme/svc-b"},
+				ArtifactID: "art-1",
+				Provider:   "gh-writer",
+				Realm:      "ghes-corp",
+				Covers: []core.ResourceRequest{
+					{
+						Resource: "ghes-corp:acme/svc-a",
+						Actions:  []core.Action{"contents:write"},
+					},
+					{Resource: "ghes-corp:acme/svc-b", Actions: []core.Action{"contents:read"}},
+				},
 				Token:                      "ghs_tokenvalue",
 				Fingerprint:                "fp-abc",
 				ExpiresAt:                  time.Now().Add(59 * time.Minute),
@@ -52,10 +58,9 @@ func TestLeaseIssueWithoutOutShowsSecrets(t *testing.T) {
 	is.Contains(body, "lease lease-1")
 	is.Contains(body, "ghs_tokenvalue", "the token must be printed when there is no --out")
 	is.Contains(body, "sekret-value", "the revocation secret must be printed when there is no --out")
-	// covers render one per line
-	lines := strings.Split(body, "\n")
-	is.True(hasLineWithSuffix(lines, "ghes-corp:acme/svc-a"))
-	is.True(hasLineWithSuffix(lines, "ghes-corp:acme/svc-b"))
+	// covers render one per line, now including the actions
+	is.Contains(body, "ghes-corp:acme/svc-a = contents:write")
+	is.Contains(body, "ghes-corp:acme/svc-b = contents:read")
 }
 
 func TestLeaseIssueWithOutHidesSecretsAndWritesFile(t *testing.T) {
