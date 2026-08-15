@@ -92,7 +92,7 @@ with no ordering** (e.g. `login`, `read`, `trigger`; `read` does *not* imply
 ```
 
 Well-known admin resources: `talmi:session` (`login`), `talmi:audit` (`read`),
-`talmi:tasks` + `talmi:tasks/*` (`read`, `trigger`).
+`talmi:providers` (`read`), `talmi:tasks` + `talmi:tasks/*` (`read`, `trigger`).
 
 ## Instances & secrets
 

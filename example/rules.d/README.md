@@ -96,6 +96,7 @@ Semantics are realm-specific:
 ```yaml
 allow:
   - { resources: [ "ghes-corp:acme/svc-*" ], actions: [ "contents:write" ] }
+  - { resources: [ "talmi:providers" ], actions: [ "read" ] }
   - { resources: [ "talmi:tasks", "talmi:tasks/*" ], actions: [ "read", "trigger" ] }
 ```
 

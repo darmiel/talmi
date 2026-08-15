@@ -172,7 +172,8 @@ picks the backend:
 - `artifactory`: mints JFrog Artifactory access tokens. Instance config: `admin_token`,
   `groups`, optional `base_url`.
 - `talmi`: the session realm. It has no provider backend and mints nothing. It exists so admin
-  resources (`talmi:session`, `talmi:audit`, `talmi:tasks`) have semantics that rules can grant.
+  resources (`talmi:session`, `talmi:audit`, `talmi:providers`, `talmi:tasks`) have semantics that
+  rules can grant.
 
 A realm can hold several `instances` (individual Apps/servers). `capability` sets what the
 realm may hand out (`resources` globs, `max_actions` ceiling); an instance can override it.
@@ -415,6 +416,20 @@ inside an admin login, a `session_id`. Those three ids let you trace one event, 
 whole login session. See [docs/audit-events.md](docs/audit-events.md) for the full event catalog
 (actions, outcomes, metadata), and [docs/audit-integrity.md](docs/audit-integrity.md) for the
 append-only model, database permissions, retention, and export.
+
+## Inspecting providers
+
+To see what the running server's providers can serve, and how a request would resolve before
+anything is minted (needs a session with `talmi:providers=read`):
+
+```bash
+talmi provider list                                       # instances + live effective capability
+talmi provider resolve "ghes-corp:acme/x=contents:read"   # which provider would serve it
+talmi provider resolve --verbose "ghes-corp:acme/x=contents:write"  # per-candidate breakdown
+```
+
+`talmi lease explain` also prints a **Would mint** section: the least-privilege token split for the
+authorized requests, or the reason nothing can serve them. None of these mint a token.
 
 ### Tracing a token back to a decision
 
