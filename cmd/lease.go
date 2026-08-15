@@ -227,6 +227,7 @@ func newLeaseExplainCmd(deps Deps) *cobra.Command {
 		p.Printf("principal: %s ", resp.Principal.ID)
 		p.Faintln("(issuer %s)", resp.Principal.Issuer)
 		renderDecision(deps, resp.Decision)
+		renderWouldMint(deps, resp)
 		return nil
 	}
 	return cmd
@@ -402,5 +403,38 @@ func renderDecision(deps Deps, d core.Decision) {
 		} else {
 			p.Println(line)
 		}
+	}
+}
+
+func renderWouldMint(deps Deps, resp *client.ExplainResponse) {
+	if !resp.Decision.Authorized {
+		return
+	}
+	p := ui.New(deps.IO.Out, deps.IO.Color)
+	p.Println()
+	p.Headingln("Would mint")
+	if resp.PlanError != "" {
+		p.Printf("  %s %s\n",
+			p.Sprint(ui.StyleWarn, "\u26a0"),
+			p.Sprint(ui.StyleWarn, resp.PlanError))
+		return
+	}
+	if len(resp.Plan) == 0 {
+		p.Faintln("  (nothing to mint)")
+		return
+	}
+	for _, mp := range resp.Plan {
+		covers := make([]string, 0, len(mp.Covers))
+		for _, cr := range mp.Covers {
+			acts := make([]string, len(cr.Actions))
+			for i, a := range cr.Actions {
+				acts[i] = string(a)
+			}
+			covers = append(covers, string(cr.Resource)+"="+strings.Join(acts, ","))
+		}
+		p.Printf("  %s %s  %s\n",
+			p.Sprint(ui.StyleDim, "\u2022"),
+			p.Sprint(ui.StyleBold, mp.Provider),
+			p.Sprint(ui.StyleDim, strings.Join(covers, "  ")))
 	}
 }

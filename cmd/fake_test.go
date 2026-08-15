@@ -7,6 +7,7 @@ import (
 	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/cli"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/tasks"
 	"github.com/darmiel/talmi/pkg/client"
 )
@@ -15,15 +16,17 @@ import (
 // the methods it exercises; calling an unset one panics (which flags a test bug).
 type fakeClient struct {
 	TalmiClient
-	issueFn   func(context.Context, string, client.IssueRequestBody) (*client.IssueResponse, string, error)
-	revokeFn  func(context.Context, string, map[string]string) (*client.RevokeResponse, string, error)
-	explainFn func(context.Context, string, client.IssueRequestBody) (*client.ExplainResponse, string, error)
-	queryFn   func(context.Context, client.AuditFilter) ([]core.Event, string, error)
-	inspectFn func(context.Context, string) (*core.Event, string, error)
-	listFn    func(context.Context) ([]tasks.TaskStatus, string, error)
-	triggerFn func(context.Context, string) (string, error)
-	logsFn    func(context.Context, string) ([]tasks.LogEntry, string, error)
-	infoFn    func(context.Context) (*buildinfo.Info, string, error)
+	issueFn     func(context.Context, string, client.IssueRequestBody) (*client.IssueResponse, string, error)
+	revokeFn    func(context.Context, string, map[string]string) (*client.RevokeResponse, string, error)
+	explainFn   func(context.Context, string, client.IssueRequestBody) (*client.ExplainResponse, string, error)
+	queryFn     func(context.Context, client.AuditFilter) ([]core.Event, string, error)
+	inspectFn   func(context.Context, string) (*core.Event, string, error)
+	listFn      func(context.Context) ([]tasks.TaskStatus, string, error)
+	triggerFn   func(context.Context, string) (string, error)
+	logsFn      func(context.Context, string) ([]tasks.LogEntry, string, error)
+	infoFn      func(context.Context) (*buildinfo.Info, string, error)
+	providersFn func(context.Context) ([]client.ProviderInfo, string, error)
+	resolveFn   func(context.Context, []client.ResourceRequest) ([]resolver.RequestResolution, string, error)
 }
 
 func (f *fakeClient) IssueLease(ctx context.Context, token string, body client.IssueRequestBody) (
@@ -72,6 +75,18 @@ func (f *fakeClient) TaskLogs(ctx context.Context, name string) ([]tasks.LogEntr
 
 func (f *fakeClient) Info(ctx context.Context) (*buildinfo.Info, string, error) {
 	return f.infoFn(ctx)
+}
+
+func (f *fakeClient) Providers(ctx context.Context) ([]client.ProviderInfo, string, error) {
+	return f.providersFn(ctx)
+}
+
+func (f *fakeClient) Resolve(ctx context.Context, reqs []client.ResourceRequest) (
+	[]resolver.RequestResolution,
+	string,
+	error,
+) {
+	return f.resolveFn(ctx, reqs)
 }
 
 // testDeps wires Deps to fake, non-TTY IO streams and returns the stdout and

@@ -19,6 +19,7 @@ import (
 	"github.com/darmiel/talmi/internal/config"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/logging"
+	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/runtime"
 	"github.com/darmiel/talmi/internal/secret"
 	"github.com/darmiel/talmi/internal/source"
@@ -226,6 +227,22 @@ func buildServerOptions(cfg *config.Config, mgr *runtime.Manager, taskMgr *tasks
 				Server:   cfg.Auth.Server,
 				ClientID: cfg.Auth.ClientID,
 				Scopes:   cfg.Auth.Scopes,
+			},
+			Providers: func() []api.ProviderInstance {
+				rt := mgr.Current()
+				insts := make([]api.ProviderInstance, len(rt.Providers))
+				for i, prov := range rt.Providers {
+					d := rt.ProviderDescriptors[i]
+					insts[i] = api.ProviderInstance{
+						Provider: prov,
+						Type:     d.Type,
+						Mode:     d.Mode,
+					}
+				}
+				return insts
+			},
+			Preview: func(ctx context.Context, requests []core.ResourceRequest) ([]resolver.RequestResolution, error) {
+				return mgr.Current().Service.Preview(ctx, requests)
 			},
 		}))
 	}
