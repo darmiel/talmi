@@ -14,6 +14,7 @@ type RunnableTask struct {
 	Name     string
 	Interval time.Duration
 	Handler  TaskFunc
+	Timeout  time.Duration
 
 	registeredAt time.Time
 
@@ -47,7 +48,11 @@ func (t *RunnableTask) Run(parent context.Context) {
 	taskLogger := NewCompositeLogger(t, l)
 	taskLogger.Info("starting task execution")
 
-	ctx, cancel := context.WithTimeout(parent, 5*time.Minute) // TODO: make this configurable?
+	timeout := t.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTaskTimeout
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	defer func() {

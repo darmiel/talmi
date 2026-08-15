@@ -50,3 +50,36 @@ func TestSchedulerStopsOnCancel(t *testing.T) {
 	time.Sleep(30 * time.Millisecond)
 	assert.Equal(t, after, runs.Load(), "no further runs after cancel + wait")
 }
+
+func TestRegisterWithTimeoutFiresDeadline(t *testing.T) {
+	t.Parallel()
+	m := NewManager(context.Background())
+
+	done := make(chan error, 1)
+	m.Register("slow", 0, func(ctx context.Context, _ logging.InternalLogger) error {
+		<-ctx.Done()
+		done <- ctx.Err()
+		return ctx.Err()
+	}, WithTimeout(20*time.Millisecond))
+
+	require.NoError(t, m.Trigger("slow"))
+	select {
+	case err := <-done:
+		assert.ErrorIs(t, err, context.DeadlineExceeded, "the handler ctx must hit its per-task deadline")
+	case <-time.After(2 * time.Second):
+		t.Fatal("task did not observe its deadline")
+	}
+	m.Wait()
+}
+
+func TestRegisterDefaultTimeout(t *testing.T) {
+	t.Parallel()
+	m := NewManager(context.Background())
+	m.Register("t", 0, func(context.Context, logging.InternalLogger) error { return nil })
+
+	v, ok := m.tasks.Load("t")
+	require.True(t, ok)
+	rt, ok := v.(*RunnableTask)
+	require.True(t, ok)
+	assert.Equal(t, DefaultTaskTimeout, rt.Timeout, "unset per-task timeout falls back to the manager default")
+}

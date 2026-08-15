@@ -6,27 +6,46 @@ import (
 	"time"
 )
 
-const MaxLogsPerTask = 1000
+const (
+	MaxLogsPerTask     = 1000
+	DefaultTaskTimeout = 5 * time.Minute
+)
 
 type Manager struct {
-	ctx   context.Context
-	tasks sync.Map
-	wg    sync.WaitGroup
+	ctx            context.Context
+	defaultTimeout time.Duration
+	tasks          sync.Map
+	wg             sync.WaitGroup
 }
 
 func NewManager(ctx context.Context) *Manager {
 	return &Manager{
-		ctx: ctx,
+		ctx:            ctx,
+		defaultTimeout: DefaultTaskTimeout,
 	}
 }
 
-func (m *Manager) Register(name string, interval time.Duration, fn TaskFunc) {
+type RegisterOption func(*RunnableTask)
+
+func WithTimeout(timeout time.Duration) RegisterOption {
+	return func(task *RunnableTask) {
+		if timeout > 0 {
+			task.Timeout = timeout
+		}
+	}
+}
+
+func (m *Manager) Register(name string, interval time.Duration, fn TaskFunc, opts ...RegisterOption) {
 	task := &RunnableTask{
 		Name:         name,
 		Interval:     interval,
 		Handler:      fn,
 		Logs:         make([]LogEntry, 0),
 		registeredAt: time.Now(),
+		Timeout:      m.defaultTimeout,
+	}
+	for _, opt := range opts {
+		opt(task)
 	}
 	m.tasks.Store(name, task)
 
