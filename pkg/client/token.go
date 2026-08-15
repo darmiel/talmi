@@ -50,6 +50,8 @@ type ExplainPrincipal struct {
 type ExplainResponse struct {
 	Principal ExplainPrincipal `json:"principal"`
 	Decision  core.Decision    `json:"decision"`
+	Plan      []core.MintPlan  `json:"plan,omitempty"`
+	PlanError string           `json:"plan_error,omitempty"`
 }
 
 func (c *Client) IssueLease(ctx context.Context, token string, body IssueRequestBody) (*IssueResponse, string, error) {
