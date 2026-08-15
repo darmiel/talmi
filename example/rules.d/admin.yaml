@@ -16,8 +16,9 @@
     condition:
       teams: { contains: "my-org/talmi-admins" }
   allow:
-    - { resources: [ "talmi:session" ], actions: [ "login" ] }
-    - { resources: [ "talmi:audit" ],   actions: [ "read" ] }
+    - { resources: [ "talmi:session" ],   actions: [ "login" ] }
+    - { resources: [ "talmi:audit" ],     actions: [ "read" ] }
+    - { resources: [ "talmi:providers" ], actions: [ "read" ] }
     - { resources: [ "talmi:tasks", "talmi:tasks/*" ], actions: [ "read", "trigger" ] }
 
 # A narrower "auditor" role: members of my-org/security may read the audit log
