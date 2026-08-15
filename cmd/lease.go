@@ -315,15 +315,12 @@ func gatherRevoke(fromLease, secret string, tokenFlags []string) (string, map[st
 	return secret, tokens, nil
 }
 
-func writeLease(dir string, resp *client.IssueResponse) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("creating out dir: %w", err)
-	}
+func writeLease(fileName string, resp *client.IssueResponse) error {
 	data, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "lease.json"), data, 0o600)
+	return os.WriteFile(fileName, data, 0o600)
 }
 
 func renderLease(deps Deps, resp *client.IssueResponse) {
