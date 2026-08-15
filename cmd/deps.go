@@ -6,6 +6,7 @@ import (
 	"github.com/darmiel/talmi/internal/buildinfo"
 	"github.com/darmiel/talmi/internal/cli"
 	"github.com/darmiel/talmi/internal/core"
+	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/tasks"
 	"github.com/darmiel/talmi/pkg/client"
 )
@@ -36,6 +37,11 @@ type infoAPI interface {
 	Info(ctx context.Context) (*buildinfo.Info, string, error)
 }
 
+type providerAPI interface {
+	Providers(ctx context.Context) ([]client.ProviderInfo, string, error)
+	Resolve(ctx context.Context, requests []client.ResourceRequest) ([]resolver.RequestResolution, string, error)
+}
+
 var _ TalmiClient = (*client.Client)(nil)
 
 type TalmiClient interface {
@@ -44,6 +50,7 @@ type TalmiClient interface {
 	taskAPI
 	sessionAPI
 	infoAPI
+	providerAPI
 }
 
 // Deps carries dependencies for commands.

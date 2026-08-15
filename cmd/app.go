@@ -31,6 +31,7 @@ func registerCommands(root *cobra.Command, deps Deps) {
 		newTasksCmd(deps),
 		newLeaseCmd(deps),
 		newConfigCmd(deps),
+		newProviderCmd(deps),
 	)
 }
 
