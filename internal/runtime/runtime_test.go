@@ -43,11 +43,23 @@ func TestBuildProviders(t *testing.T) {
 				Config: &config.ArtifactoryConfig{AdminToken: "raw:tok", Groups: []string{"g"}, BaseURL: "https://art"},
 			},
 		}
-		ps, err := buildProviders(specs, false)
+		ps, descs, err := buildProviders(specs, false)
 		require.NoError(t, err)
 		require.Len(t, ps, 2)
 		assert.Equal(t, "gh", ps[0].Name())
 		assert.Equal(t, "art", ps[1].Name())
+
+		require.Len(t, descs, 2, "descriptors are index-aligned with providers")
+		assert.Equal(t, ProviderDescriptor{
+			Name:  "gh",
+			Realm: "ghes-corp",
+			Type:  "github-app",
+			Mode:  descs[0].Mode,
+		}, descs[0])
+		assert.Equal(t, "art", descs[1].Name)
+		assert.Equal(t, "artifactory", descs[1].Type)
+		assert.NotEmpty(t, descs[0].Mode)
+		assert.NotEmpty(t, descs[1].Mode)
 	})
 
 	t.Run("dev mode yields stubs", func(t *testing.T) {
@@ -61,23 +73,27 @@ func TestBuildProviders(t *testing.T) {
 				},
 			},
 		}
-		ps, err := buildProviders(specs, true)
+		ps, descs, err := buildProviders(specs, true)
 		require.NoError(t, err)
 		require.Len(t, ps, 1)
 		caps, err := ps[0].Capabilities(context.Background())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"ghes-corp:acme/*"}, caps.Resources)
+
+		require.Len(t, descs, 1)
+		assert.Equal(t, "gh", descs[0].Name)
+		assert.Equal(t, "github-app", descs[0].Type)
 	})
 
 	t.Run("unknown type", func(t *testing.T) {
 		t.Parallel()
-		_, err := buildProviders([]config.ProviderSpec{{Name: "x", Type: "weird"}}, false)
+		_, _, err := buildProviders([]config.ProviderSpec{{Name: "x", Type: "weird"}}, false)
 		assert.Error(t, err)
 	})
 
 	t.Run("bad secret ref", func(t *testing.T) {
 		t.Parallel()
-		_, err := buildProviders([]config.ProviderSpec{
+		_, _, err := buildProviders([]config.ProviderSpec{
 			{
 				Name: "gh", Realm: "ghes-corp", Type: "github-app",
 				Config: &config.GitHubAppConfig{AppID: 1, PrivateKey: "no-scheme"},
@@ -116,12 +132,15 @@ func TestBuildProviderDevStatic(t *testing.T) {
 	is := assert.New(t)
 	must := require.New(t)
 
-	p, err := buildProvider(capDevSpec("static", []string{"gh:acme/*"}, []core.Action{"contents:read"}), true)
+	p, d, err := buildProvider(capDevSpec("static", []string{"gh:acme/*"}, []core.Action{"contents:read"}), true)
 	must.NoError(err)
 	caps, err := p.Capabilities(context.Background())
 	must.NoError(err)
 	is.Equal([]string{"gh:acme/*"}, caps.Resources)
 	is.Equal([]core.Action{"contents:read"}, caps.MaxActions)
+	is.Equal("static", d.Mode)
+	is.Equal("gh-1", d.Name)
+	is.Equal(config.KindGitHubApp, d.Type)
 }
 
 func TestBuildProviderDevAPINoCeilingServesNothing(t *testing.T) {
@@ -130,9 +149,10 @@ func TestBuildProviderDevAPINoCeilingServesNothing(t *testing.T) {
 	must := require.New(t)
 
 	// api discovery with no declared ceiling: the dev stub has nothing to discover.
-	p, err := buildProvider(capDevSpec("api", nil, nil), true)
+	p, d, err := buildProvider(capDevSpec("api", nil, nil), true)
 	must.NoError(err)
 	caps, err := p.Capabilities(context.Background())
 	must.NoError(err)
 	is.Empty(caps.Resources, "pure-api realm serves nothing under --dev")
+	is.Equal("api", d.Mode)
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/logging"
+	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/tasks"
 )
 
@@ -175,4 +177,128 @@ func TestTaskTrigger(t *testing.T) {
 
 	assert.Equal(t, http.StatusAccepted, req(t, srv, http.MethodPost, "/v2/tasks/sync/trigger", "session").Code)
 	assert.Equal(t, http.StatusNotFound, req(t, srv, http.MethodPost, "/v2/tasks/unknown/trigger", "session").Code)
+}
+
+// minimal ResourceProvider for provider-list tests
+type stubProvider struct {
+	name, realm string
+	cap         core.Capability
+	capErr      error
+}
+
+func (p stubProvider) Name() string  { return p.name }
+func (p stubProvider) Realm() string { return p.realm }
+func (p stubProvider) Capabilities(context.Context) (core.Capability, error) {
+	return p.cap, p.capErr
+}
+
+func (p stubProvider) Plan(context.Context, []core.ResourceRequest) ([]core.MintPlan, error) {
+	return nil, nil
+}
+
+func (p stubProvider) Mint(context.Context, *core.Principal, core.MintPlan) (*core.TokenArtifact, error) {
+	return nil, nil
+}
+
+func providerAdminServer(
+	t *testing.T,
+	authorized bool,
+	instances []ProviderInstance,
+	preview func(context.Context, []core.ResourceRequest) ([]resolver.RequestResolution, error),
+) *Server {
+	t.Helper()
+	return NewServer(func() TokenService { return nil }, WithAdmin(AdminConfig{
+		SessionIssuer: func() (core.Issuer, bool) {
+			return fakeIssuer{principal: &core.Principal{ID: "alice", Issuer: "gh-login"}}, true
+		},
+		Authorize: func(*core.Principal, []core.ResourceRequest) core.Decision {
+			return core.Decision{Authorized: authorized}
+		},
+		Auditor:    func() core.Auditor { return &fakeAuditor{} },
+		SessionTTL: time.Hour,
+		Providers:  func() []ProviderInstance { return instances },
+		Preview:    preview,
+	}))
+}
+
+func TestHandleProviders(t *testing.T) {
+	t.Parallel()
+
+	instances := []ProviderInstance{
+		{
+			Provider: stubProvider{
+				name: "gh-ro", realm: "ghes-corp",
+				cap: core.Capability{
+					Resources:  []string{"ghes-corp:acme/*"},
+					MaxActions: []core.Action{"contents:read"},
+				},
+			},
+			Type: "github-app", Mode: "api",
+		},
+		{
+			Provider: stubProvider{name: "broken", realm: "ghes-corp", capErr: errors.New("api down")},
+			Type:     "github-app", Mode: "api",
+		},
+	}
+
+	t.Run("authorized lists instances and surfaces capability errors", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		srv := providerAdminServer(t, true, instances, nil)
+		rec := req(t, srv, http.MethodGet, ProvidersRoute, "session")
+		require.Equal(t, http.StatusOK, rec.Code)
+		body := rec.Body.String()
+		is.Contains(body, `"gh-ro"`)
+		is.Contains(body, `"mode":"api"`)
+		is.Contains(body, `"type":"github-app"`)
+		is.Contains(body, `"contents:read"`)
+		is.Contains(body, `"api down"`) // the broken provider is listed with its error
+	})
+
+	t.Run("unauthorized -> 403", func(t *testing.T) {
+		t.Parallel()
+		srv := providerAdminServer(t, false, instances, nil)
+		assert.Equal(t, http.StatusForbidden, req(t, srv, http.MethodGet, ProvidersRoute, "session").Code)
+	})
+
+	t.Run("missing session -> 401", func(t *testing.T) {
+		t.Parallel()
+		srv := providerAdminServer(t, true, instances, nil)
+		assert.Equal(t, http.StatusUnauthorized, req(t, srv, http.MethodGet, ProvidersRoute, "").Code)
+	})
+}
+
+func TestHandleResolve(t *testing.T) {
+	t.Parallel()
+
+	preview := func(_ context.Context, reqs []core.ResourceRequest) ([]resolver.RequestResolution, error) {
+		return []resolver.RequestResolution{
+			{Resource: reqs[0].Resource, Actions: reqs[0].Actions, Realm: "ghes-corp", Chosen: "gh-ro"},
+		}, nil
+	}
+
+	t.Run("authorized returns preview", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		srv := providerAdminServer(t, true, nil, preview)
+		rec := do(t, srv, http.MethodPost, ResolveRoute, "session",
+			`{"resources":[{"resource":"ghes-corp:acme/x","actions":["contents:read"]}]}`)
+		require.Equal(t, http.StatusOK, rec.Code)
+		is.Contains(rec.Body.String(), `"chosen":"gh-ro"`)
+	})
+
+	t.Run("unauthorized -> 403", func(t *testing.T) {
+		t.Parallel()
+		srv := providerAdminServer(t, false, nil, preview)
+		rec := do(t, srv, http.MethodPost, ResolveRoute, "session",
+			`{"resources":[{"resource":"ghes-corp:acme/x","actions":["contents:read"]}]}`)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+	})
+
+	t.Run("empty resources -> 400", func(t *testing.T) {
+		t.Parallel()
+		srv := providerAdminServer(t, true, nil, preview)
+		rec := do(t, srv, http.MethodPost, ResolveRoute, "session", `{"resources":[]}`)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
 }

@@ -612,3 +612,60 @@ func TestIssueLeaseCorrelationIDNotUsedAsLeaseID_TALMI_H1(t *testing.T) {
 	must.NoError(err)
 	is.Len(active, 2, "both issued leases must be tracked; none overwritten")
 }
+
+func TestExplainIncludesPlan(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh", "ghes-corp",
+		stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore())
+
+	resp, err := svc.Explain(context.Background(), IssueRequest{
+		Token:     "tok",
+		Resources: []core.ResourceRequest{{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}}},
+	})
+	must.NoError(err)
+	is.True(resp.Decision.Authorized)
+	is.Empty(resp.PlanError)
+	must.Len(resp.Plan, 1)
+	is.Equal("gh", resp.Plan[0].Provider)
+}
+
+func TestExplainPlanErrorWhenUnservable(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	// authorized by policy (read rule) but no provider serves this realm/actions
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	svc, _ := setup(t, principal, nil, nil, store.NewMemoryLeaseStore())
+
+	resp, err := svc.Explain(context.Background(), IssueRequest{
+		Token:     "tok",
+		Resources: []core.ResourceRequest{{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}}},
+	})
+	must.NoError(err)
+	is.True(resp.Decision.Authorized, "policy authorizes it")
+	is.Empty(resp.Plan)
+	is.Contains(resp.PlanError, "no provider can serve")
+}
+
+func TestPreviewDelegates(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	principal := &core.Principal{ID: "p", Issuer: "fake"}
+	gh := stub.New("gh", "ghes-corp",
+		stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+	svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore())
+
+	res, err := svc.Preview(context.Background(),
+		[]core.ResourceRequest{{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}}})
+	must.NoError(err)
+	must.Len(res, 1)
+	is.Equal("gh", res[0].Chosen)
+}

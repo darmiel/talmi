@@ -11,6 +11,7 @@ import (
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/issuers"
+	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/service"
 	"github.com/darmiel/talmi/internal/tasks"
 )
@@ -38,6 +39,14 @@ type AdminConfig struct {
 	SessionTTL    time.Duration
 	LoginInfo     LoginInfo
 	Tasks         *tasks.Manager
+	Providers     func() []ProviderInstance
+	Preview       func(ctx context.Context, requests []core.ResourceRequest) ([]resolver.RequestResolution, error)
+}
+
+type ProviderInstance struct {
+	Provider core.ResourceProvider
+	Type     string
+	Mode     string
 }
 
 // LoginInfo is the public device-flow config the CLI needs to start login.
@@ -96,6 +105,9 @@ func (s *Server) Routes() http.Handler {
 	if s.admin != nil {
 		mux.HandleFunc("GET "+LoginConfigRoute, s.handleLoginConfig)
 		mux.HandleFunc("POST "+LoginRoute, s.handleLogin)
+
+		mux.HandleFunc("GET "+ProvidersRoute, s.handleProviders)
+		mux.HandleFunc("POST "+ResolveRoute, s.handleResolve)
 
 		mux.HandleFunc("GET "+AuditQueryRoute, s.handleAuditQuery)
 		mux.HandleFunc("GET "+AuditEntryRoute, s.handleAuditEntry)

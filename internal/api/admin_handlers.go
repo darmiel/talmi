@@ -186,3 +186,79 @@ func parseTime(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339, s) // zero time on empty/invalid; filter ignores zero
 	return t
 }
+
+type providerInfoBody struct {
+	Name       string   `json:"name"`
+	Realm      string   `json:"realm"`
+	Type       string   `json:"type"`
+	Mode       string   `json:"mode"`
+	Resources  []string `json:"resources,omitempty"`
+	MaxActions []string `json:"max_actions,omitempty"`
+	Error      string   `json:"error,omitempty"`
+}
+
+type resolveRequestBody struct {
+	Resources []resourceRequestBody `json:"resources"`
+}
+
+func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireTalmi(w, r, "talmi:providers", "read"); !ok {
+		return
+	}
+	if s.admin.Providers == nil {
+		presenter.Error(w, r, "provider listing not configured", http.StatusInternalServerError)
+		return
+	}
+	instances := s.admin.Providers()
+	out := make([]providerInfoBody, 0, len(instances))
+	for _, inst := range instances {
+		info := providerInfoBody{
+			Name:  inst.Provider.Name(),
+			Realm: inst.Provider.Realm(),
+			Type:  inst.Type,
+			Mode:  inst.Mode,
+		}
+		caps, err := inst.Provider.Capabilities(r.Context())
+		if err != nil {
+			info.Error = err.Error()
+		} else {
+			info.Resources = caps.Resources
+			info.MaxActions = actionsToStrings(caps.MaxActions)
+		}
+		out = append(out, info)
+	}
+	presenter.JSON(w, r, out, http.StatusOK)
+}
+
+func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireTalmi(w, r, "talmi:providers", "read"); !ok {
+		return
+	}
+	if s.admin.Preview == nil {
+		presenter.Error(w, r, "resolve preview not configured", http.StatusInternalServerError)
+		return
+	}
+	var body resolveRequestBody
+	if err := DecodePayload(w, r, &body, false); err != nil {
+		presenter.Error(w, r, "invalid request payload", http.StatusBadRequest)
+		return
+	}
+	if len(body.Resources) == 0 {
+		presenter.Error(w, r, "at least one resource is required", http.StatusBadRequest)
+		return
+	}
+	res, err := s.admin.Preview(r.Context(), toResourceRequests(body.Resources))
+	if err != nil {
+		presenter.Err(w, r, err, "resolve failed")
+		return
+	}
+	presenter.JSON(w, r, res, http.StatusOK)
+}
+
+func actionsToStrings(actions []core.Action) []string {
+	out := make([]string, len(actions))
+	for i, a := range actions {
+		out[i] = string(a)
+	}
+	return out
+}

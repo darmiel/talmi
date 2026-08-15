@@ -38,6 +38,8 @@ type TokenService struct {
 type ExplainResponse struct {
 	Principal *core.Principal
 	Decision  core.Decision
+	Plan      []core.MintPlan
+	PlanError string // set when PlanOnly failed (e.g. no provider can serve)
 }
 
 func NewTokenService(
@@ -304,13 +306,29 @@ func (s *TokenService) Explain(ctx context.Context, req IssueRequest) (*ExplainR
 	}
 	principal, err := issuer.Verify(ctx, req.Token)
 	if err != nil {
-		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("verification faild: %w", err))
+		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("verification failed: %w", err))
 	}
 	decision := s.policyManager.GetEngine().Authorize(principal, req.Resources)
-	return &ExplainResponse{
+	resp := &ExplainResponse{
 		Principal: principal,
 		Decision:  decision,
-	}, nil
+	}
+	if decision.Authorized {
+		plan, err := s.resolver.PlanOnly(ctx, req.Resources)
+		if err != nil {
+			resp.PlanError = err.Error()
+		} else {
+			resp.Plan = plan
+		}
+	}
+	return resp, nil
+}
+
+func (s *TokenService) Preview(
+	ctx context.Context,
+	requests []core.ResourceRequest,
+) ([]resolver.RequestResolution, error) {
+	return s.resolver.Preview(ctx, requests)
 }
 
 func (s *TokenService) selectIssuer(req IssueRequest) (core.Issuer, error) {

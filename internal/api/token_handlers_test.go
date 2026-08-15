@@ -36,7 +36,17 @@ func (f *fakeService) RevokeLease(_ context.Context, req service.RevokeRequest) 
 }
 
 func (f *fakeService) Explain(_ context.Context, req service.IssueRequest) (*service.ExplainResponse, error) {
-	return &service.ExplainResponse{}, nil
+	return &service.ExplainResponse{
+		Principal: &core.Principal{ID: "p", Issuer: "fake"},
+		Decision:  core.Decision{Authorized: true},
+		Plan: []core.MintPlan{
+			{
+				Provider: "gh", Realm: "ghes-corp", Covers: []core.ResourceRequest{
+					{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}},
+				},
+			},
+		},
+	}, nil
 }
 
 func do(t *testing.T, srv *Server, method, path, auth, body string) *httptest.ResponseRecorder {
@@ -159,4 +169,17 @@ func TestHandleRevoke(t *testing.T) {
 		}), http.MethodPost, RevokeTokenRoute, "", `{}`)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	})
+}
+
+func TestHandleExplainIncludesPlan(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	srv := NewServer(func() TokenService { return &fakeService{} })
+	rec := do(t, srv, http.MethodPost, ExplainRoute, "tok",
+		`{"resources":[{"resource":"ghes-corp:acme/x","actions":["contents:read"]}]}`)
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	is.Contains(body, `"plan"`)
+	is.Contains(body, `"gh"`)
+	is.Contains(body, `"ghes-corp:acme/x"`)
 }

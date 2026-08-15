@@ -14,6 +14,9 @@ const (
 	LoginRoute       = "/v2/auth/session"
 	LoginConfigRoute = "/v2/auth/config"
 
+	ProvidersRoute = "/v2/providers"
+	ResolveRoute   = "/v2/resolve"
+
 	AuditParent     = "/v2/audit"
 	AuditQueryRoute = AuditParent
 	AuditEntryRoute = AuditParent + "/{id}"

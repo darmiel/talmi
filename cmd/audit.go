@@ -50,7 +50,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 	cmd.Flags().StringVar(&outcome, "outcome", "", "filter by outcome (success, failure, denied)")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		cli, err := deps.NewClient()
+		c, err := deps.NewClient()
 		if err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 			SessionID:   sessionID,
 			Outcome:     outcome,
 		}
-		entries, correlation, err := cli.QueryAudit(cmd.Context(), filter)
+		entries, correlation, err := c.QueryAudit(cmd.Context(), filter)
 		if err != nil {
 			return clientError(err, correlation)
 		}
