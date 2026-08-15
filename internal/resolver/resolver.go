@@ -37,6 +37,23 @@ type Minted struct {
 	RequiresTokenForRevocation bool
 }
 
+// RequestResolution is the capability-only preview of how the one request would resolve.
+type RequestResolution struct {
+	Resource   core.Resource         `json:"resource"`
+	Actions    []core.Action         `json:"actions"`
+	Realm      string                `json:"realm"`
+	Chosen     string                `json:"chosen"` // provider name, or empty if none
+	Reason     string                `json:"reason,omitempty"`
+	Candidates []CandidateResolution `json:"candidates"`
+}
+
+// CandidateResolution is one provider's verdict for a request during preview.
+type CandidateResolution struct {
+	Provider string `json:"provider"`
+	Covered  bool   `json:"covered"`
+	Reason   string `json:"reason,omitempty"` // when not Covered: the semantics reason
+}
+
 type candidate struct {
 	provider   core.ResourceProvider
 	capability core.Capability
@@ -57,33 +74,9 @@ func (r *Resolver) Resolve(
 		return nil, nil
 	}
 
-	byRealm, err := r.candidatesByRealm(ctx, requests)
+	assignments, err := r.assign(ctx, requests)
 	if err != nil {
 		return nil, err
-	}
-
-	assignments := make(map[string][]core.ResourceRequest)
-	for _, request := range requests {
-		realmName, ok := request.Resource.Realm()
-		if !ok {
-			return nil, fmt.Errorf("resource %q has no realm prefix", request.Resource)
-		}
-		semantics, ok := r.realms.Get(realmName)
-		if !ok {
-			return nil, fmt.Errorf("unknown realm %q for resource %q", realmName, request.Resource)
-		}
-		chosen, ok := selectProvider(semantics, byRealm[realmName], request)
-		if !ok {
-			return nil, fmt.Errorf("no provider can serve resource %q with actions %v",
-				request.Resource, request.Actions)
-		}
-		log.Ctx(ctx).Debug().
-			Str("resource", string(request.Resource)).
-			Interface("actions", request.Actions).
-			Str("realm", realmName).
-			Str("provider", chosen).
-			Msg("resolver: selected least-privileged provider")
-		assignments[chosen] = append(assignments[chosen], request)
 	}
 
 	log.Ctx(ctx).Debug().
@@ -143,6 +136,114 @@ func (r *Resolver) Resolve(
 		result[i] = record.minted
 	}
 	return result, nil
+}
+
+func (r *Resolver) assign(
+	ctx context.Context,
+	requests []core.ResourceRequest,
+) (map[string][]core.ResourceRequest, error) {
+	byRealm, err := r.candidatesByRealm(ctx, requests)
+	if err != nil {
+		return nil, err
+	}
+	assignments := make(map[string][]core.ResourceRequest)
+	for _, request := range requests {
+		realmName, ok := request.Resource.Realm()
+		if !ok {
+			return nil, fmt.Errorf("resource %q has no realm prefix", request.Resource)
+		}
+		semantics, ok := r.realms.Get(realmName)
+		if !ok {
+			return nil, fmt.Errorf("unknown realm %q for resource %q", realmName, request.Resource)
+		}
+		chosen, ok := selectProvider(semantics, byRealm[realmName], request)
+		if !ok {
+			return nil, fmt.Errorf("no provider can serve resource %q with actions %v",
+				request.Resource, request.Actions)
+		}
+		log.Ctx(ctx).Debug().
+			Str("resource", string(request.Resource)).
+			Interface("actions", request.Actions).
+			Str("realm", realmName).
+			Str("provider", chosen).
+			Msg("resolver: selected least-privileged provider")
+		assignments[chosen] = append(assignments[chosen], request)
+	}
+	return assignments, nil
+}
+
+func (r *Resolver) PlanOnly(ctx context.Context, requests []core.ResourceRequest) ([]core.MintPlan, error) {
+	if len(requests) == 0 {
+		return nil, nil
+	}
+	assignments, err := r.assign(ctx, requests)
+	if err != nil {
+		return nil, err
+	}
+	var plans []core.MintPlan
+	for _, p := range r.providers {
+		assigned := assignments[p.Name()]
+		if len(assigned) == 0 {
+			continue
+		}
+		ps, err := p.Plan(ctx, assigned)
+		if err != nil {
+			return nil, fmt.Errorf("planning for provider %q: %w", p.Name(), err)
+		}
+		plans = append(plans, ps...)
+	}
+	return plans, nil
+}
+
+func (r *Resolver) Preview(ctx context.Context, requests []core.ResourceRequest) ([]RequestResolution, error) {
+	if len(requests) == 0 {
+		return nil, nil
+	}
+	byRealm, err := r.candidatesByRealm(ctx, requests)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RequestResolution, 0, len(requests))
+	for _, req := range requests {
+		rr := RequestResolution{
+			Resource: req.Resource,
+			Actions:  req.Actions,
+		}
+		realmName, ok := req.Resource.Realm()
+		if !ok {
+			rr.Reason = "resource has no realm prefix"
+			out = append(out, rr)
+			continue
+		}
+		rr.Realm = realmName
+		semantics, ok := r.realms.Get(realmName)
+		if !ok {
+			rr.Reason = fmt.Sprintf("unknown realm %q", realmName)
+			out = append(out, rr)
+			continue
+		}
+		cands := byRealm[realmName]
+		for _, c := range cands {
+			allow := core.Allow{
+				Resources: c.capability.Resources,
+				Actions:   c.capability.MaxActions,
+			}
+			covered, reason := semantics.Covers([]core.Allow{allow}, req)
+			rr.Candidates = append(rr.Candidates, CandidateResolution{
+				Provider: c.provider.Name(),
+				Covered:  covered,
+				Reason:   reason,
+			})
+		}
+		if chosen, ok := selectProvider(semantics, cands, req); ok {
+			rr.Chosen = chosen
+		} else {
+			rr.Reason = fmt.Sprintf("no provider can serve resource %q with actions %v",
+				req.Resource, req.Actions)
+		}
+		out = append(out, rr)
+	}
+	return out, nil
 }
 
 // Revoke revokes a single artifact through its minting provider.

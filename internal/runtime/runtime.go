@@ -28,15 +28,24 @@ import (
 
 // Runtime holds a set of components for one config revision
 type Runtime struct {
-	Service    *service.TokenService
-	Issuers    *issuers.Registry
-	Realms     *realm.Registry
-	Engine     *engine.PolicyManager
-	LeaseStore core.LeaseStore
-	Auditor    core.Auditor
-	Recorder   *audit.Recorder
-	Providers  []core.ResourceProvider // for webhook cache invalidation
-	Revision   string
+	Service             *service.TokenService
+	Issuers             *issuers.Registry
+	Realms              *realm.Registry
+	Engine              *engine.PolicyManager
+	LeaseStore          core.LeaseStore
+	Auditor             core.Auditor
+	Recorder            *audit.Recorder
+	Providers           []core.ResourceProvider // for webhook cache invalidation
+	ProviderDescriptors []ProviderDescriptor    // static metadata, idx-aligned with Providers
+	Revision            string
+}
+
+// ProviderDescriptor is static metadata about one built provider instance.
+type ProviderDescriptor struct {
+	Name  string
+	Realm string
+	Type  string
+	Mode  string // dicsovery mode: static or api
 }
 
 // stable holds components that persist across reloads.
@@ -99,7 +108,7 @@ func buildReloadable(
 	if err != nil {
 		return nil, fmt.Errorf("expanding providers: %w", err)
 	}
-	providers, err := buildProviders(specs, dev)
+	providers, descriptors, err := buildProviders(specs, dev)
 	if err != nil {
 		return nil, fmt.Errorf("building providers: %w", err)
 	}
@@ -142,15 +151,16 @@ func buildReloadable(
 	rec := audit.NewRecorder(stable.auditor, stable.sinks...)
 	svc := service.NewTokenService(issReg, policy, res, stable.store, rec, revision)
 	return &Runtime{
-		Service:    svc,
-		Issuers:    issReg,
-		Realms:     realms,
-		Engine:     policy,
-		LeaseStore: stable.store,
-		Auditor:    stable.auditor,
-		Recorder:   rec,
-		Revision:   revision,
-		Providers:  providers,
+		Service:             svc,
+		Issuers:             issReg,
+		Realms:              realms,
+		Engine:              policy,
+		LeaseStore:          stable.store,
+		Auditor:             stable.auditor,
+		Recorder:            rec,
+		Providers:           providers,
+		ProviderDescriptors: descriptors,
+		Revision:            revision,
 	}, nil
 }
 
@@ -190,24 +200,32 @@ func buildSigner(cfg config.SigningConfig, dev bool) (*issuers.SessionSigner, er
 	return signer, nil
 }
 
-func buildProviders(specs []config.ProviderSpec, dev bool) ([]core.ResourceProvider, error) {
+func buildProviders(specs []config.ProviderSpec, dev bool) ([]core.ResourceProvider, []ProviderDescriptor, error) {
 	providers := make([]core.ResourceProvider, 0, len(specs))
+	descriptors := make([]ProviderDescriptor, 0, len(specs))
 	for _, spec := range specs {
-		p, err := buildProvider(spec, dev)
+		p, d, err := buildProvider(spec, dev)
 		if err != nil {
-			return nil, fmt.Errorf("provider %q: %w", spec.Name, err)
+			return nil, nil, fmt.Errorf("provider %q: %w", spec.Name, err)
 		}
 		providers = append(providers, p)
+		descriptors = append(descriptors, d)
 	}
-	return providers, nil
+	return providers, descriptors, nil
 }
 
-func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, error) {
+func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, ProviderDescriptor, error) {
 	b, ok := backend.Lookup(spec.Type)
 	if !ok {
-		return nil, fmt.Errorf("unknown provider type %q", spec.Type)
+		return nil, ProviderDescriptor{}, fmt.Errorf("unknown provider type %q", spec.Type)
 	}
 	mode := capability.Mode(spec.Capability.Discovery, b.SupportsAPIDiscovery)
+	descriptor := ProviderDescriptor{
+		Name:  spec.Name,
+		Realm: spec.Realm,
+		Type:  spec.Type,
+		Mode:  mode,
+	}
 	declared := core.Capability{
 		Realm:      spec.Realm,
 		Resources:  spec.Capability.Resources,
@@ -239,12 +257,12 @@ func buildProvider(spec config.ProviderSpec, dev bool) (core.ResourceProvider, e
 
 		p, err := b.Build(backend.BuildInput{Spec: spec})
 		if err != nil {
-			return nil, err
+			return nil, ProviderDescriptor{}, err
 		}
 		base = p
 	}
 
-	return capability.Decorate(base, b.Semantics, mode, declared), nil
+	return capability.Decorate(base, b.Semantics, mode, declared), descriptor, nil
 }
 
 func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, error) {

@@ -58,6 +58,8 @@ type explainPrincipal struct {
 type explainResponseBody struct {
 	Principal explainPrincipal `json:"principal"`
 	Decision  core.Decision    `json:"decision"`
+	Plan      []core.MintPlan  `json:"plan,omitempty"`
+	PlanError string           `json:"plan_error,omitempty"`
 }
 
 func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +172,9 @@ func (s *Server) handleExplain(w http.ResponseWriter, r *http.Request) {
 			Issuer:     resp.Principal.Issuer,
 			Attributes: resp.Principal.Attributes,
 		},
-		Decision: resp.Decision,
+		Decision:  resp.Decision,
+		Plan:      resp.Plan,
+		PlanError: resp.PlanError,
 	}, http.StatusOK)
 }
 
