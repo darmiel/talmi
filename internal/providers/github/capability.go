@@ -64,26 +64,40 @@ func (p *Provider) discoverViaAPI(ctx context.Context) (*discovered, error) {
 		reposByOwner:   make(map[string][]string),
 	}
 
-	installs, _, err := appClient.Apps.ListInstallations(ctx, nil) // TODO: paginate
-	if err != nil {
-		return nil, fmt.Errorf("listing installations: %w", err)
-	}
-	for _, inst := range installs {
-		owner := inst.GetAccount().GetLogin()
-		d.installByOwner[owner] = inst.GetID()
-
-		instClient, err := InstallationTokenClient(ctx, appClient, inst.GetID())
+	instOpts := &github.ListOptions{PerPage: 100}
+	for {
+		installs, installResp, err := appClient.Apps.ListInstallations(ctx, instOpts)
 		if err != nil {
-			return nil, fmt.Errorf("creating installation client for owner %q: %w", owner, err)
+			return nil, fmt.Errorf("listing installations: %w", err)
 		}
+		for _, inst := range installs {
+			owner := inst.GetAccount().GetLogin()
+			d.installByOwner[owner] = inst.GetID()
 
-		repos, _, err := instClient.Apps.ListRepos(ctx, nil) // TODO: paginate
-		if err != nil {
-			return nil, fmt.Errorf("listing repos for owner %q: %w", owner, err)
+			instClient, err := InstallationTokenClient(ctx, appClient, inst.GetID())
+			if err != nil {
+				return nil, fmt.Errorf("creating installation client for owner %q: %w", owner, err)
+			}
+
+			repoOpts := &github.ListOptions{PerPage: 100}
+			for {
+				repos, repoResp, err := instClient.Apps.ListRepos(ctx, repoOpts)
+				if err != nil {
+					return nil, fmt.Errorf("listing repos for owner %q: %w", owner, err)
+				}
+				for _, repo := range repos.Repositories {
+					d.reposByOwner[owner] = append(d.reposByOwner[owner], repo.GetName())
+				}
+				if repoResp.NextPage == 0 {
+					break
+				}
+				repoOpts.Page = repoResp.NextPage
+			}
 		}
-		for _, repo := range repos.Repositories {
-			d.reposByOwner[owner] = append(d.reposByOwner[owner], repo.GetName())
+		if installResp.NextPage == 0 {
+			break
 		}
+		instOpts.Page = installResp.NextPage
 	}
 
 	return d, nil
