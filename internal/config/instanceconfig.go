@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/darmiel/talmi/internal/secret"
 )
@@ -36,9 +37,10 @@ type InstanceConfig interface {
 var _ InstanceConfig = (*GitHubAppConfig)(nil)
 
 type GitHubAppConfig struct {
-	AppID      int64      `mapstructure:"app_id" yaml:"app_id" json:"app_id" jsonschema:"required"`
-	PrivateKey secret.Ref `mapstructure:"private_key" yaml:"private_key" json:"private_key" jsonschema:"required"`
-	Server     string     `mapstructure:"server" yaml:"server,omitempty" json:"server,omitempty"`
+	AppID      int64         `mapstructure:"app_id" yaml:"app_id" json:"app_id" jsonschema:"required"`
+	PrivateKey secret.Ref    `mapstructure:"private_key" yaml:"private_key" json:"private_key" jsonschema:"required"`
+	Server     string        `mapstructure:"server" yaml:"server,omitempty" json:"server,omitempty"`
+	Timeout    time.Duration `mapstructure:"timeout" yaml:"timeout,omitempty" json:"timeout,omitempty"` // 0 = default (30s)
 }
 
 func (c GitHubAppConfig) Validate() error {
@@ -48,15 +50,19 @@ func (c GitHubAppConfig) Validate() error {
 	if c.PrivateKey == "" {
 		return fmt.Errorf("github-app instance requires 'private_key'")
 	}
+	if c.Timeout < 0 {
+		return fmt.Errorf("github-app instance 'timeout' must not be negative")
+	}
 	return nil
 }
 
 var _ InstanceConfig = (*ArtifactoryConfig)(nil)
 
 type ArtifactoryConfig struct {
-	AdminToken secret.Ref `mapstructure:"admin_token" yaml:"admin_token" json:"admin_token" jsonschema:"required"`
-	Groups     []string   `mapstructure:"groups" yaml:"groups" json:"groups" jsonschema:"required"`
-	BaseURL    string     `mapstructure:"base_url,omitempty" yaml:"base_url,omitempty" json:"base_url,omitempty"`
+	AdminToken secret.Ref    `mapstructure:"admin_token" yaml:"admin_token" json:"admin_token" jsonschema:"required"`
+	Groups     []string      `mapstructure:"groups" yaml:"groups" json:"groups" jsonschema:"required"`
+	BaseURL    string        `mapstructure:"base_url,omitempty" yaml:"base_url,omitempty" json:"base_url,omitempty"`
+	Timeout    time.Duration `mapstructure:"timeout" yaml:"timeout,omitempty" json:"timeout,omitempty"` // 0 = default (30s)
 }
 
 func (c ArtifactoryConfig) Validate() error {
@@ -65,6 +71,9 @@ func (c ArtifactoryConfig) Validate() error {
 	}
 	if len(c.Groups) == 0 {
 		return fmt.Errorf("artifactory instance requires at least one 'group'")
+	}
+	if c.Timeout < 0 {
+		return fmt.Errorf("artifactory instance 'timeout' must not be negative")
 	}
 	return nil
 }

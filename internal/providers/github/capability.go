@@ -43,7 +43,7 @@ func (p *Provider) discoveredCapability(ctx context.Context) (*discovered, error
 }
 
 func (p *Provider) discoverViaAPI(ctx context.Context) (*discovered, error) {
-	appClient, err := NewClient(p.appID, p.privateKey, p.serverBaseURL)
+	appClient, err := NewClient(p.appID, p.privateKey, p.serverBaseURL, p.httpTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("creating github app client: %w", err)
 	}
@@ -74,7 +74,7 @@ func (p *Provider) discoverViaAPI(ctx context.Context) (*discovered, error) {
 			owner := inst.GetAccount().GetLogin()
 			d.installByOwner[owner] = inst.GetID()
 
-			instClient, err := InstallationTokenClient(ctx, appClient, inst.GetID())
+			instClient, err := InstallationTokenClient(ctx, appClient, inst.GetID(), p.httpTimeout)
 			if err != nil {
 				return nil, fmt.Errorf("creating installation client for owner %q: %w", owner, err)
 			}

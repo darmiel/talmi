@@ -45,6 +45,8 @@ type Provider struct {
 	mu     sync.Mutex
 	cached *cachedCapability
 
+	httpTimeout time.Duration
+
 	discover func(ctx context.Context) (*discovered, error)
 }
 
@@ -83,6 +85,11 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 			Msg("github: capability cache refresh interval is very low, consider increasing it to avoid rate limiting")
 	}
 
+	httpTimeout := cfg.Timeout
+	if httpTimeout <= 0 {
+		httpTimeout = DefaultHTTPTimeout
+	}
+
 	p := &Provider{
 		name:          name,
 		realm:         realm,
@@ -90,6 +97,7 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 		privateKey:    cfg.PrivateKey,
 		serverBaseURL: cfg.ServerBaseURL,
 		capTTL:        capTTL,
+		httpTimeout:   httpTimeout,
 	}
 	p.discover = p.discoverViaAPI
 
@@ -105,6 +113,9 @@ type ProviderConfig struct {
 
 	// RefreshInterval is the capability cache TTL.
 	RefreshInterval time.Duration
+
+	// Timeout for each HTTP call to GitHub. 0 = default (30s)
+	Timeout time.Duration
 }
 
 func (p *Provider) Name() string {
@@ -346,7 +357,7 @@ func (p *Provider) Revoke(ctx context.Context, revocationID, tokenVal string) er
 		return fmt.Errorf("original token required for %T token revocation", Type)
 	}
 
-	client, err := NewRawClient(tokenVal, p.serverBaseURL)
+	client, err := NewRawClient(tokenVal, p.serverBaseURL, p.httpTimeout)
 	if err != nil {
 		return fmt.Errorf("creating github client for revocation: %w", err)
 	}
@@ -382,7 +393,7 @@ func (p *Provider) RequiresTokenForRevocation() bool {
 func (p *Provider) createAppClient(ctx context.Context, principalID string) (*github.Client, error) {
 	correlationID := correlation.From(ctx)
 
-	client, err := NewClient(p.appID, p.privateKey, p.serverBaseURL)
+	client, err := NewClient(p.appID, p.privateKey, p.serverBaseURL, p.httpTimeout)
 	if err != nil {
 		return nil, err
 	}

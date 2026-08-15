@@ -35,7 +35,7 @@ func (i *GitHubOAuthIssuer) Name() string {
 }
 
 func (i *GitHubOAuthIssuer) Verify(ctx context.Context, token string) (*core.Principal, error) {
-	client, err := githubprovider.NewRawClient(token, i.serverURL)
+	client, err := githubprovider.NewRawClient(token, i.serverURL, githubprovider.DefaultHTTPTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("creating github client: %w", err)
 	}

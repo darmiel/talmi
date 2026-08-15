@@ -28,6 +28,8 @@ func testAppKey(t *testing.T) []byte {
 }
 
 // nextLink builds a GitHub-style Link header pointing at page 2 of the current path.
+//
+//goland:noinspection HttpUrlsUsage
 func nextLink(r *http.Request) string {
 	u := "http://" + r.Host + r.URL.Path + "?page=2&per_page=100"
 	return fmt.Sprintf("<%s>; rel=\"next\"", u)

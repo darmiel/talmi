@@ -36,11 +36,13 @@ func NewGitHubSource(cfg config.GitHubSource, privateKey []byte) (*GitHubSource,
 }
 
 func (s *GitHubSource) Load(ctx context.Context) (*config.SourcedConfig, string, error) {
-	appClient, err := githubprovider.NewClient(s.cfg.AppID, s.privateKey, s.cfg.Server)
+	appClient, err := githubprovider.NewClient(s.cfg.AppID, s.privateKey, s.cfg.Server,
+		githubprovider.DefaultHTTPTimeout)
 	if err != nil {
 		return nil, "", fmt.Errorf("creating github app client: %w", err)
 	}
-	gh, err := githubprovider.InstallationTokenClient(ctx, appClient, s.cfg.InstallationID)
+	gh, err := githubprovider.InstallationTokenClient(ctx, appClient, s.cfg.InstallationID,
+		githubprovider.DefaultHTTPTimeout)
 	if err != nil {
 		return nil, "", fmt.Errorf("github installation auth: %w", err)
 	}

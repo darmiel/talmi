@@ -100,6 +100,7 @@ func strictDecode(raw map[string]any, target any) error {
 		Result:      target,
 		ErrorUnused: true,
 		TagName:     mapstructureTag,
+		DecodeHook:  mapstructure.StringToTimeDurationHookFunc(),
 	})
 	if err != nil {
 		return fmt.Errorf("building decoder: %w", err)

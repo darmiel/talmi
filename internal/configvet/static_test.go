@@ -323,3 +323,33 @@ func TestCheckRealmCapability(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckStoreConnectTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("negative store connect_timeout is an error", func(t *testing.T) {
+		t.Parallel()
+		in := baseline()
+		in.Config.Store.ConnectTimeout = -1
+		r := Static(in)
+		assert.NotNil(t, findByCode(r, "CFG-STORE"), "negative connect_timeout must be flagged")
+	})
+
+	t.Run("negative audit connect_timeout is an error", func(t *testing.T) {
+		t.Parallel()
+		in := baseline()
+		in.Config.Audit = config.AuditConfig{Enabled: true, Type: "postgres", ConnectTimeout: -1}
+		r := Static(in)
+		assert.NotNil(t, findByCode(r, "CFG-AUDIT"), "negative connect_timeout must be flagged")
+	})
+
+	t.Run("non-negative connect_timeout is fine", func(t *testing.T) {
+		t.Parallel()
+		in := baseline()
+		in.Config.Store.ConnectTimeout = 5 * time.Second
+		r := Static(in)
+		// no store finding purely from the timeout
+		f := findByCode(r, "CFG-STORE")
+		assert.Nil(t, f)
+	})
+}

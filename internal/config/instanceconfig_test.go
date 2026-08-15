@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,4 +80,38 @@ func TestDecodeInstanceConfig(t *testing.T) {
 func TestInstanceTypes(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, []string{KindArtifactory, KindGitHubApp}, InstanceTypes())
+}
+
+func TestDecodeInstanceConfigTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("artifactory timeout string decodes to duration", func(t *testing.T) {
+		t.Parallel()
+		got, err := DecodeInstanceConfig(KindArtifactory, map[string]any{
+			"admin_token": "raw:t", "groups": []any{"g"}, "timeout": "5s",
+		})
+		require.NoError(t, err)
+		cfg, ok := got.(*ArtifactoryConfig)
+		require.True(t, ok)
+		assert.Equal(t, 5*time.Second, cfg.Timeout)
+	})
+
+	t.Run("github-app timeout string decodes to duration", func(t *testing.T) {
+		t.Parallel()
+		got, err := DecodeInstanceConfig(KindGitHubApp, map[string]any{
+			"app_id": 1, "private_key": "raw:pem", "timeout": "10s",
+		})
+		require.NoError(t, err)
+		cfg, ok := got.(*GitHubAppConfig)
+		require.True(t, ok)
+		assert.Equal(t, 10*time.Second, cfg.Timeout)
+	})
+
+	t.Run("negative timeout fails Validate", func(t *testing.T) {
+		t.Parallel()
+		_, err := DecodeInstanceConfig(KindArtifactory, map[string]any{
+			"admin_token": "raw:t", "groups": []any{"g"}, "timeout": "-1s",
+		})
+		assert.Error(t, err)
+	})
 }

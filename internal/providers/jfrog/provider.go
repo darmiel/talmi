@@ -45,6 +45,7 @@ type ProviderConfig struct {
 	Resources  []string
 	MaxActions []core.Action
 	DefaultTTL time.Duration
+	Timeout    time.Duration
 }
 
 func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
@@ -64,6 +65,11 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 		ttl = 1 * time.Hour
 	}
 
+	httpTimeout := cfg.Timeout
+	if httpTimeout <= 0 {
+		httpTimeout = 30 * time.Second
+	}
+
 	return &Provider{
 		name:          name,
 		realm:         realm,
@@ -73,7 +79,7 @@ func New(name, realm string, cfg ProviderConfig) (*Provider, error) {
 		resources:     slices.Clone(cfg.Resources),
 		maxAction:     slices.Clone(cfg.MaxActions),
 		defaultTTL:    ttl,
-		httpClient:    &http.Client{Timeout: 30 * time.Second}, // TODO: make this configurable
+		httpClient:    &http.Client{Timeout: httpTimeout},
 	}, nil
 }
 

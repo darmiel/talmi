@@ -125,3 +125,24 @@ func TestRevokeIsIdempotentOnNotFound(t *testing.T) {
 		assert.Error(t, err, "a 500 from JFrog must surface as an error")
 	})
 }
+
+func TestNewAppliesTimeout(t *testing.T) {
+	t.Parallel()
+	base := ProviderConfig{Server: "https://art", Token: "tok", Groups: []string{"g"}}
+
+	t.Run("uses configured timeout", func(t *testing.T) {
+		t.Parallel()
+		cfg := base
+		cfg.Timeout = 5 * time.Second
+		p, err := New("art", "artifactory", cfg)
+		require.NoError(t, err)
+		assert.Equal(t, 5*time.Second, p.httpClient.Timeout)
+	})
+
+	t.Run("defaults to 30s when unset", func(t *testing.T) {
+		t.Parallel()
+		p, err := New("art", "artifactory", base)
+		require.NoError(t, err)
+		assert.Equal(t, 30*time.Second, p.httpClient.Timeout)
+	})
+}

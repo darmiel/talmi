@@ -232,7 +232,7 @@ func runDeviceFlow(ctx context.Context, deps Deps, info *client.LoginInfo) (stri
 		sp.Stop("authorization failed")
 		return "", cli.Fail(cli.CodeAuth, fmt.Sprintf("authorization failed: %v", err)).Because(err)
 	}
-	sp.Stop("authorization completed." + strings.Repeat(" ", 10)) // TODO: remove the extra spaces when spinner stops, this is a hack to avoid the spinner overwriting the last line
+	sp.Stop("authorization completed.")
 	return token, nil
 }
 

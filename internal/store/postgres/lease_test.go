@@ -20,7 +20,7 @@ func newTestStore(t *testing.T) *LeaseStore {
 	if dsn == "" {
 		t.Skip("set TALMI_TEST_DATABASE_URL to run postgres integration tests (schema must be migrated)")
 	}
-	pool, err := Connect(context.Background(), dsn)
+	pool, err := Connect(context.Background(), dsn, 10*time.Second)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 

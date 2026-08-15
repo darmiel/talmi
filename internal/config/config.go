@@ -31,16 +31,18 @@ type SigningConfig struct {
 }
 
 type StoreConfig struct {
-	Type string     `yaml:"type"` // memory | postgres
-	DSN  secret.Ref `yaml:"dsn,omitempty"`
+	Type           string        `yaml:"type"` // memory | postgres
+	DSN            secret.Ref    `yaml:"dsn,omitempty"`
+	ConnectTimeout time.Duration `yaml:"connect_timeout,omitempty"` // 0 = default (10s)
 }
 
 type AuditConfig struct {
-	Enabled   bool          `yaml:"enabled"`
-	Type      string        `yaml:"type"` // postgres | memory | noop
-	DSN       secret.Ref    `yaml:"dsn,omitempty"`
-	Retention time.Duration `yaml:"retention,omitempty"`
-	Sinks     []string      `yaml:"sinks,omitempty"`
+	Enabled        bool          `yaml:"enabled"`
+	Type           string        `yaml:"type"` // postgres | memory | noop
+	DSN            secret.Ref    `yaml:"dsn,omitempty"`
+	Retention      time.Duration `yaml:"retention,omitempty"`
+	Sinks          []string      `yaml:"sinks,omitempty"`
+	ConnectTimeout time.Duration `yaml:"connect_timeout,omitempty"` // 0 = default (10s)
 }
 
 // SourceConfig points at where the sourced tree lives
@@ -73,7 +75,7 @@ type Includes struct {
 // IssuerBlock is one issuer definition
 type IssuerBlock struct {
 	Name   string         `yaml:"name"`
-	Type   string         `yaml:"type"` // oidc | static | github-oauth | talmi-session // TODO
+	Type   string         `yaml:"type"`
 	Config map[string]any `yaml:",inline"`
 }
 

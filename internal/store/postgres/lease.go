@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,8 +27,8 @@ func New(pool *pgxpool.Pool) *LeaseStore {
 }
 
 // OpenLeaseStore opens a PostgreSQL-backed lease store.
-func OpenLeaseStore(ctx context.Context, dsn string) (*LeaseStore, error) {
-	pool, err := Connect(ctx, dsn)
+func OpenLeaseStore(ctx context.Context, dsn string, connectTimeout time.Duration) (*LeaseStore, error) {
+	pool, err := Connect(ctx, dsn, connectTimeout)
 	if err != nil {
 		return nil, err
 	}

@@ -3,15 +3,18 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-github/v80/github"
 )
 
-func NewRawClient(signedToken, enterpriseURL string) (*github.Client, error) {
+const DefaultHTTPTimeout = 30 * time.Second
+
+func NewRawClient(signedToken, enterpriseURL string, timeout time.Duration) (*github.Client, error) {
 	// we can now use this signed JWT to authenticate as the GitHub App
-	client := github.NewClient(nil).WithAuthToken(signedToken)
+	client := github.NewClient(&http.Client{Timeout: timeout}).WithAuthToken(signedToken)
 
 	if enterpriseURL != "" {
 		// we don't interact with uploads, so just use a dummy URL here.
@@ -28,7 +31,7 @@ func NewRawClient(signedToken, enterpriseURL string) (*github.Client, error) {
 // NewClient creates an authenticated GitHub client using an App ID and private key.
 // If enterpriseURL is non-empty, it configures the client for GitHub Enterprise.
 // Note that you cannot use media uploads with this client as it uses the same URL for both base and upload.
-func NewClient(appID int64, privateKey []byte, enterpriseURL string) (*github.Client, error) {
+func NewClient(appID int64, privateKey []byte, enterpriseURL string, timeout time.Duration) (*github.Client, error) {
 	key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("parsing github app private key: %w", err)
@@ -47,17 +50,22 @@ func NewClient(appID int64, privateKey []byte, enterpriseURL string) (*github.Cl
 		return nil, fmt.Errorf("signing github app jwt: %w", err)
 	}
 
-	return NewRawClient(signedToken, enterpriseURL)
+	return NewRawClient(signedToken, enterpriseURL, timeout)
 }
 
 // InstallationTokenClient creates a GitHub client authenticated as the installation
 // with the given installation ID, using the provided appClient to create the installation token.
-func InstallationTokenClient(ctx context.Context, appClient *github.Client, instID int64) (*github.Client, error) {
+func InstallationTokenClient(
+	ctx context.Context,
+	appClient *github.Client,
+	instID int64,
+	timeout time.Duration,
+) (*github.Client, error) {
 	token, _, err := appClient.Apps.CreateInstallationToken(ctx, instID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating installation token for installation ID %d: %w", instID, err)
 	}
-	client := github.NewClient(nil).WithAuthToken(token.GetToken())
+	client := github.NewClient(&http.Client{Timeout: timeout}).WithAuthToken(token.GetToken())
 
 	if appClient.BaseURL.String() != "https://api.github.com/" {
 		client, err = client.WithEnterpriseURLs(appClient.BaseURL.String(), appClient.UploadURL.String())

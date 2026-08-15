@@ -30,6 +30,7 @@ var backends = []Backend{
 				PrivateKey:      key,
 				ServerBaseURL:   c.Server,
 				RefreshInterval: input.Spec.Capability.Refresh,
+				Timeout:         c.Timeout,
 			})
 		},
 	},
@@ -52,6 +53,7 @@ var backends = []Backend{
 				Groups:     c.Groups,
 				Resources:  input.Spec.Capability.Resources,
 				MaxActions: input.Spec.Capability.MaxActions,
+				Timeout:    c.Timeout,
 			})
 		},
 	},

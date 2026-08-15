@@ -51,6 +51,10 @@ func checkStore(in StaticInput, r *Report) {
 		r.errorf("CFG-STORE", "store", "store.type",
 			"unsupported store type %q, must be one of memory or postgres", t)
 	}
+	if in.Config.Store.ConnectTimeout < 0 {
+		r.errorf("CFG-STORE", "store", "store.connect_timeout",
+			"connect_timeout must not be negative (use 0 for default)")
+	}
 }
 
 func checkAudit(in StaticInput, r *Report) {
@@ -65,6 +69,10 @@ func checkAudit(in StaticInput, r *Report) {
 	if a.Retention < 0 {
 		r.errorf("CFG-AUDIT", "audit", "audit.retention",
 			"retention must not be negative (use 0 to keep forever)")
+	}
+	if a.ConnectTimeout < 0 {
+		r.errorf("CFG-AUDIT", "audit", "audit.connect_timeout",
+			"connect_timeout must not be negative (use 0 for default)")
 	}
 	for _, s := range a.Sinks {
 		if s != "stdout" {

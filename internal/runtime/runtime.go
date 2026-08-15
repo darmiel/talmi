@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -277,7 +278,7 @@ func buildStore(ctx context.Context, cfg config.StoreConfig) (core.LeaseStore, e
 		if err != nil {
 			return nil, fmt.Errorf("resolving postgres DSN: %w", err)
 		}
-		st, err := postgres.OpenLeaseStore(ctx, dsn)
+		st, err := postgres.OpenLeaseStore(ctx, dsn, connectTimeoutOr(cfg.ConnectTimeout))
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +302,7 @@ func buildAuditor(ctx context.Context, cfg config.AuditConfig) (core.Auditor, er
 		if err != nil {
 			return nil, fmt.Errorf("resolving postgres DSN: %w", err)
 		}
-		a, err := postgres.OpenAuditor(ctx, dsn)
+		a, err := postgres.OpenAuditor(ctx, dsn, connectTimeoutOr(cfg.ConnectTimeout))
 		if err != nil {
 			return nil, err
 		}
@@ -335,4 +336,11 @@ func buildSinks(cfg config.AuditConfig) ([]audit.Sink, error) {
 		}
 	}
 	return sinks, nil
+}
+
+func connectTimeoutOr(d time.Duration) time.Duration {
+	if d <= 0 {
+		return 10 * time.Second
+	}
+	return d
 }

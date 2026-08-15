@@ -442,3 +442,22 @@ func TestNewRefreshIntervalSetsCapTTL(t *testing.T) {
 	require.NoError(t, err)
 	is.Equal(15*time.Minute, def.capTTL, "unset refresh_interval falls back to the default")
 }
+
+func TestNewSetsHTTPTimeout(t *testing.T) {
+	t.Parallel()
+
+	p, err := New("gh", "ghes-corp", ProviderConfig{AppID: 1, PrivateKey: []byte("k"), Timeout: 7 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, 7*time.Second, p.httpTimeout)
+
+	def, err := New("gh", "ghes-corp", ProviderConfig{AppID: 1, PrivateKey: []byte("k")})
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Second, def.httpTimeout, "unset timeout defaults to 30s")
+}
+
+func TestNewRawClientAppliesTimeout(t *testing.T) {
+	t.Parallel()
+	c, err := NewRawClient("tok", "", 5*time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, c.Client().Timeout)
+}

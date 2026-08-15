@@ -9,7 +9,7 @@ import (
 )
 
 // Connect opens and configures a pgx pool and verifies connectivity.
-func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+func Connect(ctx context.Context, dsn string, connectTimeout time.Duration) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("parsing dsn: %w", err)
@@ -18,7 +18,13 @@ func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	cfg.MinConns = 2
 	cfg.MaxConnLifetime = 5 * time.Minute
 	cfg.MaxConnIdleTime = 1 * time.Minute
-	// TODO: make this configurable
+
+	if connectTimeout > 0 {
+		cfg.ConnConfig.ConnectTimeout = connectTimeout
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, connectTimeout)
+		defer cancel()
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

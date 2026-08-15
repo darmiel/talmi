@@ -18,8 +18,8 @@ type Auditor struct {
 	pool *pgxpool.Pool
 }
 
-func OpenAuditor(ctx context.Context, dsn string) (*Auditor, error) {
-	pool, err := Connect(ctx, dsn)
+func OpenAuditor(ctx context.Context, dsn string, connectTimeout time.Duration) (*Auditor, error) {
+	pool, err := Connect(ctx, dsn, connectTimeout)
 	if err != nil {
 		return nil, err
 	}
