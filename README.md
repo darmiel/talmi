@@ -12,7 +12,7 @@ handle.
 
 ## Documentation
 
-Full documentation lives at **<https://darmiel.github.io/talmi/>** (built from `docs/`):
+Full documentation lives at **<https://talmi.qwer.tz>** (built from `docs/`):
 
 - [Installation](docs/getting-started/installation.md) and
   [Quick start](docs/getting-started/quick-start.md)
