@@ -59,7 +59,7 @@ Mints JFrog Artifactory access tokens. Capability is declarative (`static`).
 ## `talmi`
 
 The session realm. No backend, no instances - it exists so admin resources
-(`talmi:session`, `talmi:audit`, `talmi:providers`, `talmi:tasks`) have semantics that rules grant.
+(`talmi:session`, `talmi:audit`, `talmi:providers`, `talmi:tasks`) exist for rules to grant.
 
 ```yaml
 - realm: talmi

@@ -33,7 +33,7 @@ Rules live under `rules.d/`. Each rule has a `match` and a list of `allow` entri
   [Conditions](../concepts/conditions.md).
 - `expr` - an expression, as an alternative to `condition` (not both).
 - `allow_empty: true` - match every principal from the issuer when there is no condition. Without it,
-  a rule with no condition matches no one (fail closed).
+  a rule with no condition matches no one.
 
 ## `allow`
 

@@ -39,7 +39,7 @@ condition:
 
 For matching that conditions can't express, use `expr` instead of `condition` (one or the other, not
 both). Expressions run in a sandbox with `ctx` (the principal's attributes) and `principal`
-available; a runtime error or a non-boolean result is treated as no match (fail closed).
+available; a runtime error or a non-boolean result is treated as no match.
 
 ## Sharp edges
 

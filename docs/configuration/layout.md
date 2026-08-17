@@ -37,20 +37,23 @@ rules.d/*.yaml
 
 ## Trust boundary
 
-The bootstrap file is trusted. The sourced tree is **not**, and this matters when it comes from a
+
+The bootstrap file is trusted. The sourced tree is **not**, which matters when it comes from a
 remote repository: a sourced realm or issuer block can name arbitrary endpoints and reference the
 host's `file:`/`env:` secrets, which Talmi resolves locally and then sends to whatever URL the block
 names. Anyone who can push to the config repo can rewrite policy or exfiltrate host secrets.
 
-Operational rule: only source from a repository you fully control, restrict write access, and require
-review on the tracked branch. The [Security](../security/trust-model.md) section covers this in full.
+Only source from a repository you fully control, restrict write access, and require review on the
+tracked branch. The [Security](../security/trust-model.md) section covers this in full.
 
 ## Three validation layers
 
-Kept separate on purpose:
+
+Talmi validates config in three independent places:
 
 1. **`config vet`** - offline structural checks (and optional online provider probing). Run it in CI.
 2. **Runtime** - on startup (non-dev) Talmi refuses to start on config errors.
-3. **The engine** - fails closed at request time regardless of whether validation ran.
+3. **The engine** - at request time it denies anything the rules don't explicitly allow, even if the
+   earlier checks were skipped.
 
 See [Validation](validation.md).

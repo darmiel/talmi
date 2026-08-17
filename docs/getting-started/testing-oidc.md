@@ -4,9 +4,12 @@ To exercise Talmi's `oidc` issuer without a real identity provider, you can mint
 arbitrary `sub` and claims using [flower](https://github.com/darmiel/flower), a small mock OIDC
 issuer. A public instance is hosted at **`https://flower.d2a.io`**.
 
+<!-- @formatter:off -->
 !!! warning "Testing only"
-flower mints signed tokens for *any* subject with no authentication. Use it for local development
-and testing, never as a real issuer.
+    flower mints signed tokens for *any* subject with no authentication. Use it for local development
+    and testing, never as a real issuer.
+<!-- @formatter:on -->
+
 
 ## Mint a token
 

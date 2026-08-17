@@ -33,6 +33,6 @@ After verification the caller is represented as a principal: an `id`, the `issue
 and a bag of `attributes` (the claims). [Conditions](conditions.md) and expressions in rules evaluate
 against these.
 
-Both `issuer`/`iss` and `id`/`sub` are exposed for convenience. These identity keys are always taken
+Both `issuer`/`iss` and `id`/`sub` are available in conditions. These identity keys are always taken
 from the verified principal, never from token attributes - a token claim named `sub` cannot override
 the verified subject. This is the anti-spoofing guarantee at the heart of the policy engine.

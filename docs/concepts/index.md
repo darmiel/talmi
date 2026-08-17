@@ -1,7 +1,8 @@
 # Architecture
 
-Talmi is organized around a single request pipeline. This page gives the shape; the other Concepts
-pages go deep on each piece.
+
+Talmi runs every token request through the same four-stage pipeline. The other Concepts pages cover
+each piece in detail.
 
 ## The request pipeline
 
@@ -49,10 +50,4 @@ For contributors, the important packages:
 | `internal/api`       | HTTP server, routes, handlers, middleware.                                                      |
 
 The [CONTRIBUTING guide](https://github.com/darmiel/talmi/blob/main/CONTRIBUTING.md) covers the
-internals, invariants, and where the security-critical decisions live.
-
-## Fail-closed by design
-
-The engine never assumes config validation ran. No matching rule, an empty action list, an unknown
-realm, an expression error, or an empty condition without `allow_empty` all deny. See
-[Security](../security/index.md) for the invariants that matter when exposing Talmi.
+internals and the security-critical code paths.

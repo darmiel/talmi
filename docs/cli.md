@@ -1,8 +1,5 @@
 # CLI reference
 
-Commands are grouped by noun (`talmi lease issue`, `talmi config vet`). The everyday verbs also work
-as top-level shortcuts (`talmi issue` = `talmi lease issue`, plus `revoke`, `why`, `login`).
-
 ## Global flags
 
 Apply to every command:

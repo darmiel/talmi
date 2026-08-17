@@ -1,6 +1,7 @@
 # Quick start
 
-This walks through a minimal, working setup: one issuer, one realm, one rule, then issuing a token.
+
+A minimal working setup: one issuer, one realm, one rule, then issuing a token.
 A complete example tree lives in [`example/`](https://github.com/darmiel/talmi/tree/main/example).
 
 ## 1. Bootstrap file
@@ -111,6 +112,7 @@ talmi lease explain --resource "ghes-corp:acme/svc-a=contents:write" --token dev
 
 ## Next
 
-- Understand the pieces: [Concepts](../concepts/index.md).
+
+- How it works: [Concepts](../concepts/index.md).
 - Configure real issuers and providers: [Configuration](../configuration/layout.md).
 - Run it for real: [Operations](../operations/server.md).

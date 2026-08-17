@@ -1,7 +1,7 @@
 # Config source trust boundary
 
 The bootstrap file (`talmi.yaml`) is trusted: it lives on the host you control. The **sourced tree**
-(issuers, realms, rules) is a lower trust boundary, and this matters most when it comes from a remote
+(issuers, realms, rules) is a lower trust boundary, and this is most important when it comes from a remote
 GitHub repository.
 
 ## The risk

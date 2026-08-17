@@ -88,8 +88,6 @@ nav:
   - Security:
       - security/index.md
       - Config source trust: security/trust-model.md
-      - Hardening for public exposure: security/hardening.md
   - CLI reference: cli.md
   - Reference:
-      - Audit event catalog: reference/audit-events.md
       - JSON schema: reference/json-schema.md

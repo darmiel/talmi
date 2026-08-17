@@ -19,7 +19,7 @@ Full documentation lives at **<https://darmiel.github.io/talmi/>** (built from `
 - [Concepts](docs/concepts/index.md) - the mental model
 - [Configuration](docs/configuration/layout.md) - issuers, realms, rules, sources, secrets
 - [Operations](docs/operations/server.md) - running, deploying, sessions, auditing
-- [Security](docs/security/index.md) - the trust model and a hardening checklist
+- [Security](docs/security/index.md) - the trust model
 - [CLI reference](docs/cli.md)
 
 ## Quick start

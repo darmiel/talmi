@@ -22,7 +22,7 @@ Rules map identity to grants. A rule has a `match` (which principals it applies 
 `allow` entries (what those principals may request). Every rule whose `match` accepts the principal
 contributes its `allow` entries, and a requested resource is granted only if that union covers it. If
 any requested resource is left uncovered, the whole request is denied. Rule order does not change the
-outcome, so group rules however reads best.
+outcome, so group rules however you like.
 
 ```yaml
 - name: talmi-admins

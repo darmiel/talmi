@@ -13,9 +13,13 @@ docker run --rm -p 8080:8080 \
   talmi:latest server run --addr :8080 --config /etc/talmi/talmi.yaml
 ```
 
+
+<!-- @formatter:off -->
 !!! warning "Container command"
-Run Talmi with the `server run` subcommand (`server run --addr ... --config ...`). There is no
-`serve` command.
+    Run Talmi with the `server run` subcommand (`server run --addr ... --config ...`). There is no
+    `serve` command.
+<!-- @formatter:on -->
+
 
 ## Kubernetes
 
