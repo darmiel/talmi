@@ -156,3 +156,21 @@ func TestBuildProviderDevAPINoCeilingServesNothing(t *testing.T) {
 	is.Empty(caps.Resources, "pure-api realm serves nothing under --dev")
 	is.Equal("api", d.Mode)
 }
+
+func TestBuildRealmsRejectsDuplicates(t *testing.T) {
+	t.Parallel()
+	_, err := buildRealms([]config.RealmBlock{
+		{Realm: "github", Type: "github-app"},
+		{Realm: "github", Type: "github-app"},
+	})
+	assert.Error(t, err, "duplicate realm names must fail closed")
+}
+
+func TestBuildRealmsDefaultedName(t *testing.T) {
+	t.Parallel()
+	norm, _ := config.NormalizeRealms([]config.RealmBlock{{Type: "github-app"}})
+	reg, err := buildRealms(norm)
+	require.NoError(t, err)
+	_, ok := reg.Get("github")
+	assert.True(t, ok, "defaulted realm registers under 'github'")
+}

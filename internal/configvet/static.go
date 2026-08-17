@@ -24,17 +24,35 @@ type StaticInput struct {
 
 func Static(in StaticInput) Report {
 	var r Report
+
+	normalized, defaulted := config.NormalizeRealms(in.Sourced.Realms)
+	sc := *in.Sourced
+	sc.Realms = normalized
+	in.Sourced = &sc
+	in.Realms = realmRegistryFrom(normalized)
+
 	checkSigning(in, &r)
 	checkStore(in, &r)
 	checkAudit(in, &r)
 	checkIssuers(in, &r)
 	checkRealms(in, &r)
+	checkRealmNames(in, &r, defaulted)
 	checkRealmCapability(in, &r)
 	checkRules(in, &r)
 	checkAuth(in, &r)
 	checkSecrets(in, &r)
 	checkUnused(in, &r)
 	return r
+}
+
+func realmRegistryFrom(realms []config.RealmBlock) *realm.Registry {
+	reg := realm.NewRegistry()
+	for _, rb := range realms {
+		if sem, ok := realm.SemanticsFor(rb.Type); ok {
+			reg.Register(rb.Realm, sem)
+		}
+	}
+	return reg
 }
 
 func checkSigning(in StaticInput, r *Report) {
@@ -120,6 +138,28 @@ func checkRealms(in StaticInput, r *Report) {
 				r.errorf("CFG-INSTANCE-CONFIG", "realms", iloc, "%v", err)
 			}
 		}
+	}
+}
+
+func checkRealmNames(in StaticInput, r *Report, defaulted []config.DefaultedRealm) {
+	for _, d := range defaulted {
+		r.warnf("CFG-REALM-NAME", "realms", "realms["+d.Name+"]",
+			"realm name was omitted for type %q, defaulting to %q", d.Type, d.Name).
+			Help = "set the realm name explicitly to avoid this warning"
+	}
+	seen := make(map[string]struct{})
+	for _, rb := range in.Sourced.Realms {
+		if rb.Realm == "" {
+			r.errorf("CFG-REALM", "realms", "realms[]",
+				"realm block of type %q is missing a realm name and has no default", rb.Type)
+			continue
+		}
+		if _, dup := seen[rb.Realm]; dup {
+			r.errorf("CFG-REALM-DUP", "realms", "realms["+rb.Realm+"]",
+				"duplicate realm name %q; realm names must be unique", rb.Realm)
+			continue
+		}
+		seen[rb.Realm] = struct{}{}
 	}
 }
 
