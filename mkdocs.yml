@@ -1,0 +1,93 @@
+site_name: Talmi
+site_description: A short-lived token service that exchanges verified upstream identities for scoped, auditable downstream tokens.
+site_url: ""
+repo_url: https://github.com/darmiel/talmi
+repo_name: darmiel/talmi
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: stylesheets/icon.svg
+  favicon: stylesheets/icon.svg
+  font:
+    text: JetBrains Mono
+    code: JetBrains Mono
+  palette:
+    scheme: slate
+    primary: black
+    accent: white
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer      # prev / next buttons at the bottom
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+          # docs/superpowers holds internal specs/plans, not user documentation.
+exclude_docs: |
+  superpowers/
+
+nav:
+  - Introduction: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quick-start.md
+      - Testing with a mock OIDC issuer: getting-started/testing-oidc.md
+  - Concepts:
+      - concepts/index.md
+      - Issuers and principals: concepts/issuers-and-principals.md
+      - Realms and providers: concepts/realms-and-providers.md
+      - Resources, actions, rules: concepts/resources-actions-rules.md
+      - Conditions: concepts/conditions.md
+      - Leases and revocation: concepts/leases.md
+      - Capabilities and discovery: concepts/capabilities.md
+  - Configuration:
+      - Layout and trust model: configuration/layout.md
+      - Bootstrap (talmi.yaml): configuration/bootstrap.md
+      - Issuers: configuration/issuers.md
+      - Realms and providers: configuration/realms.md
+      - Rules: configuration/rules.md
+      - Secrets: configuration/secrets.md
+      - Config sources: configuration/sources.md
+      - Validation: configuration/validation.md
+  - Operations:
+      - Running the server: operations/server.md
+      - Deployment: operations/deployment.md
+      - Sessions and admin: operations/sessions-and-admin.md
+      - Auditing: operations/auditing.md
+  - Security:
+      - security/index.md
+      - Config source trust: security/trust-model.md
+  - CLI reference: cli.md
+  - Reference:
+      - JSON schema: reference/json-schema.md

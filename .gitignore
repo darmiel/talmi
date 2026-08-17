@@ -4,6 +4,9 @@
 talmi.yaml
 /demo
 
+# generated MkDocs
+/site
+
 # temp
 *.yaml
 *.jsonl
