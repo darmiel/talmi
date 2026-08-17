@@ -33,6 +33,34 @@ are all claims.
 > The server fetches `<issuer_url>/.well-known/openid-configuration` at startup,
 > so it needs network access to the issuer.
 
+#### Airgapped / restricted networks
+
+When the discovery or JWKS endpoint is unreachable, supply the verification keys
+instead. Two mutually-exclusive options (both keep `issuer_url` required and still
+enforce it as the token's `iss`):
+
+```yaml
+# Fully offline: inline the JWKS JSON (a secret.Ref; mount a file with file:).
+- name: corp-oidc
+  type: oidc
+  issuer_url: https://token.actions.githubusercontent.com
+  client_id: https://github.com/my-org
+  jwks: file:/run/secrets/corp-oidc.jwks.json   # no discovery, no network fetch
+
+# Or point at a reachable internal JWKS mirror: discovery is skipped, keys are
+# still fetched from this URL (so they rotate).
+- name: corp-oidc
+  type: oidc
+  issuer_url: https://token.actions.githubusercontent.com
+  client_id: https://github.com/my-org
+  jwks_url: https://jwks-mirror.internal/corp/jwks.json
+```
+
+Setting both `jwks` and `jwks_url` is a config error. Inline `jwks` keys are
+pinned: rotate them by updating the source and reloading. The JWKS is
+public-key material (not a secret to protect), and inline keys are strictly safer
+than discovery since an attacker on the network can't swap them.
+
 ### `static`
 Maps fixed token strings to attributes. Local dev and tests only: the
 "token" the client sends is literally the map key.
