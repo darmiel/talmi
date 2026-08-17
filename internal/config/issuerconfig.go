@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
+
+	"github.com/darmiel/talmi/internal/secret"
 )
 
 const mapstructureTag = "mapstructure"
@@ -37,6 +39,12 @@ type IssuerConfig interface {
 type OIDCConfig struct {
 	IssuerURL string `mapstructure:"issuer_url" yaml:"issuer_url" json:"issuer_url" jsonschema:"required"`
 	ClientID  string `mapstructure:"client_id" yaml:"client_id" json:"client_id" jsonschema:"required"`
+	// JWKS is an inline JWKS JSON document (secret.Ref). When set, verification uses these keys
+	// directly with no discovery or network fetch. Mutually exclusive with JWKSURL.
+	JWKS secret.Ref `mapstructure:"jwks" yaml:"jwks,omitempty" json:"jwks,omitempty"`
+	// JWKSURL points at a reachable JWKS endpoint (e.g. an internal mirror); discovery is skipped
+	// but keys are fetched from this URL. Mutually exclusive with JWKS.
+	JWKSURL string `mapstructure:"jwks_url" yaml:"jwks_url,omitempty" json:"jwks_url,omitempty"`
 }
 
 func (c OIDCConfig) Validate() error {
@@ -45,6 +53,9 @@ func (c OIDCConfig) Validate() error {
 	}
 	if c.ClientID == "" {
 		return fmt.Errorf("oidc issuer requires 'client_id'")
+	}
+	if c.JWKS != "" && c.JWKSURL != "" {
+		return fmt.Errorf("oidc issuer: 'jwks' and 'jwks_url' are mutually exclusive")
 	}
 	return nil
 }
