@@ -1,0 +1,254 @@
+/* ==========================================================================
+   Talmi design system: dark, monochrome, monospace, square corners.
+   ========================================================================== */
+
+:root {
+  --md-primary-fg-color: #000000;
+  --md-accent-fg-color:  #ffffff;
+  --md-typeset-a-color:  #ffffff;
+
+  --tl-ink:       #ffffff;   /* headings / strong ink */
+  --tl-body:      #c9c9c9;   /* body text */
+  --tl-muted:     #8a8a8a;   /* labels, small caps */
+  --tl-line:      rgba(255, 255, 255, 0.18);
+  --tl-line-soft: rgba(255, 255, 255, 0.10);
+}
+
+/* Force a near-black canvas over slate's default blue-grey. */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color:          #0a0a0a;
+  --md-default-bg-color--light:   #101010;
+  --md-code-bg-color:             #131313;
+  --md-default-fg-color:          #c9c9c9;
+  --md-primary-fg-color:          #000000;
+  --md-accent-fg-color:           #ffffff;
+  --md-typeset-a-color:           #ffffff;
+}
+
+/* --- Kill rounded corners everywhere ------------------------------------- */
+
+.md-typeset .md-button,
+.md-typeset code,
+.md-typeset pre > code,
+.md-typeset .highlight,
+.md-typeset .highlighttable,
+.md-typeset .admonition,
+.md-typeset details,
+.md-typeset table:not([class]),
+.md-typeset .tabbed-set > .tabbed-labels,
+.md-typeset .tabbed-set > .tabbed-labels > label,
+.md-typeset .grid.cards > :is(ul, ol) > li,
+.md-search__form,
+.md-search__input,
+.md-search__output,
+.md-footer__link,
+.md-clipboard,
+.md-nav__link,
+input,
+button {
+  border-radius: 0 !important;
+}
+
+/* --- Type scale: a clear ladder in one monospace family ------------------ */
+
+.md-typeset {
+  color: var(--tl-body);
+  font-size: 0.72rem;
+  line-height: 1.75;
+}
+
+.md-typeset h1 {
+  color: var(--tl-ink);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin: 0 0 1.1rem;
+}
+
+.md-typeset h2 {
+  color: var(--tl-ink);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  margin: 3rem 0 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--tl-line);
+}
+
+.md-typeset h3 {
+  color: var(--tl-ink);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 2rem 0 0.6rem;
+}
+
+/* h4 as an uppercase label so it never blends into body text. */
+.md-typeset h4 {
+  color: var(--tl-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 1.6rem 0 0.4rem;
+}
+
+.md-typeset p,
+.md-typeset li {
+  color: var(--tl-body);
+}
+
+/* strong should read as ink, not just bold body */
+.md-typeset strong {
+  color: var(--tl-ink);
+  font-weight: 700;
+}
+
+/* Links: quiet by default, underline on hover. */
+.md-typeset a {
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.12s ease;
+}
+.md-typeset a:hover {
+  border-bottom-color: currentColor;
+}
+
+/* --- Focus: keyboard-only ring, no stray mouse-click outline ------------- */
+
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+.md-button:focus:not(:focus-visible),
+.md-clipboard:focus:not(:focus-visible),
+.md-header__button:focus:not(:focus-visible),
+.md-nav__button:focus:not(:focus-visible),
+.md-footer__link:focus:not(:focus-visible) {
+  outline: none;
+}
+:is(a, button, .md-button, .md-clipboard):focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+}
+
+/* --- Buttons: black, generous padding, single crisp border, no shadow ---- */
+
+.md-typeset .md-button {
+  display: inline-block;
+  border: 1px solid var(--tl-ink);
+  padding: 0.72em 1.5em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.md-typeset .md-button:hover {
+  background: var(--tl-ink);
+  color: var(--md-default-bg-color, #fff);
+  border-color: var(--tl-ink);
+}
+.md-typeset .md-button--primary {
+  background: var(--tl-ink);
+  color: var(--md-default-bg-color, #fff);
+  border-color: var(--tl-ink);
+}
+.md-typeset .md-button--primary:hover {
+  background: transparent;
+  color: var(--tl-ink);
+  border-color: var(--tl-ink);
+}
+
+/* --- Code ----------------------------------------------------------------- */
+
+.md-typeset code {
+  color: var(--tl-ink);
+  border: 1px solid var(--tl-line-soft);
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.md-typeset pre > code {
+  border: 1px solid var(--tl-line);
+}
+.md-typeset a code {
+  border-color: transparent;
+}
+
+/* --- Admonitions: flat, square, thick left rule -------------------------- */
+
+.md-typeset .admonition,
+.md-typeset details {
+  border: 1px solid var(--tl-line);
+  border-left-width: 3px;
+  box-shadow: none;
+  font-size: 0.72rem;
+}
+
+/* --- Tables --------------------------------------------------------------- */
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--tl-line);
+  font-size: 0.68rem;
+}
+.md-typeset table:not([class]) th {
+  background: var(--tl-ink);
+  color: var(--md-default-bg-color, #fff);
+  font-weight: 700;
+}
+
+/* --- Grid cards ----------------------------------------------------------- */
+
+.md-typeset .grid.cards > :is(ul, ol) > li {
+  border: 1px solid var(--tl-line);
+  padding: 1.1rem 1.2rem;
+  box-shadow: none;
+  transition: border-color 0.15s ease;
+}
+.md-typeset .grid.cards > :is(ul, ol) > li:hover {
+  border-color: var(--tl-ink);
+}
+.md-typeset .grid.cards > :is(ul, ol) > li > hr {
+  margin: 0.6rem 0;
+  border: none;
+  border-top: 1px solid var(--tl-line);
+}
+
+/* --- Search --------------------------------------------------------------- */
+
+.md-search__input {
+  border: 1px solid var(--tl-line);
+}
+
+/* --- Footer prev/next: bordered blocks ----------------------------------- */
+
+.md-footer__link {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.9rem 1.1rem;
+  margin: 0.6rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.md-footer__link:hover {
+  background: #fff;
+  color: #000;
+}
+.md-footer__link:hover :is(.md-footer__title, .md-footer__direction) {
+  color: #000;
+}
+
+/* --- Left nav ------------------------------------------------------------- */
+
+.md-nav {
+  font-size: 0.7rem;
+}
+.md-nav__link--active {
+  color: var(--tl-ink);
+  font-weight: 700;
+}
+
+/* --- Selection ------------------------------------------------------------ */
+
+::selection {
+  background: var(--tl-ink);
+  color: var(--md-default-bg-color, #fff);
+}
