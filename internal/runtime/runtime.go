@@ -101,6 +101,8 @@ func buildReloadable(
 	dev bool,
 	stable stable,
 ) (*Runtime, error) {
+	sourced.Realms, _ = config.NormalizeRealms(sourced.Realms)
+
 	realms, err := buildRealms(sourced.Realms)
 	if err != nil {
 		return nil, err
@@ -167,11 +169,16 @@ func buildReloadable(
 
 func buildRealms(realms []config.RealmBlock) (*realm.Registry, error) {
 	reg := realm.NewRegistry()
+	seen := make(map[string]struct{})
 	for _, rb := range realms {
 		sem, ok := realm.SemanticsFor(rb.Type)
 		if !ok {
 			return nil, fmt.Errorf("realm %q: unknown type: %s", rb.Realm, rb.Type)
 		}
+		if _, dup := seen[rb.Realm]; dup {
+			return nil, fmt.Errorf("realm %q: duplicate realm name", rb.Realm)
+		}
+		seen[rb.Realm] = struct{}{}
 		reg.Register(rb.Realm, sem)
 	}
 	return reg, nil
