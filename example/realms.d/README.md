@@ -9,8 +9,9 @@ accounts) that actually mint tokens for it.
 - An **action** is a realm-defined string. Realms differ in how actions are
   ordered (see below).
 
-Each `*.yaml` file is a **list** of realm blocks. Blocks need a `realm` (the
-prefix) and a `type` (which backend/semantics to use).
+Each `*.yaml` file is a **list** of realm blocks. A block needs a `type` (which
+backend/semantics to use); `realm` (the prefix) is optional and defaults from the
+type when omitted.
 
 ```yaml
 - realm: ghes-corp          # the resource prefix -> "ghes-corp:owner/repo"
@@ -22,6 +23,16 @@ prefix) and a `type` (which backend/semantics to use).
     - name: gh-main
       # ...type-specific credentials...
 ```
+
+### Default realm names
+
+If you omit `realm:`, it defaults from `type:` - `github-app` -> `github`,
+`artifactory` -> `artifactory`, `talmi` -> `talmi` - so `github:owner/repo` works
+out of the box. `config vet` emits a warning when a name is defaulted (declare
+`realm:` explicitly to silence it), and a type with no known default still
+requires an explicit name. Realm names must be **unique**: two blocks resolving to
+the same name (two omitted `github-app` blocks, or a default colliding with an
+explicit name) is a hard error - split them under distinct `realm:` names.
 
 ## `capability`: the ceiling
 
