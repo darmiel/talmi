@@ -37,6 +37,12 @@
             },
             "client_id": {
               "type": "string"
+            },
+            "jwks": {
+              "type": "string"
+            },
+            "jwks_url": {
+              "type": "string"
             }
           },
           "additionalProperties": false,

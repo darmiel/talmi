@@ -32,9 +32,6 @@
         },
         "capability": {
           "$ref": "#/$defs/CapabilityBlock"
-        },
-        "Config": {
-          "type": "object"
         }
       },
       "additionalProperties": false,
