@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://talmi.qwer.tz/schema/realms.schema.json
+#
 # JFrog Artifactory realm.
 #   actions are bare levels: read < annotate < write
 - realm: artifactory

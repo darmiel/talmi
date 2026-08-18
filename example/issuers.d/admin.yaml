@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://talmi.qwer.tz/schema/issuers.schema.json
+#
 # Admin identity issuers (for `talmi login` and the admin API).
 
 # github-oauth: verifies a GitHub/GHES OAuth access token by calling the API.

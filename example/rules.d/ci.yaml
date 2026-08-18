@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://talmi.qwer.tz/schema/rules.schema.json
+#
 # CI authorization rules.
 #
 # Every rule whose `match` accepts the principal contributes its `allow` entries;

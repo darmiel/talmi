@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://talmi.qwer.tz/schema/rules.schema.json
+#
 # Admin authorization rules.
 #
 # The admin API resources live in the `talmi` realm and use EXACT action strings

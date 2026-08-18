@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../docs/schema/config.schema.json
+# yaml-language-server: $schema=https://talmi.qwer.tz/schema/config.schema.json
 #
 # Full Talmi bootstrap example (dev), covering every config section.
 #
