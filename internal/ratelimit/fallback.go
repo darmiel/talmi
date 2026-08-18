@@ -58,3 +58,11 @@ func (f *Fallback) onError(op string, key Key, err error) {
 			"error", err)
 	}
 }
+
+func (f *Fallback) Close() error {
+	// closes the local backend if it is closable, the primary is owned somewhere else.
+	if closer, ok := f.local.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}
