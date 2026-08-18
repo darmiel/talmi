@@ -12,6 +12,7 @@
   --tl-muted:     #8a8a8a;   /* labels, small caps */
   --tl-line:      rgba(255, 255, 255, 0.18);
   --tl-line-soft: rgba(255, 255, 255, 0.10);
+  --tl-panel:     #191919;   /* banner background grey */
 }
 
 /* Force a near-black canvas over slate's default blue-grey. */
@@ -136,7 +137,9 @@ button:focus:not(:focus-visible),
 
 .md-typeset .md-button {
   display: inline-block;
-  border: 1px solid var(--tl-ink);
+  background: var(--tl-panel);
+  color: var(--tl-ink);
+  border: 1px solid var(--tl-panel);
   padding: 0.72em 1.5em;
   font-size: 0.72rem;
   font-weight: 700;
