@@ -12,12 +12,13 @@ var ErrInvalidConfigType = fmt.Errorf("invalid config type")
 
 // Config is the local bootstrap.
 type Config struct {
-	Grade        string        `yaml:"grade"`
-	Signing      SigningConfig `yaml:"signing"`
-	Store        StoreConfig   `yaml:"store"`
-	Audit        AuditConfig   `yaml:"audit"`
-	ConfigSource *SourceConfig `yaml:"source"`
-	Auth         *AuthConfig   `yaml:"auth,omitempty"`
+	Grade        string           `yaml:"grade"`
+	Signing      SigningConfig    `yaml:"signing"`
+	Store        StoreConfig      `yaml:"store"`
+	Audit        AuditConfig      `yaml:"audit"`
+	ConfigSource *SourceConfig    `yaml:"source"`
+	Auth         *AuthConfig      `yaml:"auth,omitempty"`
+	RateLimit    *RateLimitConfig `yaml:"rate_limit,omitempty"`
 
 	// Local sourced sections
 	Issuers Includes `yaml:"issuers"`
@@ -118,4 +119,28 @@ type AuthConfig struct {
 	Server        string        `yaml:"server"`    // GHES base
 	ClientID      string        `yaml:"client_id"` // GHES oauth app client ID
 	Scopes        []string      `yaml:"scopes"`
+}
+
+// RateLimitConfig configures the two-layer request limiter.
+type RateLimitConfig struct {
+	Enabled        bool                      `yaml:"enabled"`
+	Backend        string                    `yaml:"backend"` // memory | redis; "" = memory
+	Redis          RedisConfig               `yaml:"redis,omitempty"`
+	TrustedProxies []string                  `yaml:"trusted_proxies,omitempty"` // peers whose XFF we trust
+	BypassCIDRs    []string                  `yaml:"bypass_cidrs,omitempty"`    // callers that skip limiting
+	IP             RateLimitProfile          `yaml:"ip"`
+	Principal      RateLimitProfile          `yaml:"principal"`
+	Costs          map[string]map[string]int `yaml:"costs,omitempty"` // category -> class -> cost override
+}
+
+type RedisConfig struct {
+	Addr     string     `yaml:"addr,omitempty"`
+	Password secret.Ref `yaml:"password,omitempty"`
+	DB       int        `yaml:"db,omitempty"`
+}
+
+// RateLimitProfile is the bucket shape for one layer.
+type RateLimitProfile struct {
+	Capacity     int     `yaml:"capacity"`
+	RefillPerSec float64 `yaml:"refill_per_sec"`
 }

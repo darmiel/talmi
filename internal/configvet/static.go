@@ -1,6 +1,7 @@
 package configvet
 
 import (
+	"net/netip"
 	"sort"
 	"strings"
 
@@ -40,6 +41,7 @@ func Static(in StaticInput) Report {
 	checkRealmCapability(in, &r)
 	checkRules(in, &r)
 	checkAuth(in, &r)
+	checkRateLimit(in, &r)
 	checkSecrets(in, &r)
 	checkUnused(in, &r)
 	return r
@@ -346,6 +348,64 @@ func checkAuth(in StaticInput, r *Report) {
 	}
 	requireIssuer(auth.LoginIssuer, "github-oauth", "CFG-AUTH-LOGIN", "login_issuer")
 	requireIssuer(auth.SessionIssuer, "talmi-session", "CFG-AUTH-SESSION", "session_issuer")
+}
+
+func checkRateLimit(in StaticInput, r *Report) {
+	rl := in.Config.RateLimit
+	if rl == nil {
+		return
+	}
+	if !rl.Enabled {
+		r.warnf("CFG-RATELIMIT", "rate_limit", "rate_limit.enabled",
+			"rate limiting is disabled").
+			Help = "set rate_limit.enabled: true"
+		return
+	}
+
+	switch rl.Backend {
+	case "", "memory":
+	case "redis":
+		if rl.Redis.Addr == "" {
+			r.errorf("CFG-RATELIMIT", "rate_limit", "rate_limit.redis.addr",
+				"backend redis requires a non-empty redis.addr")
+		}
+	default:
+		r.errorf("CFG-RATELIMIT", "rate_limit", "rate_limit.backend",
+			"unsupported backend %q, must be one of memory or redis", rl.Backend)
+	}
+
+	checkProfile := func(p config.RateLimitProfile, field string) {
+		if p.Capacity <= 0 {
+			r.errorf("CFG-RATELIMIT", "rate_limit", "rate_limit."+field+".capacity",
+				"capacity must be positive")
+		}
+		if p.RefillPerSec <= 0 {
+			r.errorf("CFG-RATELIMIT", "rate_limit", "rate_limit."+field+".refill_per_sec",
+				"refill_per_sec must be positive")
+		}
+	}
+	checkProfile(rl.IP, "ip")
+	checkProfile(rl.Principal, "principal")
+
+	checkCIDRs := func(cidrs []string, field string) {
+		for _, c := range cidrs {
+			if _, err := netip.ParsePrefix(c); err != nil {
+				r.errorf("CFG-RATELIMIT", "rate_limit", "rate_limit."+field,
+					"invalid CIDR %q: %v", c, err)
+			}
+		}
+	}
+	checkCIDRs(rl.TrustedProxies, "trusted_proxies")
+	checkCIDRs(rl.BypassCIDRs, "bypass_cidrs")
+
+	for cat, cells := range rl.Costs {
+		for cls, v := range cells {
+			if v < 0 {
+				r.errorf("CFG-RATELIMIT", "rate_limit",
+					"rate_limit.costs."+cat+"."+cls, "cost must not be negative")
+			}
+		}
+	}
 }
 
 func checkSecrets(in StaticInput, r *Report) {
