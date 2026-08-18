@@ -1,54 +1,54 @@
 # Realms and providers
 
+
 A *realm* is a namespace of resources with its own meaning of "resource" and "action". A *provider*
-is the backend that actually mints tokens for a realm. The realm block's `type` picks the backend.
+is the backend that actually mints tokens for a realm. A realm block's `type` picks the backend, and
+everything a realm can ever hand out is bounded by its *capability*.
+
+This page covers the model. For the config fields (what each provider block looks like, which keys
+are required), see [Configuration > Realms and providers](../configuration/realms.md).
+
 
 ## Provider types
 
-- **`github-app`** - mints GitHub App installation tokens. Instance config: `app_id`, `private_key`,
-  optional `server` (for GHES), optional `timeout`.
-- **`artifactory`** - mints JFrog Artifactory access tokens. Instance config: `admin_token`,
-  `groups`, optional `base_url`, optional `timeout`.
-- **`talmi`** - the session realm. It has no provider backend and mints nothing. It exists so admin
+
+Talmi ships three realm types. They differ in what they mint and in how their capability ceiling is
+determined:
+
+
+- **`github-app`** mints GitHub App installation tokens. Its capability is *discovered live* from the
+  App: Talmi queries the installations, repos, and permissions the App actually has, and the declared
+  lists narrow that down. A resource is an `<owner>/<repo>` and actions are `<permission>:<level>`.
+- **`artifactory`** mints JFrog Artifactory access tokens. Its capability is *declarative*: the token
+  is scoped to configured groups, so what you declare is the ceiling. A resource is a repository path
+  and actions are bare levels (`read < annotate < write`).
+- **`talmi`** is the session realm. It has no backend and mints nothing. It exists so the admin
   resources (`talmi:session`, `talmi:audit`, `talmi:providers`, `talmi:tasks`) have semantics that
   rules can grant.
 
-## Realms, instances, capability
 
-A realm can hold several `instances` (individual Apps/servers). `capability` sets what the realm may
-ever hand out (`resources` globs, `max_actions` ceiling); an instance can override it. `realm:` is
-optional and defaults from the type (`github-app` -> `github`, `artifactory` -> `artifactory`,
-`talmi` -> `talmi`).
+The [Resources, actions, and rules](resources-actions-rules.md) page has the full action grammar for
+each type.
 
-```yaml
-- realm: ghes-corp
-  type: github-app
-  capability:
-    resources: [ "ghes-corp:acme/*" ]
-    max_actions: [ "contents:read", "contents:write" ]
-  instances:
-    - name: gh-ci-reader
-      app_id: 111
-      private_key: file:/run/secrets/reader.pem
-    - name: gh-ci-writer
-      app_id: 222
-      private_key: file:/run/secrets/writer.pem
-```
 
-The session realm is declared once with no instances:
+## Realms, instances, and capability
 
-```yaml
-- realm: talmi
-  type: talmi
-  instances: [ ]
-```
+
+A realm can hold several `instances`, one per App or server. Each instance carries its own
+credentials but serves the same realm namespace. Capability is the ceiling of what the realm may ever
+hand out (which resources, up to which action level); an instance can tighten it further.
+
+The grant a caller actually gets is always the overlap of two things: the policy (the union of
+matching [rules](resources-actions-rules.md)) and the realm's [capability](capabilities.md). A rule
+can never grant more than the realm can mint, and the realm can never mint more than its backend
+allows. See [Capabilities and discovery](capabilities.md) for how the effective ceiling is computed
+from a static declaration versus live discovery.
+
 
 ## Least-privileged selection
 
-When several instances can serve a resource, the resolver picks the one whose action ceiling most
-tightly fits the request (then by resource breadth, then declaration order). That is why you can run
-a read-only App and a write App in the same realm: a read request goes to the read-only App.
 
-See [Capabilities and discovery](capabilities.md) for how a realm's effective capability is computed
-(static declaration vs. live discovery), and
-[Configuration > Realms and providers](../configuration/realms.md) for the full config surface.
+When several instances in a realm can serve a resource, the resolver picks the one whose action
+ceiling most tightly fits the request (then by resource breadth, then declaration order). That is why
+you can run a read-only App and a write App in the same realm: a read request goes to the read-only
+App, and the write App is only reached when a write is actually asked for.
