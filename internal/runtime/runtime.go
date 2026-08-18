@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
 	"github.com/darmiel/talmi/internal/audit"
@@ -18,6 +20,7 @@ import (
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/issuers"
 	"github.com/darmiel/talmi/internal/providers/stub"
+	"github.com/darmiel/talmi/internal/ratelimit"
 	"github.com/darmiel/talmi/internal/realm"
 	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/secret"
@@ -39,6 +42,8 @@ type Runtime struct {
 	Providers           []core.ResourceProvider // for webhook cache invalidation
 	ProviderDescriptors []ProviderDescriptor    // static metadata, idx-aligned with Providers
 	Revision            string
+	Limiter             ratelimit.Limiter
+	RateLimit           *RateLimitRuntime
 }
 
 // ProviderDescriptor is static metadata about one built provider instance.
@@ -49,18 +54,38 @@ type ProviderDescriptor struct {
 	Mode  string // dicsovery mode: static or api
 }
 
+// RateLimitRuntime holds the runtime configuration for rate limiting.
+type RateLimitRuntime struct {
+	Enabled        bool
+	Costs          ratelimit.CostTable
+	IP             ratelimit.Profile
+	Principal      ratelimit.Profile
+	TrustedProxies []netip.Prefix
+	BypassCIDRs    []netip.Prefix
+}
+
+const (
+	rateLimitSweep   = time.Minute
+	rateLimitIdleTTL = 10 * time.Minute
+)
+
 // stable holds components that persist across reloads.
 type stable struct {
-	store   core.LeaseStore
-	auditor core.Auditor
-	sinks   []audit.Sink
-	signer  *issuers.SessionSigner
+	store     core.LeaseStore
+	auditor   core.Auditor
+	sinks     []audit.Sink
+	signer    *issuers.SessionSigner
+	limiter   ratelimit.Limiter
+	rateLimit *RateLimitRuntime
 }
 
 func (s stable) Close() error {
 	errs := []error{s.store.Close(), s.auditor.Close()}
 	for _, sink := range s.sinks {
 		errs = append(errs, sink.Close())
+	}
+	if c, ok := s.limiter.(interface{ Close() error }); ok {
+		errs = append(errs, c.Close())
 	}
 	return errors.Join(errs...)
 }
@@ -85,11 +110,22 @@ func buildStable(ctx context.Context, cfg *config.Config, dev bool) (*stable, er
 		_ = auditor.Close()
 		return nil, err
 	}
+	limiter, rateLimit, err := buildRateLimiter(cfg.RateLimit)
+	if err != nil {
+		_ = leaseStore.Close()
+		_ = auditor.Close()
+		for _, sink := range sinks {
+			_ = sink.Close()
+		}
+		return nil, err
+	}
 	return &stable{
-		store:   leaseStore,
-		auditor: auditor,
-		sinks:   sinks,
-		signer:  signer,
+		store:     leaseStore,
+		auditor:   auditor,
+		sinks:     sinks,
+		signer:    signer,
+		limiter:   limiter,
+		rateLimit: rateLimit,
 	}, nil
 }
 
@@ -160,6 +196,8 @@ func buildReloadable(
 		Engine:              policy,
 		LeaseStore:          stable.store,
 		Auditor:             stable.auditor,
+		Limiter:             stable.limiter,
+		RateLimit:           stable.rateLimit,
 		Recorder:            rec,
 		Providers:           providers,
 		ProviderDescriptors: descriptors,
@@ -343,6 +381,92 @@ func buildSinks(cfg config.AuditConfig) ([]audit.Sink, error) {
 		}
 	}
 	return sinks, nil
+}
+
+func buildRateLimiter(cfg *config.RateLimitConfig) (ratelimit.Limiter, *RateLimitRuntime, error) {
+	if cfg == nil || !cfg.Enabled {
+		log.Warn().Msg("runtime: rate limiting is disabled (noop limiter)")
+		return ratelimit.NewNopLimiter(), &RateLimitRuntime{Enabled: false}, nil
+	}
+
+	trusted, err := parsePrefixes(cfg.TrustedProxies)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rate_limit.trusted_proxies: %w", err)
+	}
+	bypass, err := parsePrefixes(cfg.BypassCIDRs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rate_limit.bypass_cidrs: %w", err)
+	}
+
+	rt := &RateLimitRuntime{
+		Enabled: true,
+		Costs:   ratelimit.DefaultCosts().WithOverrides(convertCosts(cfg.Costs)),
+		IP: ratelimit.Profile{
+			Capacity:     cfg.IP.Capacity,
+			RefillPerSec: cfg.IP.RefillPerSec,
+		},
+		Principal: ratelimit.Profile{
+			Capacity:     cfg.Principal.Capacity,
+			RefillPerSec: cfg.Principal.RefillPerSec,
+		},
+		TrustedProxies: trusted,
+		BypassCIDRs:    bypass,
+	}
+
+	memOpts := ratelimit.MemoryOptions{
+		Sweep:   rateLimitSweep,
+		IdleTTL: rateLimitIdleTTL,
+	}
+	switch cfg.Backend {
+	case "", "memory":
+		log.Info().
+			Str("backend", "memory").
+			Msg("runtime: rate limiter initialized")
+		return ratelimit.NewMemoryLimiter(memOpts), rt, nil
+	case "redis":
+		pw, err := secret.ResolveString(cfg.Redis.Password)
+		if err != nil {
+			return nil, nil, fmt.Errorf("resolving redis password: %w", err)
+		}
+		rc := redis.NewClient(&redis.Options{
+			Addr:     cfg.Redis.Addr,
+			Password: pw,
+			DB:       cfg.Redis.DB,
+		})
+		log.Info().
+			Str("backend", "redis").
+			Msg("runtime: rate limiter initialized (redis with local fallback)")
+		return ratelimit.NewFallback(ratelimit.NewRedisLimiter(rc), ratelimit.NewMemoryLimiter(memOpts)), rt, nil
+	default:
+		return nil, nil, fmt.Errorf("unknown rate limiter backend %q", cfg.Backend)
+	}
+}
+
+func parsePrefixes(cidrs []string) ([]netip.Prefix, error) {
+	out := make([]netip.Prefix, 0, len(cidrs))
+	for _, c := range cidrs {
+		p, err := netip.ParsePrefix(c)
+		if err != nil {
+			return nil, fmt.Errorf("invalid CIDR %q: %w", c, err)
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+func convertCosts(in map[string]map[string]int) map[ratelimit.Category]map[ratelimit.OutcomeClass]int {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[ratelimit.Category]map[ratelimit.OutcomeClass]int, len(in))
+	for cat, cells := range in {
+		m := make(map[ratelimit.OutcomeClass]int, len(cells))
+		for cls, cost := range cells {
+			m[ratelimit.OutcomeClass(cls)] = cost
+		}
+		out[ratelimit.Category(cat)] = m
+	}
+	return out
 }
 
 func connectTimeoutOr(d time.Duration) time.Duration {
