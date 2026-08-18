@@ -77,6 +77,9 @@
         "auth": {
           "$ref": "#/$defs/AuthConfig"
         },
+        "rate_limit": {
+          "$ref": "#/$defs/RateLimitConfig"
+        },
         "issuers": {
           "$ref": "#/$defs/Includes"
         },
@@ -130,6 +133,75 @@
             "type": "string"
           },
           "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RateLimitConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "backend": {
+          "type": "string"
+        },
+        "redis": {
+          "$ref": "#/$defs/RedisConfig"
+        },
+        "trusted_proxies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bypass_cidrs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ip": {
+          "$ref": "#/$defs/RateLimitProfile"
+        },
+        "principal": {
+          "$ref": "#/$defs/RateLimitProfile"
+        },
+        "costs": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RateLimitProfile": {
+      "properties": {
+        "capacity": {
+          "type": "integer"
+        },
+        "refill_per_sec": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RedisConfig": {
+      "properties": {
+        "addr": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "db": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,

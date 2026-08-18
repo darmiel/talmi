@@ -19,6 +19,12 @@ func baseline() StaticInput {
 		Signing: config.SigningConfig{Algorithm: "HS256", Key: "raw:super-secret"},
 		Store:   config.StoreConfig{Type: "memory"},
 		Audit:   config.AuditConfig{Enabled: false},
+		RateLimit: &config.RateLimitConfig{
+			Enabled:   true,
+			Backend:   "memory",
+			IP:        config.RateLimitProfile{Capacity: 60, RefillPerSec: 1},
+			Principal: config.RateLimitProfile{Capacity: 120, RefillPerSec: 2},
+		},
 	}
 	sourced := &config.SourcedConfig{
 		Issuers: []config.IssuerBlock{
@@ -320,6 +326,106 @@ func TestCheckRealmCapability(t *testing.T) {
 			must := require.New(t)
 			must.NotNil(f, "want CFG-REALM-CAP; got %+v", r.Findings)
 			is.Equal(tt.wantSev, f.Severity)
+		})
+	}
+}
+
+func TestCheckRateLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		mutate   func(*config.RateLimitConfig)
+		wantCode string // "" means no CFG-RATELIMIT finding
+		wantSev  Severity
+	}{
+		{
+			name:     "valid memory config is clean",
+			mutate:   func(*config.RateLimitConfig) {},
+			wantCode: "",
+		},
+		{
+			name:     "disabled warns",
+			mutate:   func(rl *config.RateLimitConfig) { rl.Enabled = false },
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityWarn,
+		},
+		{
+			name:     "unknown backend",
+			mutate:   func(rl *config.RateLimitConfig) { rl.Backend = "etcd" },
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+		{
+			name: "redis backend without addr",
+			mutate: func(rl *config.RateLimitConfig) {
+				rl.Backend = "redis"
+				rl.Redis = config.RedisConfig{Addr: ""}
+			},
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+		{
+			name: "redis backend with addr is fine",
+			mutate: func(rl *config.RateLimitConfig) {
+				rl.Backend = "redis"
+				rl.Redis = config.RedisConfig{Addr: "redis:6379"}
+			},
+			wantCode: "",
+		},
+		{
+			name:     "bad trusted_proxies cidr",
+			mutate:   func(rl *config.RateLimitConfig) { rl.TrustedProxies = []string{"not-a-cidr"} },
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+		{
+			name:     "bad bypass cidr",
+			mutate:   func(rl *config.RateLimitConfig) { rl.BypassCIDRs = []string{"10.0.0.0/999"} },
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+		{
+			name:     "non-positive ip capacity",
+			mutate:   func(rl *config.RateLimitConfig) { rl.IP.Capacity = 0 },
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+		{
+			name:     "non-positive principal refill",
+			mutate:   func(rl *config.RateLimitConfig) { rl.Principal.RefillPerSec = 0 },
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+		{
+			name: "negative cost override",
+			mutate: func(rl *config.RateLimitConfig) {
+				rl.Costs = map[string]map[string]int{"issue": {"auth_error": -1}}
+			},
+			wantCode: "CFG-RATELIMIT",
+			wantSev:  SeverityError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			is := assert.New(t)
+			in := baseline() // baseline carries a valid enabled memory config
+			tt.mutate(in.Config.RateLimit)
+
+			r := Static(in)
+			f := findByCode(r, "CFG-RATELIMIT")
+			if tt.wantCode == "" {
+				is.Nil(f, "want no CFG-RATELIMIT; got %+v", r.Findings)
+				return
+			}
+			must := require.New(t)
+			must.NotNil(f, "want CFG-RATELIMIT; got %+v", r.Findings)
+			is.Equal(tt.wantSev, f.Severity)
+			if tt.wantSev == SeverityWarn {
+				is.False(r.HasErrors(), "a disabled-limiter warning must not make the config invalid")
+			}
 		})
 	}
 }
