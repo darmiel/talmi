@@ -145,7 +145,7 @@ func checkRealms(in StaticInput, r *Report) {
 
 func checkRealmNames(in StaticInput, r *Report, defaulted []config.DefaultedRealm) {
 	for _, d := range defaulted {
-		r.warnf("CFG-REALM-NAME", "realms", "realms["+d.Name+"]",
+		r.warnf("CFG-REALM-DEFAULT", "realms", "realms["+d.Name+"]",
 			"realm name was omitted for type %q, defaulting to %q", d.Type, d.Name).
 			Help = "set the realm name explicitly to avoid this warning"
 	}
