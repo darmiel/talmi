@@ -1,5 +1,7 @@
 # Talmi
 
+![banner](docs/stylesheets/banner.svg)
+
 Talmi is a short-lived token service (STS). It exchanges a verified upstream identity - a CI
 pipeline's OIDC token, a human's GitHub login - for narrowly scoped, short-lived downstream tokens (a
 GitHub App installation token, a JFrog Artifactory access token), and records every exchange in an
@@ -12,15 +14,7 @@ handle.
 
 ## Documentation
 
-Full documentation lives at **<https://talmi.qwer.tz>** (built from `docs/`):
-
-- [Installation](docs/getting-started/installation.md) and
-  [Quick start](docs/getting-started/quick-start.md)
-- [Concepts](docs/concepts/index.md) - the mental model
-- [Configuration](docs/configuration/layout.md) - issuers, realms, rules, sources, secrets
-- [Operations](docs/operations/server.md) - running, deploying, sessions, auditing
-- [Security](docs/security/index.md) - the trust model
-- [CLI reference](docs/cli.md)
+**You can find the full documentation at <https://talmi.qwer.tz>**.
 
 ## Quick start
 
