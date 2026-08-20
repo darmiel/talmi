@@ -188,7 +188,14 @@ func buildReloadable(
 	policy := engine.NewManager(validRules, realms)
 	res := resolver.New(providers, realms)
 	rec := audit.NewRecorder(stable.auditor, stable.sinks...)
-	svc := service.NewTokenService(issReg, policy, res, stable.store, rec, revision)
+
+	var svcOpts []service.Option
+	if stable.rateLimit != nil && stable.rateLimit.Enabled {
+		svcOpts = append(svcOpts, service.WithRateLimiter(
+			stable.limiter, stable.rateLimit.Principal, stable.rateLimit.Costs))
+	}
+	svc := service.NewTokenService(issReg, policy, res, stable.store, rec, revision, svcOpts...)
+
 	return &Runtime{
 		Service:             svc,
 		Issuers:             issReg,
