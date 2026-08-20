@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// defaultShards must be a power of two so shardFor can mask instead of modulo.
 const defaultShards = 16
 
 type MemoryOptions struct {
@@ -69,7 +70,7 @@ func NewMemoryLimiter(opts MemoryOptions) *MemoryLimiter {
 func (m *MemoryLimiter) shardFor(k string) *memoryShard {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(k))
-	return m.shards[h.Sum32()%uint32(len(m.shards))]
+	return m.shards[h.Sum32()&(defaultShards-1)]
 }
 
 func mapKey(key Key) string {
@@ -134,6 +135,7 @@ func (m *MemoryLimiter) sweep() {
 func (m *MemoryLimiter) sweeper(interval time.Duration) {
 	defer m.wg.Done()
 	t := time.NewTicker(interval)
+	defer t.Stop()
 	for {
 		select {
 		case <-m.quit:

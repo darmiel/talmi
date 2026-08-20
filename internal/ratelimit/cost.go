@@ -6,7 +6,7 @@ import (
 	"github.com/darmiel/talmi/internal/core"
 )
 
-// Category si the kind of operation being priced.
+// Category is the kind of operation being priced.
 type Category string
 
 const (

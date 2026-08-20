@@ -54,26 +54,32 @@ func (b *bucket) charge(cost float64) {
 
 func (b *bucket) snapshot() Decision {
 	b.refillNow()
+	return decisionFor(b.balance, b.capacity, b.refill)
+}
 
+// decisionFor derives the response fields from a raw balance. RetryAfter is the time until the
+// balance is positive again (time-to-retry); Reset is the time until the bucket is full. Both are
+// zero when the bucket does not refill.
+func decisionFor(balance, capacity, refillPerSec float64) Decision {
 	remaining := 0
-	if b.balance > 0 {
-		remaining = int(math.Floor(b.balance))
+	if balance > 0 {
+		remaining = int(math.Floor(balance))
 	}
 
-	var retryAfter time.Duration
-	if b.balance <= 0 && b.refill > 0 {
-		retryAfter = time.Duration((-b.balance / b.refill) * float64(time.Second))
-	}
-
-	var reset time.Duration
-	if b.refill > 0 && b.balance < b.capacity {
-		reset = time.Duration(((b.capacity - b.balance) / b.refill) * float64(time.Second))
+	var retryAfter, reset time.Duration
+	if refillPerSec > 0 {
+		if balance <= 0 {
+			retryAfter = time.Duration((-balance / refillPerSec) * float64(time.Second))
+		}
+		if balance < capacity {
+			reset = time.Duration(((capacity - balance) / refillPerSec) * float64(time.Second))
+		}
 	}
 
 	return Decision{
-		Allowed:    b.balance > 0,
+		Allowed:    balance > 0,
 		RetryAfter: retryAfter,
-		Limit:      int(b.capacity),
+		Limit:      int(capacity),
 		Remaining:  remaining,
 		Reset:      reset,
 	}

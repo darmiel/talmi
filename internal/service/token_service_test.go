@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/darmiel/talmi/internal/correlation"
 	"github.com/darmiel/talmi/internal/engine"
 	"github.com/darmiel/talmi/internal/providers/stub"
+	"github.com/darmiel/talmi/internal/ratelimit"
 	"github.com/darmiel/talmi/internal/realm"
 	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/store"
@@ -67,6 +69,7 @@ func setup(
 	verifyErr error,
 	providers []core.ResourceProvider,
 	leaseStore core.LeaseStore,
+	opts ...Option,
 ) (*TokenService, *fakeAuditor) {
 	t.Helper()
 	reg := realm.NewRegistry()
@@ -87,8 +90,27 @@ func setup(
 			principal: principal,
 			err:       verifyErr,
 		},
-	}, pm, res, leaseStore, audit.NewRecorder(auditor), "rev-1")
+	}, pm, res, leaseStore, audit.NewRecorder(auditor), "rev-1", opts...)
 	return svc, auditor
+}
+
+// spyLimiter is a ratelimit.Limiter that records charges and can be forced to reject.
+type spyLimiter struct {
+	allow    bool
+	admitErr error
+	charges  []int
+}
+
+func (s *spyLimiter) Admit(context.Context, ratelimit.Key) (ratelimit.Decision, error) {
+	if s.admitErr != nil {
+		return ratelimit.Decision{}, s.admitErr
+	}
+	return ratelimit.Decision{Allowed: s.allow, RetryAfter: time.Second, Limit: 100}, nil
+}
+
+func (s *spyLimiter) Charge(_ context.Context, _ ratelimit.Key, cost int) error {
+	s.charges = append(s.charges, cost)
+	return nil
 }
 
 func readRequest() IssueRequest {
@@ -96,6 +118,71 @@ func readRequest() IssueRequest {
 		Token:     "tok",
 		Resources: []core.ResourceRequest{{Resource: "ghes-corp:acme/x", Actions: []core.Action{"contents:read"}}},
 	}
+}
+
+func TestIssueLeasePrincipalRateLimit(t *testing.T) {
+	t.Parallel()
+
+	profile := ratelimit.Profile{Capacity: 100, RefillPerSec: 1}
+	costs := ratelimit.DefaultCosts()
+
+	t.Run("over-budget principal is rejected before mint", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		must := require.New(t)
+		principal := &core.Principal{ID: "p", Issuer: "fake"}
+		gh := stub.New("gh-ro", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+		mem := store.NewMemoryLeaseStore()
+		spy := &spyLimiter{allow: false}
+		svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, mem, WithRateLimiter(spy, profile, costs))
+
+		_, err := svc.IssueLease(context.Background(), readRequest())
+		must.Error(err)
+		he, ok := errors.AsType[HTTPError](err)
+		must.True(ok, "want an HTTPError")
+		is.Equal(http.StatusTooManyRequests, he.StatusCode)
+		is.Empty(spy.charges, "a rejected request does no work and is not charged")
+
+		active, err := mem.ListActive(context.Background())
+		must.NoError(err)
+		is.Empty(active, "over-budget request must not mint or persist a lease")
+	})
+
+	t.Run("clean issue charges the success cost", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		must := require.New(t)
+		principal := &core.Principal{ID: "p", Issuer: "fake"}
+		gh := stub.New("gh-ro", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+		spy := &spyLimiter{allow: true}
+		svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore(),
+			WithRateLimiter(spy, profile, costs))
+
+		_, err := svc.IssueLease(context.Background(), readRequest())
+		must.NoError(err)
+		is.Equal([]int{costs.Cost(ratelimit.CategoryIssue, ratelimit.ClassSuccess)}, spy.charges,
+			"a clean mint charges the cheap success cost")
+	})
+
+	t.Run("denied issue charges more than a clean one", func(t *testing.T) {
+		t.Parallel()
+		is := assert.New(t)
+		must := require.New(t)
+		principal := &core.Principal{ID: "p", Issuer: "fake"}
+		gh := stub.New("gh-ro", "ghes-corp", stub.WithResources("ghes-corp:acme/*"), stub.WithMaxActions("contents:read"))
+		spy := &spyLimiter{allow: true}
+		svc, _ := setup(t, principal, nil, []core.ResourceProvider{gh}, store.NewMemoryLeaseStore(),
+			WithRateLimiter(spy, profile, costs))
+
+		req := readRequest()
+		req.Resources[0].Actions = []core.Action{"contents:write"} // denied by policy
+		_, err := svc.IssueLease(context.Background(), req)
+		must.Error(err)
+		must.Len(spy.charges, 1)
+		is.Equal(costs.Cost(ratelimit.CategoryIssue, ratelimit.ClassDenied), spy.charges[0])
+		is.Greater(spy.charges[0], costs.Cost(ratelimit.CategoryIssue, ratelimit.ClassSuccess),
+			"a denied request costs more quota than a clean one")
+	})
 }
 
 func TestIssueLeaseHappyPath(t *testing.T) {
