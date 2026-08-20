@@ -52,8 +52,29 @@ Talmi resolves `ref` to a commit SHA and fetches the tree at that commit.
 
 Config reloads atomically: a new snapshot is built off to the side and swapped in only if it builds cleanly, so a bad
 push never takes down the running config. Reloads happen at startup, on the
-`sync.interval`, and, if you set `webhook_secret`, when a repository webhook posts to
-`/v2/webhooks/github`.
+`sync.interval`, and, when a repository webhook fires.
+
+### Add the webhook
+
+Push-triggered reloads need a GitHub webhook and a shared secret:
+
+1. Set `webhook_secret` in the `source.github` block to a `secret.Ref` (for example
+   `env:TALMI_WEBHOOK_SECRET`). This enables the `POST /v2/webhooks/github` endpoint.
+2. In the config repository, go to **Settings > Webhooks > Add webhook**:
+    - **Payload URL**: `https://<your-talmi-host>/v2/webhooks/github`
+    - **Content type**: `application/json`
+    - **Secret**: the same value as `webhook_secret`
+    - **Events**: just **Pushes** is enough.
+3. Push a commit to the tracked `ref`. Talmi verifies the signature, re-pulls the tree, and reloads.
+
+Without a webhook, the `sync.interval` still re-pulls on its schedule, so reloads just lag by up to one interval.
+
+### Revisions
+
+Each successful reload produces a new **revision**: an identifier for the config snapshot in effect. Talmi records the
+revision on every audit event (`config.reload` when a reload happens, and the
+`revision` field on issuance events), so you can tell which version of policy authorized a given request. A failed
+reload does not create a revision; the previous one stays in effect.
 
 ## Verify
 

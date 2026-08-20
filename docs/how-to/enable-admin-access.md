@@ -2,11 +2,13 @@
 
 Talmi's admin surface (audit queries, provider inspection, background tasks) is gated behind an authenticated session.
 This guide sets up admin auth end to end: the GitHub OAuth App, the two issuers, the signing key, the `talmi` realm, the
-admin rule, and logging in.
-
-Admins authenticate with their GitHub identity. Talmi verifies it once through a `github-oauth`
+admin rule, and logging in. Admins authenticate with their GitHub identity. Talmi verifies it once through a
+`github-oauth`
 issuer, then issues its own signed session JWT that a `talmi-session` issuer verifies on later calls. A rule grants the
 `talmi:*` actions, exactly like any other resource.
+
+Any issuer could back a session in principle. We use a GitHub OAuth App here because it carries the caller's org and
+team membership as attributes, which lets you write the admin rule against a team rather than a list of usernames.
 
 ## Before you begin
 
@@ -19,19 +21,20 @@ issuer, then issues its own signed session JWT that a `talmi-session` issuer ver
 In GitHub, go to **Settings > Developer settings > OAuth Apps > New OAuth App** (org-level for a shared App). Set:
 
 - **Application name**: anything, for example `Talmi admin login`.
-- **Homepage URL** and **Authorization callback URL**: any valid URL. The CLI uses the device flow, which does not
-  redirect, so the callback is not exercised.
+- **Homepage URL** and **Authorization callback URL**: any valid URL. The CLI logs in with the device flow, which does
+  not redirect, so the callback is not used.
 
 Create the App and copy its **Client ID**. You do not need a client secret for the device flow.
 
-The scopes admins consent to at login are `read:org` and `read:user`: Talmi reads org and team membership so rules can
-match on it. You set these scopes in the `auth` block below.
+At login, admins consent to the `read:org` and `read:user` scopes so Talmi can read the org and team membership that
+rules match on. You set these scopes in the `auth` block below.
 
 ## 2. Add the login and session issuers
 
-Create `issuers.d/admin.yaml`:
+Issuers live in the sourced tree, one file per concern. Add both to `issuers.d/admin.yaml`:
 
 ```yaml
+# issuers.d/admin.yaml
 - name: gh-login
   type: github-oauth
   server: https://github.com     # omit for github.com; set your GHES base for Enterprise
@@ -40,17 +43,27 @@ Create `issuers.d/admin.yaml`:
   type: talmi-session
 ```
 
-`github-oauth` verifies a GitHub access token by calling the GitHub API; the principal id is the login and attributes
-include `login`, `orgs`, and `teams` (as `org/slug`). `talmi-session` verifies the session JWT Talmi signs after login.
+`github-oauth` verifies a GitHub access token by calling the GitHub API. The principal id is the login, and the
+attributes include `login`, `orgs`, and `teams` (each as `org/slug`). That `teams`
+attribute is what the admin rule in step 6 matches on. `talmi-session` verifies the session JWT that Talmi signs after
+login.
 
 ## 3. Configure the signing key
 
-Talmi signs session JWTs with the bootstrap `signing` block. `ES256` (an EC private key in PEM, via a
-[`secret.Ref`](../reference/secrets.md)) is the default and the right choice for production. `HS256`
-takes a raw shared secret and is fine for local runs. The algorithm is pinned on verify, so there is no `alg=none` or
-algorithm-confusion attack.
+Talmi signs session JWTs with the `signing` block in the **bootstrap file** (`talmi.yaml`), not the sourced tree.
+`ES256` (an EC private key in PEM, via a [`secret.Ref`](../reference/secrets.md)) is the default and the right choice
+for production. `HS256` takes a raw shared secret and is fine for local runs.
+
+Generate an ES256 key with OpenSSL:
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out session-signing-key.pem
+```
+
+Then reference it from the bootstrap file:
 
 ```yaml
+# talmi.yaml
 signing:
   algorithm: ES256
   key: file:/run/secrets/session-signing-key.pem
@@ -61,19 +74,21 @@ Under `--dev` with no key, Talmi generates an ephemeral ES256 key at startup; se
 ## 4. Add the talmi realm
 
 Admin resources live in the `talmi` realm (`talmi:audit`, `talmi:providers`, `talmi:tasks`,
-`talmi:session`). Declare it so those resources resolve. It has no external provider:
+`talmi:session`). Declare it in the sourced tree so those resources resolve. It has no external provider:
 
 ```yaml
+# realms.d/talmi.yaml
 - realm: talmi
   type: talmi
 ```
 
 ## 5. Enable the auth block
 
-In the bootstrap file, name the login and session issuers and the OAuth App parameters the CLI needs. Admin endpoints
-are enabled only when `auth` is present:
+In the **bootstrap file** (`talmi.yaml`), name the login and session issuers and the OAuth App parameters the CLI needs.
+Admin endpoints are enabled only when `auth` is present:
 
 ```yaml
+# talmi.yaml
 auth:
   login_issuer: gh-login
   session_issuer: talmi-session
@@ -85,10 +100,11 @@ auth:
 
 ## 6. Grant admins a rule
 
-Admin access is a normal rule with `talmi:*` resources. Scope it to a GitHub team so only its members can log in and
-act:
+Admin access is a normal rule with `talmi:*` resources, in the sourced tree. Scope it to a GitHub team (the `teams`
+attribute from step 2) so only its members can log in and act:
 
 ```yaml
+# rules.d/admins.yaml
 - name: talmi-admins
   match:
     issuer: gh-login

@@ -38,8 +38,8 @@ rate_limit: # protects the public endpoint (optional)
   ip: { capacity: 60,  refill_per_sec: 1 }
   principal: { capacity: 120, refill_per_sec: 2 }
 
-source:   # where the sourced tree comes from (optional)
-    github: ... # ...local includes or a github block; see Config sources
+source: # where the sourced tree comes from (optional)
+  github: ... # ...local includes or a github block; see Config sources
 
 issuers: { include: [ "issuers.d/*.yaml" ] }
 realms: { include: [ "realms.d/*.yaml" ] }
@@ -58,7 +58,8 @@ rules: { include: [ "rules.d/*.yaml" ] }
 | `source`                       | Local includes or a remote GitHub source. See [Config sources](config-sources.md).                                  |
 | `issuers` / `realms` / `rules` | Glob includes for the sourced tree.                                                                                 |
 
-Every secret-bearing value (`dsn`, `key`, provider credentials) is a [`secret.Ref`](secrets.md), not an inline literal.
+Every secret-bearing value (`dsn`, `key`, provider credentials) is a [`secret.Ref`](secrets.md):
+`file:` or `env:`, or `raw:` for local testing.
 
 Postgres is not auto-migrated by the app; run migrations out of band (see
 [Deployment](../how-to/deploy-kubernetes.md)).

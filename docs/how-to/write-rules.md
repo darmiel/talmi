@@ -10,7 +10,7 @@ unless a rule allows it. This guide builds a rule from scratch and tests it with
 - The [resources, actions, and rules model](../concepts/resources-actions-rules.md) and
   [conditions](../concepts/conditions.md) for background.
 
-## Anatomy of a rule
+## What a rule looks like
 
 A rule has a `match` (which principals it applies to) and a list of `allow` statements (which resources and actions it
 grants). Rules live under `rules.d/`.
@@ -54,7 +54,7 @@ If you prefer an expression, use `expr` instead of `condition` (not both):
 ```yaml
   match:
     issuer: gh-actions
-    expr: 'repository startsWith "my-org/" && ref == "refs/heads/main"'
+    expr: 'ctx.repository startsWith "my-org/" && ctx.ref == "refs/heads/main"'
 ```
 
 A rule with no condition matches nobody unless you set `allow_empty: true`, which matches every principal from the

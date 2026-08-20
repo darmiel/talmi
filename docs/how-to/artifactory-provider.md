@@ -3,6 +3,13 @@
 Let Talmi mint short-lived JFrog Artifactory access tokens, so a build can push or pull artifacts without a long-lived
 Artifactory key.
 
+<!-- @formatter:off -->
+!!! warning "Experimental, not priority-supported"
+    The Artifactory provider is not a priority right now and should be treated as testing-only. Minted
+    tokens are group-scoped rather than scoped to the exact request (see the caveat below), and the
+    provider has known gaps. Use it to evaluate Talmi, not for production access, until this changes.
+<!-- @formatter:on -->
+
 ## Before you begin
 
 - A running Talmi server. See [Installation](../getting-started/installation.md).
@@ -18,7 +25,8 @@ this realm.
 
 ## 2. Store the admin token as a secret
 
-Mount it and reference it, never inline. See [Secrets](../reference/secrets.md):
+Mount it and reference it as a `secret.Ref` (`env:` or `file:`; `raw:` for local testing).
+See [Secrets](../reference/secrets.md):
 
 ```
 env:TALMI_ARTIFACTORY_ADMIN_TOKEN
@@ -68,7 +76,8 @@ Create `realms.d/artifactory.yaml`:
 ```bash
 talmi config vet talmi.yaml --local
 talmi provider list
-talmi lease issue --resource "artifactory:docker-local/team-a=write" --token "$OIDC" --issuer gh-actions
+talmi lease issue --resource "artifactory:docker-local/team-a=write" \
+  --token "$OIDC" --issuer gh-actions
 ```
 
 ## Troubleshooting

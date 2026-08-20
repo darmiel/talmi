@@ -26,12 +26,34 @@ Each event carries its own id, the request `X-Correlation-ID` (`request_id`), an
 
 ## Tracing a token back to a decision
 
-Talmi records a SHA-256 *fingerprint* of each minted token (for providers that support it), never the token itself. When
-a downstream system shows activity by a token, find the request that produced it:
+Talmi records a *fingerprint* of each minted token (for providers that support it), never the token itself. The
+fingerprint is the base64-encoded SHA-256 of the token value. When a downstream system shows activity by a token, find
+the request that produced it:
 
 ```bash
 talmi audit list --fingerprint "<fingerprint>"
 ```
+
+### Why fingerprints: mapping GitHub's audit log to Talmi's
+
+GitHub records a `hashed_token` field on every audit event, which is the SHA-256 of the token that performed the action,
+base64 encoded. GitHub's own instructions compute it as `echo -n TOKEN | openssl dgst -sha256 -binary | base64`, see
+[Identifying audit log events performed by an access token](https://docs.github.com/en/enterprise-cloud@latest/admin/monitoring-activity-in-your-enterprise/reviewing-audit-logs-for-your-enterprise/identifying-audit-log-events-performed-by-an-access-token).
+
+Talmi computes the fingerprint the same way, so a token's Talmi fingerprint and its GitHub
+`hashed_token` are the **same string**. That gives you a two-way join between the logs:
+
+- **GitHub -> Talmi.** GitHub shows a suspicious or interesting action and its `hashed_token`. Search Talmi with
+  `talmi audit list --fingerprint "<hashed_token>"` to find the exact request that minted that token: which principal
+  asked, under which rule, for which resources.
+- **Talmi -> GitHub.** Take a fingerprint from a Talmi lease event and search GitHub's audit log with
+  `hashed_token:"<fingerprint>"` to see everything that token did downstream.
+
+Talmi never stores the token value, only this fingerprint (and a hash of the revocation secret), so the join works
+without either system holding the raw credential. It turns two disconnected logs into one traceable chain from a
+downstream action back to the policy decision that authorized it.
+
+### Replaying the decision
 
 Take the entry id and replay the decision to see the rule-by-rule trace, without minting anything:
 

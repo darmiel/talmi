@@ -88,12 +88,12 @@ A resource body is `<owner>/<repo>` (globs allowed, `*` does not cross `/`). Act
       timeout: 30s                            # optional HTTP timeout
 ```
 
-| Instance field | Required | Type       | Meaning                                                            |
-|----------------|----------|------------|--------------------------------------------------------------------|
-| `app_id`       | yes      | integer    | GitHub App ID. Must be positive.                                   |
-| `private_key`  | yes      | secret ref | The App's PEM private key. Use a `file:`/`env:` ref, never inline. |
-| `server`       | no       | URL        | GHES base URL. Omit for github.com.                                |
-| `timeout`      | no       | duration   | HTTP timeout for calls to GitHub. `0` uses the default (30s).      |
+| Instance field | Required | Type       | Meaning                                                                        |
+|----------------|----------|------------|--------------------------------------------------------------------------------|
+| `app_id`       | yes      | integer    | GitHub App ID. Must be positive.                                               |
+| `private_key`  | yes      | secret ref | The App's PEM private key. A `file:` or `env:` ref (`raw:` for local testing). |
+| `server`       | no       | URL        | GHES base URL. Omit for github.com.                                            |
+| `timeout`      | no       | duration   | HTTP timeout for calls to GitHub. `0` uses the default (30s).                  |
 
 Run a read-only App and a write App as two instances in the same realm: the resolver sends a read request to the
 read-only App and only reaches for the write App when a write is asked for. See
