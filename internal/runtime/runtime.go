@@ -192,7 +192,8 @@ func buildReloadable(
 	var svcOpts []service.Option
 	if stable.rateLimit != nil && stable.rateLimit.Enabled {
 		svcOpts = append(svcOpts, service.WithRateLimiter(
-			stable.limiter, stable.rateLimit.Principal, stable.rateLimit.Costs))
+			stable.limiter, stable.rateLimit.Principal, stable.rateLimit.Costs,
+		))
 	}
 	svc := service.NewTokenService(issReg, policy, res, stable.store, rec, revision, svcOpts...)
 

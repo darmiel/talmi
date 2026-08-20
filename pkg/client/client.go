@@ -66,11 +66,6 @@ func newURLBuilder(baseURL string) *urlBuilder {
 	}
 }
 
-func (u *urlBuilder) setPath(path string) *urlBuilder {
-	u.path = path
-	return u
-}
-
 func (u *urlBuilder) addQueryParamNotEmpty(key string, value any) *urlBuilder {
 	switch v := value.(type) {
 	case string:
@@ -131,6 +126,8 @@ func (u *urlBuilder) build() string {
 }
 
 // url constructs a full URL for the given path and query parameters.
-func (c *Client) url() *urlBuilder {
-	return newURLBuilder(c.baseURL)
+func (c *Client) url(path string) *urlBuilder {
+	b := newURLBuilder(c.baseURL)
+	b.path = path
+	return b
 }

@@ -24,13 +24,13 @@ type SessionResponse struct {
 // GetLoginInfo fetches the device-flow parameters
 func (c *Client) GetLoginInfo(ctx context.Context) (*LoginInfo, string, error) {
 	var info LoginInfo
-	correlation, err := c.get(ctx, c.url().setPath(api.LoginConfigRoute).build(), &info)
+	correlation, err := c.get(ctx, c.url(api.LoginConfigRoute).build(), &info)
 	return &info, correlation, err
 }
 
 // ExchangeSession trades a GHES OAuth access token for a Talmi session JWT.
 func (c *Client) ExchangeSession(ctx context.Context, ghesToken string) (*SessionResponse, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url().setPath(api.LoginRoute).build(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url(api.LoginRoute).build(), nil)
 	if err != nil {
 		return nil, "", err
 	}
