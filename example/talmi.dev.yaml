@@ -47,6 +47,27 @@ auth:
   client_id: Iv1.0000000000000000
   scopes: [ "read:org", "read:user" ]
 
+# --- Rate limiting ---------------------------------------------------------
+# Protects the public endpoint. Two token buckets priced by outcome: a clean
+# request costs little, an auth failure or heavy operation costs a lot, so abuse
+# throttles itself while normal traffic is barely affected. One bucket per
+# client IP (edge) and one per verified principal (token path). `memory` keeps
+# state per instance; use `redis` to share it across replicas.
+rate_limit:
+  enabled: true
+  backend: memory                     # memory | redis
+  # redis:
+  #   addr: redis:6379
+  #   password: env:REDIS_PASSWORD
+  #   db: 0
+  # trusted_proxies: [ "10.0.0.0/8" ]   # peers whose X-Forwarded-For we trust
+  # bypass_cidrs:    [ "10.1.2.0/24" ]  # internal callers that skip limiting
+  ip: { capacity: 60,  refill_per_sec: 1 }
+  principal: { capacity: 120, refill_per_sec: 2 }
+  # costs:                              # optional per-(category, class) overrides
+  #   issue:        { auth_error: 12 }
+  #   task_trigger: { success: 10 }
+
 # --- Config source ---------------------------------------------------------
 # By default issuers/realms/rules are read from the local include globs below.
 # Alternatively, pull them from a GitHub repo pinned to a commit.
