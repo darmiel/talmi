@@ -3,6 +3,14 @@
 Let GitHub Actions jobs authenticate to Talmi with their built-in OIDC token instead of a stored secret. After this, a
 workflow can request a scoped token at runtime with no PAT in sight.
 
+<!-- @formatter:off -->
+!!! note "A GitHub Action is in the works"
+    For now, workflows call Talmi with `curl` as shown below. A dedicated GitHub Action for cleaner
+    integration is planned. There is an early beta for the old (v1) API at
+    [darmiel/talmi-action](https://github.com/darmiel/talmi-action); it does not work with v2 yet,
+    but it shows the shape it will take.
+<!-- @formatter:on -->
+
 ## Before you begin
 
 - A running Talmi server you can edit the config for. See [Installation](../getting-started/installation.md).
@@ -83,7 +91,8 @@ Before wiring the workflow, dry-run the decision from your machine with a real O
 
 ```bash
 talmi config vet talmi.yaml --local
-talmi lease explain --resource "ghes-corp:my-org/svc-a=contents:read" --token "$OIDC" --issuer gh-actions
+talmi lease explain --resource "ghes-corp:my-org/svc-a=contents:read" \
+  --token "$OIDC" --issuer gh-actions
 ```
 
 `explain` shows which rule matched and whether the request is authorized, without minting anything.

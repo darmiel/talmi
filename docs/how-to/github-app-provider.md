@@ -32,7 +32,8 @@ Create the App.
 
 ## 3. Store the private key as a secret
 
-Mount the `.pem` where the server can read it and reference it, never inline. See [Secrets](../reference/secrets.md).
+Mount the `.pem` where the server can read it and reference it as a `secret.Ref`
+(`file:` or `env:`; `raw:` for local testing). See [Secrets](../reference/secrets.md).
 
 ```
 file:/run/secrets/gh-app.pem
@@ -87,7 +88,8 @@ A [rule](write-rules.md) grants a subset of the realm's capability to a set of p
 ```bash
 talmi config vet talmi.yaml --local
 talmi provider list                     # shows the instance and its live effective capability
-talmi lease issue --resource "ghes-corp:my-org/svc-a=contents:read" --token "$OIDC" --issuer gh-actions
+talmi lease issue --resource "ghes-corp:my-org/svc-a=contents:read" \
+  --token "$OIDC" --issuer gh-actions
 ```
 
 The lease response carries a `ghs_...` installation token scoped to that repo, with an expiry.

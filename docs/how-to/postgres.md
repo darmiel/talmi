@@ -12,20 +12,30 @@ across replicas. For anything beyond local runs, back both with PostgreSQL.
 
 ## 1. Apply migrations out of band
 
-Talmi never auto-migrates. Run the migrations from `internal/store/postgres/migrations` before starting a version that
-expects the schema:
+Talmi does not migrate the database itself. Schema changes are ordered and sometimes destructive, and running them from
+the app would mean every replica races to migrate on startup and couples a schema change to a process restart. Keeping
+migrations out of band lets you review them, back up first, and run them exactly once, before the binary that needs the
+new schema starts.
+
+Use [golang-migrate](https://github.com/golang-migrate/migrate). The migration files live in
+`internal/store/postgres/migrations`:
 
 ```bash
+# install the CLI (once)
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+# apply all pending migrations
 migrate -path internal/store/postgres/migrations -database "$TALMI_STORE_DSN" up
 ```
 
-Run this before rolling out a new Talmi version, and as a Kubernetes Job in a pipeline (see
+Run this before rolling out a new Talmi version. In Kubernetes, run it as a Job, and with Helm wire it as a
+`pre-install` / `pre-upgrade` hook so the schema is ready before the new pods start (see
 [Deploy to Kubernetes](deploy-kubernetes.md)).
 
 ## 2. Point the store and auditor at Postgres
 
 In the bootstrap file, set both `store` and `audit` to `postgres` with a DSN. The DSN is a
-[`secret.Ref`](../reference/secrets.md), not an inline string:
+[`secret.Ref`](../reference/secrets.md) (`env:` or `file:`; `raw:` for local testing):
 
 ```yaml
 store:
@@ -62,7 +72,8 @@ is still listed: state now survives restarts. Query the audit log with
   forward before the binary that needs them.
 - **Retention**: `retention` prunes audit records older than the duration. Leaving it unset keeps everything, which
   grows unbounded; set it to your compliance window.
-- **Secrets**: keep DSNs in `env:`/`file:` refs, never inline. See [Secrets](../reference/secrets.md).
+- **Secrets**: DSNs are `secret.Ref`s; use `env:` or `file:` (`raw:` only for local testing).
+  See [Secrets](../reference/secrets.md).
 
 ## Next steps
 

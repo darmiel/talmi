@@ -3,6 +3,14 @@
 Talmi is a single static binary in a distroless image. This guide runs it in Kubernetes with its config from a
 ConfigMap, secrets from a Secret, PostgreSQL for persistence, and TLS at the edge.
 
+<!-- @formatter:off -->
+!!! warning "Kubernetes support is work in progress"
+    There is no official Helm chart or supported manifest set yet. The examples below are a starting
+    point, not a supported deployment. In particular, running more than one replica is not properly
+    supported (see [Multiple replicas](#multiple-replicas)). Treat this page as guidance for a
+    single-replica setup while proper support is built out.
+<!-- @formatter:on -->
+
 ## Before you begin
 
 - A Kubernetes cluster and `kubectl` access.
@@ -83,21 +91,28 @@ spec:
       containers:
         - name: migrate
           image: migrate/migrate:latest
-          args: ["-path", "/migrations", "-database", "$(TALMI_STORE_DSN)", "up"]
+          args: [ "-path", "/migrations", "-database", "$(TALMI_STORE_DSN)", "up" ]
           envFrom: [ { secretRef: { name: talmi-secrets } } ]
           volumeMounts: [ { name: migrations, mountPath: /migrations, readOnly: true } ]
       volumes:
         - { name: migrations, configMap: { name: talmi-migrations } }
 ```
 
-See [Run with PostgreSQL](postgres.md) for the full store and audit setup.
+See [Run with PostgreSQL](postgres.md) for the full store and audit setup. With Helm, run this Job as a `pre-install` /
+`pre-upgrade` hook so the schema is applied before the new pods start.
 
 ## Multiple replicas
 
-Running more than one replica has caveats today: scheduled tasks run on every replica, and a config webhook only reaches
-the pod it hits. For rate limiting, use the `redis` backend so all replicas share one view
-(see [Configure rate limiting](rate-limiting.md)). Coordinated multi-node operation is on the roadmap. Until then,
-prefer a single replica, or rely on `sync.interval` for config convergence and accept duplicated background work.
+<!-- @formatter:off -->
+!!! warning "Run a single replica for now"
+    More than one replica is not properly supported yet. Scheduled tasks run on every replica (so they
+    fire N times), and a config webhook only reaches the one pod it hits (the others reload on their
+    `sync.interval`). Coordinated multi-node operation is on the roadmap.
+<!-- @formatter:on -->
+
+Until multi-node lands, prefer a single replica. If you must scale out, at least use the `redis`
+rate-limit backend so all replicas share one view (see [Configure rate limiting](rate-limiting.md)), and accept the
+duplicated background work and webhook lag above.
 
 ## Verify
 

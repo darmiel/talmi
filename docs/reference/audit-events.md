@@ -43,7 +43,9 @@ for how the log is stored and retained.
 | `artifacts`  | The minted artifacts, each with `artifact_id`, `provider`, and `fingerprint` (lease events). |
 
 A single request writes exactly one event with its artifacts nested inside, never one event per artifact. The
-`fingerprint` on an artifact traces a leaked token back to the issuing request and lease.
+`fingerprint` on an artifact is the base64 SHA-256 of the minted token, which equals GitHub's `hashed_token` audit
+field, so a leaked token can be joined across both logs back to the issuing request and lease.
+See [Auditing](../security/auditing.md) for how to use it.
 
 ## Querying
 
