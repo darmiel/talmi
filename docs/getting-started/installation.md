@@ -40,7 +40,7 @@ docker run --rm -p 8080:8080 \
 ```
 
 Mount your config directory read-only and point `--config` at the bootstrap file inside it. See
-[Deployment](../operations/deployment.md) for Kubernetes.
+[Deployment](../how-to/deploy-kubernetes.md) for Kubernetes.
 
 ## Verify
 

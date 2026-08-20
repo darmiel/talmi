@@ -39,4 +39,9 @@ token values from the saved file; by-value artifacts need `--token id=value` if 
 Depending on the provider, Talmi records a SHA-256 *fingerprint* of each minted token in the audit
 log (never the token itself). If a downstream system shows activity by a leaked token, the
 fingerprint traces it back to the issuing request and lease. See
-[Auditing](../operations/auditing.md).
+[Auditing](../security/auditing.md).
+
+## See also
+
+- CLI: [lease issue / revoke / explain](../cli.md)
+- Security: [Auditing](../security/auditing.md)

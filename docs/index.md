@@ -9,6 +9,8 @@ resource. Talmi checks a policy, mints a downstream token scoped to exactly that
 App installation token, a JFrog Artifactory access token), and hands it back with an expiry and a
 handle to revoke it early. Every exchange is written to an audit log.
 
+New to OIDC federation or short-lived tokens? Read the [Background](introduction/background.md) first.
+
 The point is to get long-lived secrets out of build systems. A static PAT or service key in CI is
 hard to scope, hard to rotate, and hard to trace back to a single job. Talmi replaces it with a
 request-time exchange: the caller proves who it is, Talmi decides whether the policy allows the
@@ -155,14 +157,23 @@ flowchart LR
 <!-- @formatter:off -->
 <div class="grid cards" markdown>
 
--   __Getting started__
+-   __Get started__
 
     ---
 
     Install Talmi, run a server, and issue your first token.
 
     [Installation](getting-started/installation.md) ·
-    [Quick start](getting-started/quick-start.md)
+    [Quickstart](getting-started/quick-start.md)
+
+-   __How-to guides__
+
+    ---
+
+    Set up issuers and providers, admin access, rate limiting, and deployment.
+
+    [Enable admin access](how-to/enable-admin-access.md) ·
+    [Set up a GitHub App provider](how-to/github-app-provider.md)
 
 -   __Concepts__
 
@@ -170,23 +181,16 @@ flowchart LR
 
     How issuers, realms, rules, capabilities, and leases fit together.
 
-    [Architecture](concepts/index.md)
+    [How Talmi works](concepts/index.md)
 
--   __Configuration__
-
-    ---
-
-    Issuers, realms and providers, rules, secrets, and config sources.
-
-    [Layout and trust model](configuration/layout.md)
-
--   __Operations__
+-   __Reference__
 
     ---
 
-    Run and deploy the server, sessions and admin, auditing.
+    Bootstrap config, issuer and provider types, rules, the CLI, and the JSON schema.
 
-    [Running the server](operations/server.md)
+    [Bootstrap (talmi.yaml)](reference/bootstrap.md) ·
+    [CLI](cli.md)
 
 -   __Security__
 
@@ -196,13 +200,13 @@ flowchart LR
 
     [Security overview](security/index.md)
 
--   __CLI reference__
+-   __Background__
 
     ---
 
-    Every command, flag, and the manifest format.
+    New to OIDC federation or short-lived tokens? Start here.
 
-    [CLI reference](cli.md)
+    [Background](introduction/background.md)
 
 </div>
 <!-- @formatter:on -->

@@ -53,3 +53,8 @@ These are intentional and covered by tests:
 
 Attributes evaluate against the principal's `EvaluationContext`, where `iss`/`sub`/`id`/`issuer` are
 always the server-derived values, never token claims of the same name.
+
+## See also
+
+- How-to: [Write and test policy rules](../how-to/write-rules.md)
+- Reference: [Rules and conditions](../reference/rules.md)

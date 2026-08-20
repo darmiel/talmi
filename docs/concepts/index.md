@@ -51,3 +51,8 @@ For contributors, the important packages:
 
 The [CONTRIBUTING guide](https://github.com/darmiel/talmi/blob/main/CONTRIBUTING.md) covers the
 internals and the security-critical code paths.
+
+## See also
+
+- Get started: [Quickstart](../getting-started/quick-start.md)
+- New to the ideas: [Background](../introduction/background.md)

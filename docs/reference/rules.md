@@ -2,7 +2,8 @@
 
 Rules live under `rules.d/`. Each rule has a `match` and a list of `allow` entries. See
 [Concepts > Resources, actions, rules](../concepts/resources-actions-rules.md) and
-[Conditions](../concepts/conditions.md).
+[Conditions](../concepts/conditions.md). For a step-by-step walkthrough, see
+[Write and test policy rules](../how-to/write-rules.md).
 
 ```yaml
 - name: dev-read
@@ -32,14 +33,14 @@ Rules live under `rules.d/`. Each rule has a `match` and a list of `allow` entri
 - `condition` - a filter over principal attributes (short form, or `all`/`any`/`not`). See
   [Conditions](../concepts/conditions.md).
 - `expr` - an expression, as an alternative to `condition` (not both).
-- `allow_empty: true` - match every principal from the issuer when there is no condition. Without it,
-  a rule with no condition matches no one.
+- `allow_empty: true` - match every principal from the issuer when there is no condition. Without it, a rule with no
+  condition matches no one.
 
 ## `allow`
 
-Each entry lists `resources` (realm-prefixed globs) and `actions`. A request is authorized only if
-the union of `allow` entries from all matching rules covers every requested resource and action, and
-never exceeds the realm's [capability](../concepts/capabilities.md) ceiling.
+Each entry lists `resources` (realm-prefixed globs) and `actions`. A request is authorized only if the union of `allow`
+entries from all matching rules covers every requested resource and action, and never exceeds the
+realm's [capability](../concepts/capabilities.md) ceiling.
 
 ## Admin rules
 

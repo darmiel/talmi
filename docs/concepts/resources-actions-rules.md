@@ -41,3 +41,9 @@ denies by default; set `allow_empty: true` to make a rule match every principal 
 
 The effective grant is always the overlap of the policy (rules) and the realm's
 [capability](capabilities.md) ceiling: a rule cannot grant more than the realm can mint.
+
+## See also
+
+- How-to: [Write and test policy rules](../how-to/write-rules.md)
+- Concepts: [Conditions](conditions.md), [Capabilities and discovery](capabilities.md)
+- Reference: [Rules and conditions](../reference/rules.md)
