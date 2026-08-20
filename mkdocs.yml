@@ -88,6 +88,7 @@ nav:
   - Security:
       - security/index.md
       - Config source trust: security/trust-model.md
+      - Rate limiting: security/rate-limiting.md
   - CLI reference: cli.md
   - Reference:
       - JSON schema: reference/json-schema.md
