@@ -24,6 +24,7 @@ func NormalizeRealms(realms []RealmBlock) ([]RealmBlock, []DefaultedRealm) {
 	out := make([]RealmBlock, len(realms))
 	copy(out, realms)
 
+	//nolint:prealloc // count is unknown
 	var defaulted []DefaultedRealm
 	for i := range out {
 		if out[i].Realm != "" {

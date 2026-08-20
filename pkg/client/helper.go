@@ -97,7 +97,7 @@ func postAs[T any](ctx context.Context, c *Client, route, bearer string, body an
 	if err != nil {
 		return nil, "", fmt.Errorf("marshalling payload: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", c.url().setPath(route).build(), bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.url(route).build(), bytes.NewReader(data))
 	if err != nil {
 		return nil, "", fmt.Errorf("creating request: %w", err)
 	}

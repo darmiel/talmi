@@ -16,7 +16,7 @@ func (c *Client) Resolve(
 	requests []ResourceRequest,
 ) ([]resolver.RequestResolution, string, error) {
 	var out []resolver.RequestResolution
-	correlationID, err := c.post(ctx, c.url().setPath(api.ResolveRoute).build(), resolveRequestBody{
+	correlationID, err := c.post(ctx, c.url(api.ResolveRoute).build(), resolveRequestBody{
 		Resources: requests,
 	}, &out)
 	return out, correlationID, err

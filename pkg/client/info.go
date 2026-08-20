@@ -11,9 +11,7 @@ import (
 func (c *Client) Info(
 	ctx context.Context,
 ) (*buildinfo.Info, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.url().
-		setPath(api.AboutRoute).
-		build(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.url(api.AboutRoute).build(), nil)
 	if err != nil {
 		return nil, "", err
 	}

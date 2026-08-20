@@ -22,8 +22,7 @@ type AuditFilter struct {
 }
 
 func (c *Client) QueryAudit(ctx context.Context, filter AuditFilter) ([]core.Event, string, error) {
-	u := c.url().
-		setPath(api.AuditQueryRoute).
+	u := c.url(api.AuditQueryRoute).
 		addQueryParamNotEmpty("id", filter.ID).
 		addQueryParamNotEmpty("request_id", filter.RequestID).
 		addQueryParamNotEmpty("session_id", filter.SessionID).
@@ -42,8 +41,7 @@ func (c *Client) QueryAudit(ctx context.Context, filter AuditFilter) ([]core.Eve
 }
 
 func (c *Client) InspectAudit(ctx context.Context, id string) (*core.Event, string, error) {
-	u := c.url().
-		setPath(api.AuditEntryRoute).
+	u := c.url(api.AuditEntryRoute).
 		setPathParam("id", id).
 		build()
 	var event core.Event

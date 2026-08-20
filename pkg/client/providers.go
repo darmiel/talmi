@@ -18,6 +18,6 @@ type ProviderInfo struct {
 
 func (c *Client) Providers(ctx context.Context) ([]ProviderInfo, string, error) {
 	var out []ProviderInfo
-	correlationID, err := c.get(ctx, c.url().setPath(api.ProvidersRoute).build(), &out)
+	correlationID, err := c.get(ctx, c.url(api.ProvidersRoute).build(), &out)
 	return out, correlationID, err
 }
