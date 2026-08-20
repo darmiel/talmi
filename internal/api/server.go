@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -11,6 +13,7 @@ import (
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/issuers"
+	"github.com/darmiel/talmi/internal/ratelimit"
 	"github.com/darmiel/talmi/internal/resolver"
 	"github.com/darmiel/talmi/internal/service"
 	"github.com/darmiel/talmi/internal/tasks"
@@ -28,6 +31,7 @@ type Server struct {
 	gitHubWebhookSecret []byte
 	gitHubOnWebhook     func(ctx context.Context) error
 	recorder            func() *audit.Recorder
+	rateLimit           *middleware.RateLimitConfig
 }
 
 type AdminConfig struct {
@@ -78,6 +82,30 @@ func WithRecorder(recorder func() *audit.Recorder) Option {
 	}
 }
 
+type RateLimitOptions struct {
+	Limiter   ratelimit.Limiter
+	Costs     ratelimit.CostTable
+	IPProfile ratelimit.Profile
+	Trusted   []netip.Prefix
+	Bypass    []netip.Prefix
+}
+
+func WithRateLimit(o RateLimitOptions) Option {
+	return func(server *Server) {
+		server.rateLimit = &middleware.RateLimitConfig{
+			Limiter:     o.Limiter,
+			Costs:       o.Costs,
+			IPProfile:   o.IPProfile,
+			Trusted:     o.Trusted,
+			Bypass:      o.Bypass,
+			CategoryFor: categoryForRequest,
+			Exempt: func(r *http.Request) bool {
+				return r.URL.Path == HealthCheckRoute || r.URL.Path == AboutRoute
+			},
+		}
+	}
+}
+
 func NewServer(current func() TokenService, opts ...Option) *Server {
 	s := &Server{
 		current: current,
@@ -119,11 +147,14 @@ func (s *Server) Routes() http.Handler {
 		}
 	}
 
-	return middleware.RecoverMiddleware(
-		middleware.CorrelationIDMiddleware(
-			middleware.LoggingMiddleware(mux),
-		),
-	)
+	var handler http.Handler = mux
+	if s.rateLimit != nil {
+		handler = middleware.RateLimitMiddleware(*s.rateLimit)(handler)
+	}
+	handler = middleware.LoggingMiddleware(handler)
+	handler = middleware.CorrelationIDMiddleware(handler)
+	handler = middleware.RecoverMiddleware(handler)
+	return handler
 }
 
 func (s *Server) record(ctx context.Context, action core.AuditAction, outcome core.Outcome, opts ...audit.Option) {
@@ -137,4 +168,30 @@ func (s *Server) record(ctx context.Context, action core.AuditAction, outcome co
 	if err := rec.Record(ctx, action, outcome, opts...); err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("audit record failed")
 	}
+}
+
+func categoryForRequest(r *http.Request) ratelimit.Category {
+	switch r.URL.Path {
+	case IssueTokenRoute:
+		return ratelimit.CategoryIssue
+	case RevokeTokenRoute:
+		return ratelimit.CategoryRevoke
+	case ExplainRoute:
+		return ratelimit.CategoryExplain
+	case ProvidersRoute:
+		return ratelimit.CategoryProviders
+	case ResolveRoute:
+		return ratelimit.CategoryResolve
+	case LoginRoute:
+		return ratelimit.CategorySessionLogin
+	case WebhookGitHubRoute:
+		return ratelimit.CategoryWebhook
+	}
+	switch {
+	case strings.HasPrefix(r.URL.Path, AuditParent):
+		return ratelimit.CategoryAudit
+	case strings.HasPrefix(r.URL.Path, TaskParent):
+		return ratelimit.CategoryTaskTrigger
+	}
+	return ratelimit.CategoryDefault
 }

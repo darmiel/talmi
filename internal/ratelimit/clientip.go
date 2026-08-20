@@ -9,7 +9,7 @@ import (
 // ClientIP derives the real client address.
 func ClientIP(r *http.Request, trusted []netip.Prefix) string {
 	peer := peerAddr(r.RemoteAddr)
-	if !peer.IsValid() || !isTrusted(peer, trusted) {
+	if !peer.IsValid() || !InPrefixes(peer, trusted) {
 		return addrString(peer, r.RemoteAddr)
 	}
 
@@ -25,7 +25,7 @@ func ClientIP(r *http.Request, trusted []netip.Prefix) string {
 
 	// rightmost hop that is NOT trusted is the client IP
 	for i := len(hops) - 1; i >= 0; i-- {
-		if !isTrusted(hops[i], trusted) {
+		if !InPrefixes(hops[i], trusted) {
 			return hops[i].String()
 		}
 	}
@@ -62,8 +62,9 @@ func parseHops(xff string) []netip.Addr {
 	return hops
 }
 
-func isTrusted(a netip.Addr, trusted []netip.Prefix) bool {
-	for _, p := range trusted {
+// InPrefixes reports whether a is contained in any of the prefixes.
+func InPrefixes(a netip.Addr, prefixes []netip.Prefix) bool {
+	for _, p := range prefixes {
 		if p.Contains(a) {
 			return true
 		}

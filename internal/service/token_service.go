@@ -17,6 +17,7 @@ import (
 	"github.com/darmiel/talmi/internal/audit"
 	"github.com/darmiel/talmi/internal/core"
 	"github.com/darmiel/talmi/internal/engine"
+	"github.com/darmiel/talmi/internal/ratelimit"
 	"github.com/darmiel/talmi/internal/resolver"
 )
 
@@ -33,6 +34,10 @@ type TokenService struct {
 	leaseStore    core.LeaseStore
 	recorder      recorder
 	revision      string
+
+	limiter          ratelimit.Limiter
+	principalProfile ratelimit.Profile
+	costs            ratelimit.CostTable
 }
 
 type ExplainResponse struct {
@@ -42,6 +47,16 @@ type ExplainResponse struct {
 	PlanError string // set when PlanOnly failed (e.g. no provider can serve)
 }
 
+type Option func(*TokenService)
+
+func WithRateLimiter(limiter ratelimit.Limiter, profile ratelimit.Profile, costs ratelimit.CostTable) Option {
+	return func(s *TokenService) {
+		s.limiter = limiter
+		s.principalProfile = profile
+		s.costs = costs
+	}
+}
+
 func NewTokenService(
 	issuers IssuerResolver,
 	policyManager *engine.PolicyManager,
@@ -49,15 +64,22 @@ func NewTokenService(
 	leaseStore core.LeaseStore,
 	recorder recorder,
 	revision string,
+	opts ...Option,
 ) *TokenService {
-	return &TokenService{
+	s := &TokenService{
 		issuers:       issuers,
 		policyManager: policyManager,
 		resolver:      res,
 		leaseStore:    leaseStore,
 		recorder:      recorder,
 		revision:      revision,
+		limiter:       ratelimit.NewNopLimiter(),
+		costs:         ratelimit.DefaultCosts(),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*IssueResponse, error) {
@@ -71,8 +93,11 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		decision  *core.Decision
 		outcome   = core.OutcomeFailure
 		auditErr  error
+		admitted  bool
+		rlKey     ratelimit.Key
 	)
 	defer func() {
+		// create audit entry
 		opts := []audit.Option{
 			audit.WithActor(principal),
 			audit.WithRevision(s.revision),
@@ -87,6 +112,14 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		}
 		if err := s.recorder.Record(ctx, core.ActionLeaseIssue, outcome, opts...); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for lease issuance")
+		}
+
+		// charge rate limit
+		if admitted {
+			cost := s.costs.Cost(ratelimit.CategoryIssue, ratelimit.ClassFromOutcome(outcome))
+			if chargeErr := s.limiter.Charge(ctx, rlKey, cost); chargeErr != nil {
+				logger.Error().Err(chargeErr).Msg("ratelimit: principal charge failed")
+			}
 		}
 	}()
 
@@ -106,6 +139,19 @@ func (s *TokenService) IssueLease(ctx context.Context, req IssueRequest) (*Issue
 		auditErr = fmt.Errorf("verification failed: %w", err)
 		return nil, httpError(http.StatusUnauthorized, auditErr)
 	}
+
+	// check rate limit for this principal (charge happens after the request is completed)
+	rlKey = principalKey(principal, s.principalProfile)
+	if d, admitErr := s.limiter.Admit(ctx, rlKey); admitErr != nil {
+		// fail open here
+		logger.Error().Err(admitErr).Msg("ratelimit: principal admit failed, allowing request")
+		admitted = true
+	} else if !d.Allowed {
+		outcome = core.OutcomeFailure
+		auditErr = fmt.Errorf("rate limit exceeded for principal %s", principal.ID)
+		return nil, httpError(http.StatusTooManyRequests, auditErr)
+	}
+	admitted = true
 
 	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
 		return c.Str("sub", principal.ID)
@@ -213,6 +259,8 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 		outcome   = core.OutcomeFailure
 		auditErr  error
 		meta      = map[string]any{}
+		admitted  bool
+		rlKey     ratelimit.Key
 	)
 	defer func() {
 		if err := s.recorder.Record(ctx, core.ActionLeaseRevoke, outcome,
@@ -222,6 +270,13 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 			audit.WithError(auditErr),
 		); err != nil {
 			logger.Error().Err(err).Msg("failed to write audit log entry for lease revocation")
+		}
+
+		if admitted {
+			cost := s.costs.Cost(ratelimit.CategoryResolve, ratelimit.ClassFromOutcome(outcome))
+			if chargeErr := s.limiter.Charge(ctx, rlKey, cost); chargeErr != nil {
+				logger.Error().Err(chargeErr).Msg("ratelimit: principal charge failed")
+			}
 		}
 	}()
 
@@ -237,6 +292,18 @@ func (s *TokenService) RevokeLease(ctx context.Context, req RevokeRequest) (*Rev
 
 	principal = &core.Principal{ID: lease.PrincipalID, Issuer: lease.Issuer}
 	meta["lease_id"] = lease.ID
+
+	rlKey = principalKey(principal, s.principalProfile)
+	if d, admitErr := s.limiter.Admit(ctx, rlKey); admitErr != nil {
+		// fail open here
+		logger.Error().Err(admitErr).Msg("ratelimit: principal admit failed, allowing request")
+		admitted = true
+	} else if !d.Allowed {
+		outcome = core.OutcomeFailure
+		auditErr = fmt.Errorf("rate limit exceeded for principal %s", principal.ID)
+		return nil, httpError(http.StatusTooManyRequests, auditErr)
+	}
+	admitted = true
 
 	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
 		return c.Str("sub", lease.PrincipalID).Str("lease_id", lease.ID)
@@ -308,6 +375,27 @@ func (s *TokenService) Explain(ctx context.Context, req IssueRequest) (*ExplainR
 	if err != nil {
 		return nil, httpError(http.StatusUnauthorized, fmt.Errorf("verification failed: %w", err))
 	}
+
+	// check rate limit for this principal
+	rlKey := principalKey(principal, s.principalProfile)
+	admitted := false
+	defer func() {
+		if admitted {
+			cost := s.costs.Cost(ratelimit.CategoryExplain, ratelimit.ClassFromOutcome(core.OutcomeSuccess))
+			if chargeErr := s.limiter.Charge(ctx, rlKey, cost); chargeErr != nil {
+				log.Ctx(ctx).Error().Err(chargeErr).Msg("ratelimit: principal charge failed")
+			}
+		}
+	}()
+	if d, admitErr := s.limiter.Admit(ctx, rlKey); admitErr != nil {
+		// fail open here
+		log.Ctx(ctx).Error().Err(admitErr).Msg("ratelimit: principal admit failed, allowing request")
+	} else if !d.Allowed {
+		return nil, httpError(http.StatusTooManyRequests,
+			fmt.Errorf("rate limit exceeded for principal %s", principal.ID))
+	}
+	admitted = true
+
 	decision := s.policyManager.GetEngine().Authorize(principal, req.Resources)
 	resp := &ExplainResponse{
 		Principal: principal,
@@ -388,4 +476,8 @@ func randomSecret() (string, error) {
 		return "", fmt.Errorf("crypto error: %w", err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func principalKey(p *core.Principal, profile ratelimit.Profile) ratelimit.Key {
+	return ratelimit.PrincipalKey(p.Issuer, p.ID, profile)
 }
