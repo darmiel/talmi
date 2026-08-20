@@ -13,7 +13,7 @@ Set `discovery` on a realm's (or an instance's) `capability` block:
 |------------------------|------------------------------------------------------------------------------|
 | `static`               | exactly the declared `resources` + `max_actions` (no live discovery)         |
 | `api`                  | discovered live from the backend (e.g. a GitHub App's installations + perms) |
-| `api` + declared lists | **discovered ∩ declared** — the declared lists are a ceiling on discovery    |
+| `api` + declared lists | **discovered ∩ declared**: the declared lists are a ceiling on discovery     |
 
 When `discovery` is unset, the default is **type-aware**: backends that support live discovery
 (`github-app`) default to `api`; those that don't (`artifactory`) are always `static`.
@@ -139,3 +139,8 @@ Would mint
 ```
 
 None of these mint a token, change policy state, or write a lease.
+
+## See also
+
+- How-to: [Set up a GitHub App provider](../how-to/github-app-provider.md)
+- Reference: [Realm and provider types](../reference/realms.md)

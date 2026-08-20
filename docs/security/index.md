@@ -1,9 +1,25 @@
 # Security model
 
 
-Talmi decides who may mint which downstream tokens, so its security properties are worth
-understanding. The two pages after this cover the config-source trust boundary and a checklist for
-public exposure.
+Talmi decides who may mint which downstream tokens, so its security properties are worth understanding. This page covers
+the built-in guarantees; [Config source trust](trust-model.md) and
+[Auditing](auditing.md) go deeper on those two areas.
+
+## Hardening checklist for public exposure
+
+Before putting Talmi on a public network:
+
+- [ ] **Rate limiting on**, with `trusted_proxies` set if you run behind an ingress.
+  See [Configure rate limiting](../how-to/rate-limiting.md).
+- [ ] **TLS at the edge.** Talmi speaks plaintext HTTP; terminate TLS at the ingress or load balancer.
+- [ ] **Secrets as refs**, never inline: `file:` or `env:`, not `raw:`. See [Secrets](../reference/secrets.md).
+- [ ] **A stable signing key** (`ES256` from a mounted PEM), not the `--dev` ephemeral key.
+  See [Enable admin access](../how-to/enable-admin-access.md).
+- [ ] **The config source locked down**: review-gated branch, least-privilege App.
+  See [Config source trust](trust-model.md).
+- [ ] **PostgreSQL store and auditor** so leases and the audit log survive restarts.
+  See [Run with PostgreSQL](../how-to/postgres.md).
+- [ ] **`config vet` clean** in CI before every deploy.
 
 
 ## Default deny
@@ -35,7 +51,7 @@ in the same realm.
 
 ## Secrets
 
-Credentials are never inline; they are [`secret.Ref`s](../configuration/secrets.md) resolved at load
+Credentials are never inline; they are [`secret.Ref`s](../reference/secrets.md) resolved at load
 time and never logged. Error messages reference the scheme or variable name, not the value. Minted
 token values are never persisted - only a SHA-256 fingerprint (for tracing) and a hash of the
 revocation secret.
@@ -53,5 +69,5 @@ error detail is logged, never returned.
 
 ## Sessions
 
-Admin session JWTs are signed with a pinned algorithm (`keyfunc` rejects a mismatched `alg`), so there
-is no algorithm-confusion or `alg=none` bypass. See [Sessions and admin](../operations/sessions-and-admin.md).
+Admin session JWTs are signed with a pinned algorithm (`keyfunc` rejects a mismatched `alg`), so there is no
+algorithm-confusion or `alg=none` bypass. See [Sessions and admin](../how-to/enable-admin-access.md).

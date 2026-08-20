@@ -58,37 +58,48 @@ exclude_docs: |
   superpowers/
 
 nav:
-  - Introduction: index.md
-  - Getting started:
+  - Introduction:
+      - Overview: index.md
+      - Background: introduction/background.md
+  - Get started:
       - Installation: getting-started/installation.md
-      - Quick start: getting-started/quick-start.md
+      - Quickstart: getting-started/quick-start.md
       - Testing with a mock OIDC issuer: getting-started/testing-oidc.md
+  - How-to guides:
+      - Set up a GitHub Actions OIDC issuer: how-to/github-actions-issuer.md
+      - Set up a generic OIDC issuer: how-to/oidc-issuer.md
+      - Set up a GitHub App provider: how-to/github-app-provider.md
+      - Set up an Artifactory provider: how-to/artifactory-provider.md
+      - Write and test policy rules: how-to/write-rules.md
+      - Enable admin access: how-to/enable-admin-access.md
+      - Use a remote config source: how-to/config-source-github.md
+      - Configure rate limiting: how-to/rate-limiting.md
+      - Run with PostgreSQL: how-to/postgres.md
+      - Deploy to Kubernetes: how-to/deploy-kubernetes.md
   - Concepts:
-      - concepts/index.md
+      - How Talmi works: concepts/index.md
       - Issuers and principals: concepts/issuers-and-principals.md
       - Realms and providers: concepts/realms-and-providers.md
       - Resources, actions, rules: concepts/resources-actions-rules.md
       - Conditions: concepts/conditions.md
-      - Leases and revocation: concepts/leases.md
       - Capabilities and discovery: concepts/capabilities.md
-  - Configuration:
-      - Layout and trust model: configuration/layout.md
-      - Bootstrap (talmi.yaml): configuration/bootstrap.md
-      - Issuers: configuration/issuers.md
-      - Realms and providers: configuration/realms.md
-      - Rules: configuration/rules.md
-      - Secrets: configuration/secrets.md
-      - Config sources: configuration/sources.md
-      - Validation: configuration/validation.md
-  - Operations:
-      - Running the server: operations/server.md
-      - Deployment: operations/deployment.md
-      - Sessions and admin: operations/sessions-and-admin.md
-      - Auditing: operations/auditing.md
-  - Security:
-      - security/index.md
-      - Config source trust: security/trust-model.md
-      - Rate limiting: security/rate-limiting.md
-  - CLI reference: cli.md
+      - Leases and revocation: concepts/leases.md
+      - Configuration model and trust: concepts/configuration-model.md
   - Reference:
+      - Bootstrap (talmi.yaml): reference/bootstrap.md
+      - Issuer types: reference/issuers.md
+      - Realm and provider types: reference/realms.md
+      - Rules and conditions: reference/rules.md
+      - Secrets: reference/secrets.md
+      - Config sources: reference/config-sources.md
+      - Validation and config vet: reference/validation.md
+      - Running the server: reference/server.md
+      - CLI: cli.md
+      - Audit events: reference/audit-events.md
+      - Rate limiting: reference/rate-limiting.md
       - JSON schema: reference/json-schema.md
+      - Glossary: reference/glossary.md
+  - Security:
+      - Overview: security/index.md
+      - Config source trust: security/trust-model.md
+      - Auditing: security/auditing.md

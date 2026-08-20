@@ -114,5 +114,5 @@ talmi lease explain --resource "ghes-corp:acme/svc-a=contents:write" --token dev
 
 
 - How it works: [Concepts](../concepts/index.md).
-- Configure real issuers and providers: [Configuration](../configuration/layout.md).
-- Run it for real: [Operations](../operations/server.md).
+- Configure real issuers and providers: [Configuration](../concepts/configuration-model.md).
+- Run it for real: [Operations](../reference/server.md).

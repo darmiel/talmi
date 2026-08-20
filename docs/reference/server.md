@@ -20,13 +20,13 @@ Global flags (`--log-level`, `--log-format`, `--no-color`) apply too.
 
 ## Dev mode
 
-`--dev` replaces every provider with an in-memory stub that returns dummy tokens, and skips the
-startup config-error gate. There is no code path that builds a real provider under `--dev`, so you
-can exercise policy and leases with no GitHub or Artifactory credentials. Without a configured
-signing key, `--dev` generates an ephemeral ES256 key (sessions won't survive a restart).
+`--dev` replaces every provider with an in-memory stub that returns dummy tokens, and skips the startup config-error
+gate. There is no code path that builds a real provider under `--dev`, so you can exercise policy and leases with no
+GitHub or Artifactory credentials. Without a configured signing key, `--dev` generates an ephemeral ES256 key (sessions
+won't survive a restart).
 
-This is why `lease explain` (policy only) can succeed while `lease issue` fails under `--dev`: a
-pure-`api` realm's stub advertises no capability, so the resolver finds no provider to mint from. See
+This is why `lease explain` (policy only) can succeed while `lease issue` fails under `--dev`: a pure-`api` realm's stub
+advertises no capability, so the resolver finds no provider to mint from. See
 [Capabilities](../concepts/capabilities.md).
 
 ## Endpoints
@@ -47,9 +47,9 @@ The HTTP surface (all under `/v2`, except health):
 | `GET/POST /v2/tasks/...`                       | Background task inspection/trigger (admin).  |
 
 Admin endpoints are guarded per-handler by a session + a `talmi:*` authorization. See
-[Sessions and admin](sessions-and-admin.md).
+[Sessions and admin](../how-to/enable-admin-access.md).
 
 ## Shutdown
 
-`SIGINT`/`SIGTERM` triggers a graceful shutdown: the listener stops, in-flight requests drain, and
-background tasks finish before exit.
+`SIGINT`/`SIGTERM` triggers a graceful shutdown: the listener stops, in-flight requests drain, and background tasks
+finish before exit.

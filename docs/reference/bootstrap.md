@@ -54,11 +54,11 @@ rules: { include: [ "rules.d/*.yaml" ] }
 | `audit`                        | Audit log. `enabled`, `type`, `dsn`, `retention` (a duration; `0`/unset keeps forever), `sinks`.                    |
 | `signing`                      | Session JWT signing key. `ES256` (EC PEM) or `HS256` (raw secret).                                                  |
 | `auth`                         | Admin API. Names a `login_issuer` and `session_issuer`, plus OAuth `server`/`client_id`/`scopes` and `session_ttl`. |
-| `rate_limit`                   | Per-IP and per-principal throttling of the public endpoint. See [Rate limiting](../security/rate-limiting.md).      |
-| `source`                       | Local includes or a remote GitHub source. See [Config sources](sources.md).                                         |
+| `rate_limit`                   | Per-IP and per-principal throttling of the public endpoint. See [Rate limiting](../how-to/rate-limiting.md).        |
+| `source`                       | Local includes or a remote GitHub source. See [Config sources](config-sources.md).                                  |
 | `issuers` / `realms` / `rules` | Glob includes for the sourced tree.                                                                                 |
 
 Every secret-bearing value (`dsn`, `key`, provider credentials) is a [`secret.Ref`](secrets.md), not an inline literal.
 
 Postgres is not auto-migrated by the app; run migrations out of band (see
-[Deployment](../operations/deployment.md)).
+[Deployment](../how-to/deploy-kubernetes.md)).

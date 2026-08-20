@@ -1,7 +1,9 @@
 # Issuers
 
 Issuers verify the caller's upstream token. Each block lives under `issuers.d/`. See
-[Concepts > Issuers](../concepts/issuers-and-principals.md) for the model.
+[Concepts > Issuers](../concepts/issuers-and-principals.md) for the model, and the how-to guides for
+setup: [GitHub Actions OIDC](../how-to/github-actions-issuer.md),
+[generic OIDC](../how-to/oidc-issuer.md), [admin access](../how-to/enable-admin-access.md).
 
 ## `oidc`
 
@@ -14,13 +16,13 @@ Verifies an OIDC ID token. The principal id is `sub`; attributes are all claims.
   client_id:  https://github.com/my-org                     # required (audience)
 ```
 
-By default the server fetches `<issuer_url>/.well-known/openid-configuration` at startup, so it needs
-network access to the issuer.
+By default the server fetches `<issuer_url>/.well-known/openid-configuration` at startup, so it needs network access to
+the issuer.
 
 ### Airgapped / restricted networks
 
-When discovery or the JWKS endpoint is unreachable, supply the verification keys instead. Two
-mutually-exclusive options (both keep `issuer_url` required and still enforce it as the token `iss`):
+When discovery or the JWKS endpoint is unreachable, supply the verification keys instead. Two mutually-exclusive options
+(both keep `issuer_url` required and still enforce it as the token `iss`):
 
 ```yaml
 # Fully offline: inline the JWKS JSON (a secret.Ref; mount a file with file:).
@@ -39,14 +41,14 @@ mutually-exclusive options (both keep `issuer_url` required and still enforce it
   jwks_url: https://jwks-mirror.internal/gh/jwks.json
 ```
 
-Setting both `jwks` and `jwks_url` is an error. Inline `jwks` keys are pinned - rotate them by
-updating the source and reloading. The JWKS is public-key material, and pinned keys are strictly
-safer than discovery (an attacker on the network cannot swap them).
+Setting both `jwks` and `jwks_url` is an error. Inline `jwks` keys are pinned - rotate them by updating the source and
+reloading. The JWKS is public-key material, and pinned keys are strictly safer than discovery (an attacker on the
+network cannot swap them).
 
 ## `static`
 
-Maps fixed token strings to attributes. Local development and tests only: the "token" the client
-sends is literally the map key.
+Maps fixed token strings to attributes. Local development and tests only: the "token" the client sends is literally the
+map key.
 
 ```yaml
 - name: dev-ci
@@ -57,8 +59,8 @@ sends is literally the map key.
 
 ## `github-oauth`
 
-Verifies a GitHub / GHES OAuth access token by calling the GitHub API. Backs human admin login. The
-principal id is the login; attributes include `login`, `orgs`, and `teams` (as `org/slug`).
+Verifies a GitHub / GHES OAuth access token by calling the GitHub API. Backs human admin login. The principal id is the
+login; attributes include `login`, `orgs`, and `teams` (as `org/slug`).
 
 ```yaml
 - name: gh-login

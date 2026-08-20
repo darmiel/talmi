@@ -5,8 +5,8 @@ A *realm* is a namespace of resources with its own meaning of "resource" and "ac
 is the backend that actually mints tokens for a realm. A realm block's `type` picks the backend, and
 everything a realm can ever hand out is bounded by its *capability*.
 
-This page covers the model. For the config fields (what each provider block looks like, which keys
-are required), see [Configuration > Realms and providers](../configuration/realms.md).
+This page covers the model. For the config fields (what each provider block looks like, which keys are required),
+see [Configuration > Realms and providers](../reference/realms.md).
 
 
 ## Provider types
@@ -52,3 +52,10 @@ When several instances in a realm can serve a resource, the resolver picks the o
 ceiling most tightly fits the request (then by resource breadth, then declaration order). That is why
 you can run a read-only App and a write App in the same realm: a read request goes to the read-only
 App, and the write App is only reached when a write is actually asked for.
+
+## See also
+
+-
+How-to: [GitHub App provider](../how-to/github-app-provider.md), [Artifactory provider](../how-to/artifactory-provider.md)
+- Concepts: [Capabilities and discovery](capabilities.md)
+- Reference: [Realm and provider types](../reference/realms.md)

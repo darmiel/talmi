@@ -83,5 +83,5 @@ talmi lease issue --issuer flower \
   --token "$TOKEN"
 ```
 
-Add a rule matching `issuer: flower` (with a condition on the claims you mint) to authorize the
-request - see [Rules](../configuration/rules.md).
+Add a rule matching `issuer: flower` (with a condition on the claims you mint) to authorize the request -
+see [Rules](../reference/rules.md).
