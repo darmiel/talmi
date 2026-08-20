@@ -61,7 +61,6 @@ func NewOIDCIssuer(ctx context.Context, name string, cfg config.OIDCConfig) (*OI
 			verifier: provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
 		}, nil
 	}
-
 }
 
 func (o *OIDCIssuer) Name() string {

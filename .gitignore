@@ -3,6 +3,7 @@
 *.pem
 talmi.yaml
 /demo
+.DS_Store
 
 # generated MkDocs
 /site
