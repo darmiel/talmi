@@ -200,6 +200,16 @@ func buildServerOptions(cfg *config.Config, mgr *runtime.Manager, taskMgr *tasks
 		}))
 	}
 
+	if rt := mgr.Current().RateLimit; rt != nil && rt.Enabled {
+		opts = append(opts, api.WithRateLimit(api.RateLimitOptions{
+			Limiter:   mgr.Current().Limiter,
+			Costs:     rt.Costs,
+			IPProfile: rt.IP,
+			Trusted:   rt.TrustedProxies,
+			Bypass:    rt.BypassCIDRs,
+		}))
+	}
+
 	if cfg.Auth != nil {
 		log.Info().Msg("enabling admin endpoints")
 
