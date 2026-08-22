@@ -26,6 +26,16 @@ func TestRenderAuditCardSuccess(t *testing.T) {
 		Time: now.Add(-2 * time.Minute), Actor: &core.Principal{ID: "svc-pipeline"},
 		NodeID:    "talmi-0",
 		Artifacts: []core.ArtifactAudit{{ArtifactID: "a1"}},
+		Decision: &core.Decision{
+			Authorized: true, PerRequest: []core.RequestDecision{
+				{
+					Request: core.ResourceRequest{
+						Resource: "ghes-corp:acme/svc-a",
+						Actions:  []core.Action{"contents:write"},
+					}, Covered: true,
+				},
+			},
+		},
 	}
 	renderAuditCard(p, now, e)
 
@@ -34,6 +44,8 @@ func TestRenderAuditCardSuccess(t *testing.T) {
 	is.Contains(out, "2m ago")
 	is.Contains(out, "svc-pipeline")
 	is.Contains(out, "talmi-0", "the handling node is shown on the success card")
+	is.Contains(out, "ghes-corp:acme/svc-a", "requested resources are listed")
+	is.Contains(out, "contents:write", "requested actions are shown alongside the resource")
 	is.Contains(out, "ce4fbra0mn28", "full id is copy-pasteable")
 	is.Contains(out, "1 artifact")
 	// headline + context line (+ trailing blank separator)

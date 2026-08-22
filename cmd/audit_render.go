@@ -43,6 +43,39 @@ func shortRev(rev string) string {
 	return rev
 }
 
+// requestedResources returns "resource  action1, action2" lines for each
+// resource in the event's decision.
+func requestedResources(e core.Event) []string {
+	if e.Decision == nil || len(e.Decision.PerRequest) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(e.Decision.PerRequest))
+	for _, rd := range e.Decision.PerRequest {
+		line := string(rd.Request.Resource)
+		if len(rd.Request.Actions) > 0 {
+			acts := make([]string, len(rd.Request.Actions))
+			for i, a := range rd.Request.Actions {
+				acts[i] = string(a)
+			}
+			line += "  " + strings.Join(acts, ", ")
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+func renderRequestedResources(p *ui.Printer, indent string, resources []string) {
+	if len(resources) == 0 {
+		return
+	}
+	const label = "resources"
+	p.Printf("%s%s  %s\n", indent, p.Sprint(ui.StyleDim, label), resources[0])
+	cont := strings.Repeat(" ", len(indent)+len(label)+2)
+	for _, r := range resources[1:] {
+		p.Printf("%s%s\n", cont, r)
+	}
+}
+
 // kvBlock prints "  label  value" lines with right-aligned dim labels so the
 // values form a clean left edge. Empty values are skipped. Values may already
 // carry styling (ANSI); only the label is styled here.
@@ -114,6 +147,7 @@ func renderAuditCard(p *ui.Printer, now time.Time, e core.Event) {
 		}
 		ctx += p.Sprint(ui.StyleDim, " · "+e.ID)
 		p.Printf("   %s\n", ctx)
+		renderRequestedResources(p, "   ", requestedResources(e))
 		p.Println()
 		return
 	}
@@ -144,6 +178,7 @@ func renderAuditCard(p *ui.Printer, now time.Time, e core.Event) {
 	}
 	pairs = append(pairs, [2]string{"id", p.Sprint(ui.StyleDim, e.ID)})
 	kvBlock(p, "   ", pairs)
+	renderRequestedResources(p, "   ", requestedResources(e))
 	p.Println()
 }
 

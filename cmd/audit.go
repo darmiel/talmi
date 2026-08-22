@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bytes"
+	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -31,6 +33,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 		sessionID   string
 		nodeID      string
 		outcome     string
+		noPager     bool
 	)
 
 	cmd := &cobra.Command{
@@ -51,6 +54,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 	cmd.Flags().StringVar(&sessionID, "session-id", "", "filter by session id")
 	cmd.Flags().StringVar(&nodeID, "node", "", "filter by node id")
 	cmd.Flags().StringVar(&outcome, "outcome", "", "filter by outcome (success, failure, denied)")
+	cmd.Flags().BoolVar(&noPager, "no-pager", false, "do not page output through $PAGER even on a terminal")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		c, err := deps.NewClient()
@@ -73,6 +77,10 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 		if err != nil {
 			return clientError(err, correlation)
 		}
+		// oldest first
+		sort.SliceStable(entries, func(i, j int) bool {
+			return entries[i].Time.Before(entries[j].Time)
+		})
 		if *jsonOut {
 			return emitJSON(deps, entries)
 		}
@@ -81,13 +89,14 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 			return nil
 		}
 
-		p := ui.New(deps.IO.Out, deps.IO.Color)
+		var buf bytes.Buffer
+		p := ui.New(&buf, deps.IO.Color)
 		renderAuditSummary(p, entries, auditFilterSummary(filter))
 		now := time.Now()
 		for _, e := range entries {
 			renderAuditCard(p, now, e)
 		}
-		return nil
+		return pageOutput(deps, noPager, buf.String())
 	}
 	return cmd
 }
