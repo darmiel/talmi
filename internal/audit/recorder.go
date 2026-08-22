@@ -13,12 +13,14 @@ import (
 
 type Recorder struct {
 	auditor core.Auditor
+	nodeID  string
 	sinks   []Sink
 }
 
-func NewRecorder(auditor core.Auditor, sinks ...Sink) *Recorder {
+func NewRecorder(auditor core.Auditor, nodeID string, sinks ...Sink) *Recorder {
 	return &Recorder{
 		auditor: auditor,
+		nodeID:  nodeID,
 		sinks:   sinks,
 	}
 }
@@ -66,6 +68,7 @@ func (r *Recorder) Record(ctx context.Context, action core.AuditAction, outcome 
 		Outcome:   outcome,
 		RequestID: correlation.From(ctx),
 		SessionID: correlation.SessionFrom(ctx),
+		NodeID:    r.nodeID,
 	}
 	for _, opt := range opts {
 		opt(&e)

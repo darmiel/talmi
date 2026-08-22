@@ -23,6 +23,7 @@ func TestInMemoryAuditorQuery(t *testing.T) {
 			Outcome:   core.OutcomeSuccess,
 			RequestID: "req1",
 			SessionID: "sess1",
+			NodeID:    "node-a",
 			Actor:     &core.Principal{ID: "alice"},
 			Artifacts: []core.ArtifactAudit{{ArtifactID: "a1", Fingerprint: "fp1"}},
 		},
@@ -33,6 +34,7 @@ func TestInMemoryAuditorQuery(t *testing.T) {
 			Outcome:   core.OutcomeFailure,
 			RequestID: "req2",
 			SessionID: "sess2",
+			NodeID:    "node-b",
 			Actor:     &core.Principal{ID: "bob"},
 		},
 		{
@@ -41,6 +43,7 @@ func TestInMemoryAuditorQuery(t *testing.T) {
 			Action:    core.ActionLeaseIssue,
 			Outcome:   core.OutcomeDenied,
 			RequestID: "req1",
+			NodeID:    "node-a",
 			Actor:     &core.Principal{ID: "alice"},
 		},
 	}
@@ -56,6 +59,7 @@ func TestInMemoryAuditorQuery(t *testing.T) {
 		{"by request id", core.AuditFilter{RequestID: "req1"}, []string{"e1", "e3"}},
 		{"by session id", core.AuditFilter{SessionID: "sess2"}, []string{"e2"}},
 		{"by actor id", core.AuditFilter{ActorID: "bob"}, []string{"e2"}},
+		{"by node", core.AuditFilter{NodeID: "node-a"}, []string{"e1", "e3"}},
 		{"by id", core.AuditFilter{ID: "e2"}, []string{"e2"}},
 		{"by fingerprint", core.AuditFilter{Fingerprint: "fp1"}, []string{"e1"}},
 		{"since inclusive lower bound", core.AuditFilter{Since: base.Add(time.Hour)}, []string{"e2", "e3"}},

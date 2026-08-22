@@ -19,6 +19,7 @@ func TestEventJSONRoundTrip(t *testing.T) {
 		Outcome:   OutcomeSuccess,
 		RequestID: "req1",
 		SessionID: "sess1",
+		NodeID:    "node-a",
 		Actor:     &Principal{ID: "svc"},
 		Artifacts: []ArtifactAudit{{ArtifactID: "a1", Provider: "github"}},
 	}
@@ -33,6 +34,17 @@ func TestEventJSONRoundTrip(t *testing.T) {
 	is.Equal(OutcomeSuccess, got.Outcome)
 	is.Equal("req1", got.RequestID)
 	is.Equal("sess1", got.SessionID)
+	is.Equal("node-a", got.NodeID)
 	must.Len(got.Artifacts, 1)
 	is.Equal("a1", got.Artifacts[0].ArtifactID)
+}
+
+func TestEventNodeOmittedWhenEmpty(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	b, err := json.Marshal(Event{ID: "e1"})
+	must.NoError(err)
+	is.NotContains(string(b), "node_id", "an empty node id must be omitted from JSON")
 }

@@ -20,6 +20,10 @@ type Config struct {
 	Auth         *AuthConfig      `yaml:"auth,omitempty"`
 	RateLimit    *RateLimitConfig `yaml:"rate_limit,omitempty"`
 
+	// NodeID is a stable identifier for this node, used in distributed locking and audit.
+	// If empty, will use the hostname.
+	NodeID string `yaml:"node_id,omitempty"`
+
 	// Local sourced sections
 	Issuers Includes `yaml:"issuers"`
 	Realms  Includes `yaml:"realms"`

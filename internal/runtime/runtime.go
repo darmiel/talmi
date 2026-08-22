@@ -44,6 +44,7 @@ type Runtime struct {
 	Revision            string
 	Limiter             ratelimit.Limiter
 	RateLimit           *RateLimitRuntime
+	NodeID              string
 }
 
 // ProviderDescriptor is static metadata about one built provider instance.
@@ -77,6 +78,7 @@ type stable struct {
 	signer    *issuers.SessionSigner
 	limiter   ratelimit.Limiter
 	rateLimit *RateLimitRuntime
+	nodeID    string
 }
 
 func (s stable) Close() error {
@@ -126,6 +128,7 @@ func buildStable(ctx context.Context, cfg *config.Config, dev bool) (*stable, er
 		signer:    signer,
 		limiter:   limiter,
 		rateLimit: rateLimit,
+		nodeID:    config.ResolveNodeID(cfg.NodeID),
 	}, nil
 }
 
@@ -187,7 +190,7 @@ func buildReloadable(
 	}
 	policy := engine.NewManager(validRules, realms)
 	res := resolver.New(providers, realms)
-	rec := audit.NewRecorder(stable.auditor, stable.sinks...)
+	rec := audit.NewRecorder(stable.auditor, stable.nodeID, stable.sinks...)
 
 	var svcOpts []service.Option
 	if stable.rateLimit != nil && stable.rateLimit.Enabled {
@@ -210,6 +213,7 @@ func buildReloadable(
 		Providers:           providers,
 		ProviderDescriptors: descriptors,
 		Revision:            revision,
+		NodeID:              stable.nodeID,
 	}, nil
 }
 

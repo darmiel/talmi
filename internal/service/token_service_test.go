@@ -90,7 +90,7 @@ func setup(
 			principal: principal,
 			err:       verifyErr,
 		},
-	}, pm, res, leaseStore, audit.NewRecorder(auditor), "rev-1", opts...)
+	}, pm, res, leaseStore, audit.NewRecorder(auditor, ""), "rev-1", opts...)
 	return svc, auditor
 }
 
@@ -455,7 +455,7 @@ func TestRevokeLeasePartialFailureIsResumable(t *testing.T) {
 	mem := store.NewMemoryLeaseStore()
 	svc := NewTokenService(
 		fakeIssuers{issuer: fakeIssuer{principal: principal}},
-		pm, res, mem, audit.NewRecorder(&fakeAuditor{}), "rev-1",
+		pm, res, mem, audit.NewRecorder(&fakeAuditor{}, ""), "rev-1",
 	)
 
 	issued, err := svc.IssueLease(context.Background(), IssueRequest{
@@ -515,7 +515,7 @@ func TestIssueNestsArtifactsInAudit(t *testing.T) {
 	auditor := audit.NewInMemoryAuditor()
 	svc := NewTokenService(
 		fakeIssuers{issuer: fakeIssuer{principal: principal}},
-		pm, res, mem, audit.NewRecorder(auditor), "rev-1",
+		pm, res, mem, audit.NewRecorder(auditor, ""), "rev-1",
 	)
 
 	issued, err := svc.IssueLease(context.Background(), readRequest())
@@ -570,7 +570,7 @@ func TestIssueDeniedWritesSingleAuditEntry(t *testing.T) {
 	auditor := audit.NewInMemoryAuditor()
 	svc := NewTokenService(
 		fakeIssuers{issuer: fakeIssuer{principal: principal}},
-		pm, res, mem, audit.NewRecorder(auditor), "rev-1",
+		pm, res, mem, audit.NewRecorder(auditor, ""), "rev-1",
 	)
 
 	reqs := make([]core.ResourceRequest, 0, 10)

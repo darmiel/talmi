@@ -53,10 +53,10 @@ func (a *Auditor) Log(ctx context.Context, event core.Event) error {
 	}(tx, ctx)
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO audit_log (id, time, action, outcome, actor_id, request_id, session_id, revision, error, entry)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		INSERT INTO audit_log (id, time, action, outcome, actor_id, request_id, session_id, node_id, revision, error, entry)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		stored.ID, stored.Time, stored.Action, stored.Outcome, actorID,
-		stored.RequestID, stored.SessionID, stored.Revision, stored.Error, stored,
+		stored.RequestID, stored.SessionID, stored.NodeID, stored.Revision, stored.Error, stored,
 	); err != nil {
 		return fmt.Errorf("writing audit entry: %w", err)
 	}
@@ -174,6 +174,9 @@ func auditWhere(f core.AuditFilter) (conds []string, args []any) {
 	}
 	if f.SessionID != "" {
 		add("session_id", f.SessionID)
+	}
+	if f.NodeID != "" {
+		add("node_id", f.NodeID)
 	}
 	if f.Fingerprint != "" {
 		args = append(args, f.Fingerprint)

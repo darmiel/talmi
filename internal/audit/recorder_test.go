@@ -30,7 +30,7 @@ func TestRecorderFillsFromContext(t *testing.T) {
 	must := require.New(t)
 
 	capt := &capturingAuditor{}
-	r := NewRecorder(capt)
+	r := NewRecorder(capt, "")
 
 	ctx := correlation.WithSession(correlation.With(context.Background(), "req1"), "sess1")
 	err := r.Record(ctx, core.ActionSessionLogin, core.OutcomeSuccess,
@@ -58,7 +58,7 @@ func TestRecorderOptions(t *testing.T) {
 		must := require.New(t)
 
 		capt := &capturingAuditor{}
-		r := NewRecorder(capt)
+		r := NewRecorder(capt, "")
 
 		must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeFailure,
 			WithError(errors.New("boom"))))
@@ -72,7 +72,7 @@ func TestRecorderOptions(t *testing.T) {
 		must := require.New(t)
 
 		capt := &capturingAuditor{}
-		r := NewRecorder(capt)
+		r := NewRecorder(capt, "")
 
 		must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess,
 			WithError(nil)))
@@ -86,7 +86,7 @@ func TestRecorderOptions(t *testing.T) {
 		must := require.New(t)
 
 		capt := &capturingAuditor{}
-		r := NewRecorder(capt)
+		r := NewRecorder(capt, "")
 
 		must.NoError(r.Record(context.Background(), core.ActionTaskTrigger, core.OutcomeSuccess,
 			WithRevision("rev9"),
@@ -100,6 +100,19 @@ func TestRecorderOptions(t *testing.T) {
 		must.Len(e.Artifacts, 1)
 		is.Equal("a1", e.Artifacts[0].ArtifactID)
 	})
+}
+
+func TestRecorderStampsNode(t *testing.T) {
+	t.Parallel()
+	is := assert.New(t)
+	must := require.New(t)
+
+	capt := &capturingAuditor{}
+	r := NewRecorder(capt, "node-x")
+
+	must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess))
+	must.Len(capt.logged, 1)
+	is.Equal("node-x", capt.logged[0].NodeID, "the recorder must stamp its node id on every event")
 }
 
 type captureSink struct {
@@ -120,7 +133,7 @@ func TestRecorderFansOutToSinks(t *testing.T) {
 
 	auditor := &capturingAuditor{}
 	sink := &captureSink{}
-	r := NewRecorder(auditor, sink)
+	r := NewRecorder(auditor, "", sink)
 
 	must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess))
 	must.Len(auditor.logged, 1)
@@ -134,7 +147,7 @@ func TestRecorderSinkFailureIsIsolated(t *testing.T) {
 
 	auditor := &capturingAuditor{}
 	sink := &captureSink{err: errors.New("sink down")}
-	r := NewRecorder(auditor, sink)
+	r := NewRecorder(auditor, "", sink)
 
 	must.NoError(r.Record(context.Background(), core.ActionLeaseIssue, core.OutcomeSuccess),
 		"a failing sink must not fail the record call")

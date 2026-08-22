@@ -7,17 +7,19 @@ import (
 )
 
 func matchFilter(e core.Event, f core.AuditFilter) bool {
+	for _, p := range []struct{ want, got string }{
+		{f.ID, e.ID},
+		{string(f.Action), string(e.Action)},
+		{string(f.Outcome), string(e.Outcome)},
+		{f.RequestID, e.RequestID},
+		{f.SessionID, e.SessionID},
+		{f.NodeID, e.NodeID},
+	} {
+		if p.want != "" && p.got != p.want {
+			return false
+		}
+	}
 	switch {
-	case f.ID != "" && e.ID != f.ID:
-		return false
-	case f.Action != "" && e.Action != f.Action:
-		return false
-	case f.Outcome != "" && e.Outcome != f.Outcome:
-		return false
-	case f.RequestID != "" && e.RequestID != f.RequestID:
-		return false
-	case f.SessionID != "" && e.SessionID != f.SessionID:
-		return false
 	case f.ActorID != "" && (e.Actor == nil || e.Actor.ID != f.ActorID):
 		return false
 	case f.Fingerprint != "" && !slices.ContainsFunc(e.Artifacts, func(a core.ArtifactAudit) bool {

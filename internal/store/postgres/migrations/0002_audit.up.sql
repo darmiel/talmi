@@ -8,6 +8,7 @@ CREATE TABLE audit_log
     actor_id   TEXT        NOT NULL DEFAULT '',
     request_id TEXT        NOT NULL DEFAULT '',
     session_id TEXT        NOT NULL DEFAULT '',
+    node_id TEXT NOT NULL DEFAULT '',
     revision   TEXT        NOT NULL DEFAULT '',
     error      TEXT        NOT NULL DEFAULT '',
     entry      JSONB       NOT NULL
@@ -18,6 +19,7 @@ CREATE INDEX idx_audit_request ON audit_log (request_id);
 CREATE INDEX idx_audit_session ON audit_log (session_id);
 CREATE INDEX idx_audit_actor ON audit_log (actor_id);
 CREATE INDEX idx_audit_action ON audit_log (action);
+CREATE INDEX idx_audit_node ON audit_log (node_id) WHERE node_id <> '';
 
 CREATE TABLE audit_artifacts
 (

@@ -19,7 +19,7 @@ import (
 
 func recorderWithCapture() (*audit.Recorder, *fakeAuditor) {
 	a := &fakeAuditor{}
-	return audit.NewRecorder(a), a
+	return audit.NewRecorder(a, ""), a
 }
 
 func TestLoginEmitsAuditEvent(t *testing.T) {

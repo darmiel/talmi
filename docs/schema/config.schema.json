@@ -80,6 +80,9 @@
         "rate_limit": {
           "$ref": "#/$defs/RateLimitConfig"
         },
+        "node_id": {
+          "type": "string"
+        },
         "issuers": {
           "$ref": "#/$defs/Includes"
         },

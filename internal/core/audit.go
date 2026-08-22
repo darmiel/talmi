@@ -37,6 +37,7 @@ type Event struct {
 	Actor     *Principal     `json:"actor,omitempty"`
 	RequestID string         `json:"request_id,omitempty"`
 	SessionID string         `json:"session_id,omitempty"`
+	NodeID    string         `json:"node_id,omitempty"`
 	Revision  string         `json:"revision,omitempty"`
 	Error     string         `json:"error,omitempty"`
 	Metadata  map[string]any `json:"metadata,omitempty"`
@@ -56,6 +57,7 @@ type AuditFilter struct {
 	ID          string      `json:"id,omitempty"`
 	RequestID   string      `json:"request_id,omitempty"`
 	SessionID   string      `json:"session_id,omitempty"`
+	NodeID      string      `json:"node_id,omitempty"`
 	ActorID     string      `json:"actor_id,omitempty"`
 	Fingerprint string      `json:"fingerprint,omitempty"`
 	Action      AuditAction `json:"action,omitempty"`

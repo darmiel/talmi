@@ -51,11 +51,13 @@ func TestPostgresAuditRoundTrip(t *testing.T) {
 
 	base := time.Now().UTC().Truncate(time.Second)
 	issue := sampleEvent("e1", base, core.ActionLeaseIssue, core.OutcomeSuccess)
+	issue.NodeID = "node-a"
 	issue.Artifacts = []core.ArtifactAudit{
 		{ArtifactID: "art1", Provider: "github", Fingerprint: "fp1"},
 		{ArtifactID: "art2", Provider: "github", Fingerprint: "fp2"},
 	}
 	login := sampleEvent("e2", base.Add(time.Second), core.ActionSessionLogin, core.OutcomeFailure)
+	login.NodeID = "node-b"
 
 	must.NoError(a.Log(ctx, issue))
 	must.NoError(a.Log(ctx, login))
@@ -116,6 +118,14 @@ func TestPostgresAuditRoundTrip(t *testing.T) {
 		must.NoError(err)
 		must.Len(got, 1)
 		is.Equal("e1", got[0].ID)
+	})
+
+	t.Run("filter by node", func(t *testing.T) {
+		got, err := a.Query(ctx, core.AuditFilter{NodeID: "node-b"})
+		must.NoError(err)
+		must.Len(got, 1)
+		is.Equal("e2", got[0].ID)
+		is.Equal("node-b", got[0].NodeID, "node id must round-trip through the JSONB entry")
 	})
 
 	t.Run("limit", func(t *testing.T) {
