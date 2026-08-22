@@ -24,6 +24,7 @@ func TestRenderAuditCardSuccess(t *testing.T) {
 	e := core.Event{
 		ID: "ce4fbra0mn28", Action: core.ActionLeaseIssue, Outcome: core.OutcomeSuccess,
 		Time: now.Add(-2 * time.Minute), Actor: &core.Principal{ID: "svc-pipeline"},
+		NodeID:    "talmi-0",
 		Artifacts: []core.ArtifactAudit{{ArtifactID: "a1"}},
 	}
 	renderAuditCard(p, now, e)
@@ -32,6 +33,7 @@ func TestRenderAuditCardSuccess(t *testing.T) {
 	is.Contains(out, "lease.issue")
 	is.Contains(out, "2m ago")
 	is.Contains(out, "svc-pipeline")
+	is.Contains(out, "talmi-0", "the handling node is shown on the success card")
 	is.Contains(out, "ce4fbra0mn28", "full id is copy-pasteable")
 	is.Contains(out, "1 artifact")
 	// headline + context line (+ trailing blank separator)
@@ -48,7 +50,7 @@ func TestRenderAuditCardFailureExpands(t *testing.T) {
 	e := core.Event{
 		ID: "e2", Action: core.ActionLeaseIssue, Outcome: core.OutcomeFailure,
 		Time: now.Add(-4 * time.Minute), Actor: &core.Principal{ID: "svc", Issuer: "concourse"},
-		RequestID: "req9", Revision: "abc123", Error: "persisting lease failed: db down",
+		RequestID: "req9", Revision: "abc123", NodeID: "talmi-2", Error: "persisting lease failed: db down",
 	}
 	renderAuditCard(p, now, e)
 
@@ -57,6 +59,7 @@ func TestRenderAuditCardFailureExpands(t *testing.T) {
 	is.Contains(out, "svc (concourse)")
 	is.Contains(out, "persisting lease failed: db down")
 	is.Contains(out, "req9")
+	is.Contains(out, "talmi-2", "the handling node is shown on the failure card")
 	is.Contains(out, "e2")
 	is.Greater(strings.Count(strings.TrimRight(out, "\n"), "\n"), 0, "failure card is multi-line")
 }
@@ -89,7 +92,7 @@ func TestRenderAuditDetailSections(t *testing.T) {
 	d, out, _ := testDeps(&fakeClient{})
 	e := core.Event{
 		ID: "e1", Action: core.ActionLeaseIssue, Outcome: core.OutcomeSuccess,
-		Time: time.Now(), RequestID: "req1", Revision: "abc123",
+		Time: time.Now(), RequestID: "req1", Revision: "abc123", NodeID: "talmi-1",
 		Actor: &core.Principal{
 			ID:         "svc",
 			Issuer:     "concourse",
@@ -103,6 +106,7 @@ func TestRenderAuditDetailSections(t *testing.T) {
 
 	s := out.String()
 	is.Contains(s, "Trace")
+	is.Contains(s, "talmi-1", "the node is shown in the Trace block")
 	is.Contains(s, "Actor")
 	is.Contains(s, "concourse")
 	is.Contains(s, "acme/admins")

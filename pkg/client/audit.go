@@ -12,6 +12,7 @@ type AuditFilter struct {
 	ID          string
 	RequestID   string
 	SessionID   string
+	NodeID      string
 	ActorID     string
 	Fingerprint string
 	Action      string
@@ -26,6 +27,7 @@ func (c *Client) QueryAudit(ctx context.Context, filter AuditFilter) ([]core.Eve
 		addQueryParamNotEmpty("id", filter.ID).
 		addQueryParamNotEmpty("request_id", filter.RequestID).
 		addQueryParamNotEmpty("session_id", filter.SessionID).
+		addQueryParamNotEmpty("node_id", filter.NodeID).
 		addQueryParamNotEmpty("principal_id", filter.ActorID).
 		addQueryParamNotEmpty("fingerprint", filter.Fingerprint).
 		addQueryParamNotEmpty("action", filter.Action).

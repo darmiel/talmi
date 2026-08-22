@@ -40,8 +40,9 @@ func sampleLease(id, secret string, expiresAt time.Time) core.Lease {
 		RevocationSecret: secret,
 		Artifacts: []core.LeasedArtifact{
 			{
-				Provider: "gh-deploy",
-				Realm:    "ghes-corp",
+				ArtifactID: id + "-art",
+				Provider:   "gh-deploy",
+				Realm:      "ghes-corp",
 				Covers: []core.ResourceRequest{
 					{
 						Resource: "ghes-corp:acme/svc-a",

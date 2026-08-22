@@ -109,6 +109,9 @@ func renderAuditCard(p *ui.Printer, now time.Time, e core.Event) {
 		if n := len(e.Artifacts); n > 0 {
 			ctx += p.Sprint(ui.StyleDim, fmt.Sprintf(" · %d artifact%s", n, plural(n)))
 		}
+		if e.NodeID != "" {
+			ctx += p.Sprint(ui.StyleDim, " · "+e.NodeID)
+		}
 		ctx += p.Sprint(ui.StyleDim, " · "+e.ID)
 		p.Printf("   %s\n", ctx)
 		p.Println()
@@ -133,6 +136,7 @@ func renderAuditCard(p *ui.Printer, now time.Time, e core.Event) {
 	pairs = append(pairs,
 		[2]string{"request", e.RequestID},
 		[2]string{"session", e.SessionID},
+		[2]string{"node", e.NodeID},
 		[2]string{"revision", shortRev(e.Revision)},
 	)
 	if e.Error != "" {
@@ -160,6 +164,7 @@ func renderAuditDetail(deps Deps, e core.Event) {
 		{"time", e.Time.Local().Format("2006-01-02 15:04:05 MST") + " (" + e.Time.UTC().Format("15:04:05") + " UTC)"},
 		{"request", e.RequestID},
 		{"session", e.SessionID},
+		{"node", e.NodeID},
 		{"revision", e.Revision},
 		{"id", e.ID},
 	})
@@ -247,6 +252,7 @@ func auditFilterSummary(f client.AuditFilter) string {
 	add("principal", f.ActorID)
 	add("request", f.RequestID)
 	add("session", f.SessionID)
+	add("node", f.NodeID)
 	add("fingerprint", f.Fingerprint)
 	add("since", f.Since)
 	add("until", f.Until)

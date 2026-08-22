@@ -29,13 +29,15 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 		until       string
 		requestID   string
 		sessionID   string
+		nodeID      string
 		outcome     string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List audit entries (requires a session with talmi:audit=read)",
-		Args:  cobra.NoArgs,
+		Use:     "list",
+		Aliases: []string{"ls", "log"},
+		Short:   "List audit entries (requires a session with talmi:audit=read)",
+		Args:    cobra.NoArgs,
 	}
 
 	jsonOut := addJSONFlag(cmd)
@@ -47,6 +49,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 	cmd.Flags().StringVar(&until, "until", "", "only entries at/before this RFC3339 time")
 	cmd.Flags().StringVar(&requestID, "request-id", "", "filter by request (correlation) id")
 	cmd.Flags().StringVar(&sessionID, "session-id", "", "filter by session id")
+	cmd.Flags().StringVar(&nodeID, "node", "", "filter by node id")
 	cmd.Flags().StringVar(&outcome, "outcome", "", "filter by outcome (success, failure, denied)")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -63,6 +66,7 @@ func newAuditListCmd(deps Deps) *cobra.Command {
 			Until:       until,
 			RequestID:   requestID,
 			SessionID:   sessionID,
+			NodeID:      nodeID,
 			Outcome:     outcome,
 		}
 		entries, correlation, err := c.QueryAudit(cmd.Context(), filter)

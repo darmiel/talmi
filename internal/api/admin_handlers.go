@@ -119,6 +119,7 @@ func parseAuditFilter(q url.Values) core.AuditFilter {
 		ID:          q.Get("id"),
 		RequestID:   q.Get("request_id"),
 		SessionID:   q.Get("session_id"),
+		NodeID:      q.Get("node_id"),
 		ActorID:     q.Get("principal_id"),
 		Action:      core.AuditAction(q.Get("action")),
 		Outcome:     core.Outcome(q.Get("outcome")),
