@@ -16,7 +16,7 @@ audit:
   enabled: true
   type: postgres                 # postgres | memory | noop
   dsn: env:TALMI_AUDIT_DSN
-  retention: 90d                 # 0/unset = keep forever
+  retention: 2160h              # 90 days (0/unset = keep forever)
   connect_timeout: 10s
   sinks: [ stdout ]              # optional: export each event
 
